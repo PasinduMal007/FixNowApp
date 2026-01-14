@@ -1,0 +1,462 @@
+import 'package:flutter/material.dart';
+
+class WorkerReviewsScreen extends StatefulWidget {
+  const WorkerReviewsScreen({super.key});
+
+  @override
+  State<WorkerReviewsScreen> createState() => _WorkerReviewsScreenState();
+}
+
+class _WorkerReviewsScreenState extends State<WorkerReviewsScreen> {
+  final List<Map<String, dynamic>> _reviews = [
+    {
+      'id': 1,
+      'customerName': 'Sarah Johnson',
+      'rating': 5.0,
+      'date': '2 days ago',
+      'service': 'Pipe Repair',
+      'comment': 'Excellent work! Very professional and completed the job ahead of schedule. Highly recommend!',
+      'response': null,
+    },
+    {
+      'id': 2,
+      'customerName': 'Michael Chen',
+      'rating': 5.0,
+      'date': '5 days ago',
+      'service': 'Leak Fixing',
+      'comment': 'Great service and fair pricing. Will definitely hire again!',
+      'response': 'Thank you for your kind words! Looking forward to working with you again.',
+    },
+    {
+      'id': 3,
+      'customerName': 'David Wilson',
+      'rating': 4.0,
+      'date': '1 week ago',
+      'service': 'Installation',
+      'comment': 'Good work overall. Arrived on time and got the job done.',
+      'response': null,
+    },
+    {
+      'id': 4,
+      'customerName': 'Emma Davis',
+      'rating': 5.0,
+      'date': '2 weeks ago',
+      'service': 'Emergency Repair',
+      'comment': 'Came in an emergency and fixed everything quickly. Very grateful!',
+      'response': 'Happy to help! Thank you for choosing our service!',
+    },
+    {
+      'id': 5,
+      'customerName': 'John Smith',
+      'rating': 4.0,
+      'date': '3 weeks ago',
+      'service': 'Pipe Repair',
+      'comment': 'Professional and knowledgeable. Would use their services again.',
+      'response': null,
+    },
+  ];
+
+  double get _averageRating {
+    if (_reviews.isEmpty) return 0.0;
+    final total = _reviews.fold<double>(0, (sum, review) => sum + review['rating']);
+    return total / _reviews.length;
+  }
+
+  Map<int, int> get _ratingDistribution {
+    final distribution = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
+    for (var review in _reviews) {
+      final rating = review['rating'].floor();
+      distribution[rating] = (distribution[rating] ?? 0) + 1;
+    }
+    return distribution;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.topRight,
+            colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Text(
+                        'Reviews & Ratings',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Content
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                  ),
+                  child: ListView(
+                    padding: const EdgeInsets.all(24),
+                    children: [
+                      // Rating Summary Card
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Average Rating
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        _averageRating.toStringAsFixed(1),
+                                        style: const TextStyle(
+                                          fontSize: 56,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1F2937),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: List.generate(5, (index) {
+                                          return Icon(
+                                            index < _averageRating.floor()
+                                                ? Icons.star
+                                                : (index < _averageRating ? Icons.star_half : Icons.star_border),
+                                            color: const Color(0xFFFBBF24),
+                                            size: 24,
+                                          );
+                                        }),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        '${_reviews.length} reviews',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Color(0xFF9CA3AF),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 24),
+                                // Rating Breakdown
+                                Expanded(
+                                  flex: 2,
+                                  child: Column(
+                                    children: [5, 4, 3, 2, 1].map((stars) {
+                                      final count = _ratingDistribution[stars] ?? 0;
+                                      final percentage = _reviews.isEmpty ? 0.0 : (count / _reviews.length);
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 4),
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              '$stars',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF6B7280),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            const Icon(Icons.star, size: 14, color: Color(0xFFFBBF24)),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(4),
+                                                child: LinearProgressIndicator(
+                                                  value: percentage,
+                                                  backgroundColor: const Color(0xFFE5E7EB),
+                                                  valueColor: const AlwaysStoppedAnimation(Color(0xFFFBBF24)),
+                                                  minHeight: 8,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            SizedBox(
+                                              width: 30,
+                                              child: Text(
+                                                '$count',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Color(0xFF6B7280),
+                                                ),
+                                                textAlign: TextAlign.end,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Reviews List Header
+                      const Text(
+                        'Customer Reviews',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Reviews List
+                      ..._reviews.map((review) => _buildReviewCard(review)).toList(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewCard(Map<String, dynamic> review) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Avatar
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person, color: Color(0xFF4A7FFF)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review['customerName'],
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      review['date'],
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF9CA3AF),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Rating Stars
+              Row(
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < review['rating'].floor()
+                        ? Icons.star
+                        : Icons.star_border,
+                    color: const Color(0xFFFBBF24),
+                    size: 18,
+                  );
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Service Tag
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F0FF),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              review['service'],
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF4A7FFF),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Review Comment
+          Text(
+            review['comment'],
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF6B7280),
+              height: 1.5,
+            ),
+          ),
+          // Response
+          if (review['response'] != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.reply, size: 16, color: Color(0xFF4A7FFF)),
+                      SizedBox(width: 6),
+                      Text(
+                        'Your Response',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF4A7FFF),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    review['response'],
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B7280),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () {
+                _showResponseDialog(review);
+              },
+              icon: const Icon(Icons.reply, size: 18),
+              label: const Text('Respond to review'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF4A7FFF),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showResponseDialog(Map<String, dynamic> review) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Respond to Review'),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'Write your response...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                setState(() {
+                  review['response'] = controller.text;
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Response posted successfully!'),
+                    backgroundColor: Color(0xFF10B981),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4A7FFF),
+            ),
+            child: const Text('Post Response'),
+          ),
+        ],
+      ),
+    );
+  }
+}
