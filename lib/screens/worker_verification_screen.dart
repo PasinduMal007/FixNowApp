@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:fix_now_app/Services/worker_onboarding_service.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -8,7 +9,8 @@ class WorkerVerificationScreen extends StatefulWidget {
   const WorkerVerificationScreen({super.key, this.onNext});
 
   @override
-  State<WorkerVerificationScreen> createState() => _WorkerVerificationScreenState();
+  State<WorkerVerificationScreen> createState() =>
+      _WorkerVerificationScreenState();
 }
 
 class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
@@ -47,25 +49,40 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
 
   bool _canProceed() {
     // TEMPORARY: Allow skipping for testing (remove in production)
-    return true; 
+    return true;
     // Production code: return _profilePhoto != null && _idFrontPhoto != null && _idBackPhoto != null;
   }
 
-  void _handleNext() {
-    if (_canProceed()) {
-      final verificationData = {
-        'profilePhoto': _profilePhoto,
-        'idFrontPhoto': _idFrontPhoto,
-        'idBackPhoto': _idBackPhoto,
-        'idType': _idType,
-      };
+  Future<void> _handleNext() async {
+    if (!_canProceed()) return;
 
-      // Navigate to rates screen
+    try {
+      final service = WorkerOnboardingService();
+
+      // Backend only stores flags + idType
+      await service.saveVerification(
+        idType: _idType,
+        hasProfilePhoto: _profilePhoto != null,
+        hasIdFront: _idFrontPhoto != null,
+        hasIdBack: _idBackPhoto != null,
+      );
+
+      if (!mounted) return;
       Navigator.pushNamed(context, '/worker-rates');
 
       if (widget.onNext != null) {
-        widget.onNext!(verificationData);
+        widget.onNext!({
+          'profilePhoto': _profilePhoto,
+          'idFrontPhoto': _idFrontPhoto,
+          'idBackPhoto': _idBackPhoto,
+          'idType': _idType,
+        });
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to save verification: $e")),
+      );
     }
   }
 
@@ -107,7 +124,11 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(Icons.arrow_back, size: 20, color: Color(0xFF1C2334)),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        size: 20,
+                        color: Color(0xFF1C2334),
+                      ),
                     ),
                   ),
                 ],
@@ -131,7 +152,11 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                             color: Color(0xFFE8F0FF),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.shield_outlined, size: 16, color: Color(0xFF5B8CFF)),
+                          child: const Icon(
+                            Icons.shield_outlined,
+                            size: 16,
+                            color: Color(0xFF5B8CFF),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         const Text(
@@ -160,13 +185,20 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEFF6FF),
-                        border: Border.all(color: const Color(0xFFBFDBFE), width: 2),
+                        border: Border.all(
+                          color: const Color(0xFFBFDBFE),
+                          width: 2,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.info_outline, size: 20, color: Color(0xFF3B82F6)),
+                          const Icon(
+                            Icons.info_outline,
+                            size: 20,
+                            color: Color(0xFF3B82F6),
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -189,14 +221,28 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                       children: [
                         const Text(
                           'Profile Photo *',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1C2334)),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF1C2334),
+                          ),
                         ),
                         if (_profilePhoto != null)
                           Row(
                             children: const [
-                              Icon(Icons.check_circle, size: 16, color: Color(0xFF10B981)),
+                              Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: Color(0xFF10B981),
+                              ),
                               SizedBox(width: 4),
-                              Text('Uploaded', style: TextStyle(fontSize: 13, color: Color(0xFF10B981))),
+                              Text(
+                                'Uploaded',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
                             ],
                           ),
                       ],
@@ -207,9 +253,13 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                       child: Container(
                         height: 200,
                         decoration: BoxDecoration(
-                          color: _profilePhoto != null ? const Color(0xFFF0FDF4) : const Color(0xFFF9FAFB),
+                          color: _profilePhoto != null
+                              ? const Color(0xFFF0FDF4)
+                              : const Color(0xFFF9FAFB),
                           border: Border.all(
-                            color: _profilePhoto != null ? const Color(0xFF10B981) : const Color(0xFFD1D5DB),
+                            color: _profilePhoto != null
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFD1D5DB),
                             width: 2,
                             style: BorderStyle.solid,
                           ),
@@ -218,21 +268,34 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                         child: _profilePhoto != null
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(14),
-                                child: Image.file(_profilePhoto!, fit: BoxFit.cover),
+                                child: Image.file(
+                                  _profilePhoto!,
+                                  fit: BoxFit.cover,
+                                ),
                               )
                             : Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: const [
-                                  Icon(Icons.person_outline, size: 48, color: Color(0xFF9CA3AF)),
+                                  Icon(
+                                    Icons.person_outline,
+                                    size: 48,
+                                    color: Color(0xFF9CA3AF),
+                                  ),
                                   SizedBox(height: 12),
                                   Text(
                                     'Upload your photo',
-                                    style: TextStyle(fontSize: 15, color: Color(0xFF1C2334)),
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: Color(0xFF1C2334),
+                                    ),
                                   ),
                                   SizedBox(height: 4),
                                   Text(
                                     'Clear selfie, face visible, good lighting',
-                                    style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF9CA3AF),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -242,11 +305,20 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
-                        Text('• ', style: TextStyle(color: Color(0xFF5B8CFF), fontSize: 12)),
+                        Text(
+                          '• ',
+                          style: TextStyle(
+                            color: Color(0xFF5B8CFF),
+                            fontSize: 12,
+                          ),
+                        ),
                         Expanded(
                           child: Text(
                             'Take a clear selfie with your face fully visible',
-                            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6B7280),
+                            ),
                           ),
                         ),
                       ],
@@ -256,7 +328,11 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                     // ID Type selection
                     const Text(
                       'ID Type *',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1C2334)),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF1C2334),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -281,7 +357,8 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                           child: _IdTypeButton(
                             label: 'License',
                             isSelected: _idType == 'driving-license',
-                            onTap: () => setState(() => _idType = 'driving-license'),
+                            onTap: () =>
+                                setState(() => _idType = 'driving-license'),
                           ),
                         ),
                       ],
@@ -294,14 +371,28 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                       children: [
                         const Text(
                           'ID Front Side *',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1C2334)),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF1C2334),
+                          ),
                         ),
                         if (_idFrontPhoto != null)
                           Row(
                             children: const [
-                              Icon(Icons.check_circle, size: 16, color: Color(0xFF10B981)),
+                              Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: Color(0xFF10B981),
+                              ),
                               SizedBox(width: 4),
-                              Text('Uploaded', style: TextStyle(fontSize: 13, color: Color(0xFF10B981))),
+                              Text(
+                                'Uploaded',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
                             ],
                           ),
                       ],
@@ -321,14 +412,28 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                       children: [
                         const Text(
                           'ID Back Side *',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Color(0xFF1C2334)),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF1C2334),
+                          ),
                         ),
                         if (_idBackPhoto != null)
                           Row(
                             children: const [
-                              Icon(Icons.check_circle, size: 16, color: Color(0xFF10B981)),
+                              Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: Color(0xFF10B981),
+                              ),
                               SizedBox(width: 4),
-                              Text('Uploaded', style: TextStyle(fontSize: 13, color: Color(0xFF10B981))),
+                              Text(
+                                'Uploaded',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
                             ],
                           ),
                       ],
@@ -354,13 +459,33 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                         children: [
                           const Text(
                             '📸 Photo Guidelines:',
-                            style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF6B7280),
+                            ),
                           ),
                           const SizedBox(height: 12),
-                          _GuidelineItem(icon: '✓', text: 'Ensure all text is readable and clear', isPositive: true),
-                          _GuidelineItem(icon: '✓', text: 'Take photos in good lighting (avoid shadows)', isPositive: true),
-                          _GuidelineItem(icon: '✓', text: 'Make sure all four corners are visible', isPositive: true),
-                          _GuidelineItem(icon: '✗', text: 'No glare, blur, or obstructions', isPositive: false),
+                          _GuidelineItem(
+                            icon: '✓',
+                            text: 'Ensure all text is readable and clear',
+                            isPositive: true,
+                          ),
+                          _GuidelineItem(
+                            icon: '✓',
+                            text:
+                                'Take photos in good lighting (avoid shadows)',
+                            isPositive: true,
+                          ),
+                          _GuidelineItem(
+                            icon: '✓',
+                            text: 'Make sure all four corners are visible',
+                            isPositive: true,
+                          ),
+                          _GuidelineItem(
+                            icon: '✗',
+                            text: 'No glare, blur, or obstructions',
+                            isPositive: false,
+                          ),
                         ],
                       ),
                     ),
@@ -387,7 +512,7 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _canProceed() ? _handleNext : null,
+                  onPressed: _canProceed() ? () => _handleNext() : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5B8CFF),
                     disabledBackgroundColor: const Color(0xFFE5E7EB),
@@ -401,7 +526,9 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: _canProceed() ? Colors.white : const Color(0xFF9CA3AF),
+                      color: _canProceed()
+                          ? Colors.white
+                          : const Color(0xFF9CA3AF),
                     ),
                   ),
                 ),
@@ -435,7 +562,9 @@ class _IdTypeButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF5B8CFF) : Colors.white,
           border: Border.all(
-            color: isSelected ? const Color(0xFF5B8CFF) : const Color(0xFFE5E7EB),
+            color: isSelected
+                ? const Color(0xFF5B8CFF)
+                : const Color(0xFFE5E7EB),
             width: 2,
           ),
           borderRadius: BorderRadius.circular(10),
@@ -475,9 +604,13 @@ class _IdUploadBox extends StatelessWidget {
       child: Container(
         height: 160,
         decoration: BoxDecoration(
-          color: photo != null ? const Color(0xFFF0FDF4) : const Color(0xFFF9FAFB),
+          color: photo != null
+              ? const Color(0xFFF0FDF4)
+              : const Color(0xFFF9FAFB),
           border: Border.all(
-            color: photo != null ? const Color(0xFF10B981) : const Color(0xFFD1D5DB),
+            color: photo != null
+                ? const Color(0xFF10B981)
+                : const Color(0xFFD1D5DB),
             width: 2,
             style: BorderStyle.solid,
           ),
@@ -491,16 +624,26 @@ class _IdUploadBox extends StatelessWidget {
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.credit_card, size: 40, color: Color(0xFF9CA3AF)),
+                  const Icon(
+                    Icons.credit_card,
+                    size: 40,
+                    color: Color(0xFF9CA3AF),
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     label,
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF1C2334)),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF1C2334),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF9CA3AF),
+                    ),
                   ),
                 ],
               ),
@@ -531,7 +674,9 @@ class _GuidelineItem extends StatelessWidget {
           Text(
             icon,
             style: TextStyle(
-              color: isPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+              color: isPositive
+                  ? const Color(0xFF10B981)
+                  : const Color(0xFFEF4444),
               fontSize: 12,
             ),
           ),

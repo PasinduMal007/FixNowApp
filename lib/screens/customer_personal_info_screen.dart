@@ -1,5 +1,8 @@
+import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class CustomerPersonalInfoScreen extends StatefulWidget {
   final Function(Map<String, String> personalData)? onNext;
@@ -7,10 +10,12 @@ class CustomerPersonalInfoScreen extends StatefulWidget {
   const CustomerPersonalInfoScreen({super.key, this.onNext});
 
   @override
-  State<CustomerPersonalInfoScreen> createState() => _CustomerPersonalInfoScreenState();
+  State<CustomerPersonalInfoScreen> createState() =>
+      _CustomerPersonalInfoScreenState();
 }
 
-class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen> {
+class _CustomerPersonalInfoScreenState
+    extends State<CustomerPersonalInfoScreen> {
   final _fullNameController = TextEditingController();
   final _phoneController = TextEditingController();
 
@@ -26,7 +31,8 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
     final digits = value.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return '';
     if (digits.length <= 2) return digits;
-    if (digits.length <= 5) return '${digits.substring(0, 2)} ${digits.substring(2)}';
+    if (digits.length <= 5)
+      return '${digits.substring(0, 2)} ${digits.substring(2)}';
     if (digits.length <= 9) {
       return '${digits.substring(0, 2)} ${digits.substring(2, 5)} ${digits.substring(5)}';
     }
@@ -47,19 +53,35 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
         _phoneController.text.replaceAll(RegExp(r'\D'), '').length == 9;
   }
 
-  void _handleNext() {
-    if (_canProceed()) {
-      final personalData = {
-        'fullName': _fullNameController.text.trim(),
-        'phoneNumber': _phoneController.text.replaceAll(RegExp(r'\D'), ''),
-      };
+  void _handleNext() async {
+    if (!_canProceed()) return;
 
-      // Navigate to photo screen
-      Navigator.pushNamed(context, '/customer-photo');
+    final fullName = _fullNameController.text.trim();
+    final phoneNumber = _phoneController.text.replaceAll(RegExp(r'\D'), '');
 
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final ref = DB.ref();
+
+      // 🔹 UPDATE customer profile + onboarding step
+      await ref.child('users/customers/$uid').update({
+        'fullName': fullName,
+        'phoneNumber': phoneNumber,
+        'onboarding/step': 1,
+        'onboarding/updatedAt': ServerValue.timestamp,
+      });
+
+      // Optional callback (keep if you need it elsewhere)
       if (widget.onNext != null) {
-        widget.onNext!(personalData);
+        widget.onNext!({'fullName': fullName, 'phoneNumber': phoneNumber});
       }
+
+      // Navigate only AFTER successful save
+      Navigator.pushNamed(context, '/customer-photo');
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -102,7 +124,11 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(Icons.arrow_back, size: 20, color: Color(0xFF1C2334)),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        size: 20,
+                        color: Color(0xFF1C2334),
+                      ),
                     ),
                   ),
                   const Text(
@@ -149,12 +175,19 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
                       ),
                       child: Row(
                         children: const [
-                          Icon(Icons.info_outline, size: 18, color: Color(0xFF5B8CFF)),
+                          Icon(
+                            Icons.info_outline,
+                            size: 18,
+                            color: Color(0xFF5B8CFF),
+                          ),
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Your information is secure and never shared without permission',
-                              style: TextStyle(fontSize: 12, color: Color(0xFF1C2334)),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF1C2334),
+                              ),
                             ),
                           ),
                         ],
@@ -165,7 +198,11 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
                     // Full Name
                     const Text(
                       'Full Name',
-                      style: TextStyle(fontSize: 14, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     TextField(
@@ -173,21 +210,37 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         hintText: 'Enter your full name',
-                        prefixIcon: const Icon(Icons.person_outline, size: 20, color: Color(0xFF9CA3AF)),
+                        prefixIcon: const Icon(
+                          Icons.person_outline,
+                          size: 20,
+                          color: Color(0xFF9CA3AF),
+                        ),
                         filled: true,
                         fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 18,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                            width: 2,
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                            width: 2,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF5B8CFF),
+                            width: 2,
+                          ),
                         ),
                       ),
                     ),
@@ -196,7 +249,11 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
                     // Phone Number
                     const Text(
                       'Phone Number',
-                      style: TextStyle(fontSize: 14, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -207,13 +264,19 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
                           height: 56,
                           decoration: BoxDecoration(
                             color: const Color(0xFFF9FAFB),
-                            border: Border.all(color: const Color(0xFFE5E7EB), width: 2),
+                            border: Border.all(
+                              color: const Color(0xFFE5E7EB),
+                              width: 2,
+                            ),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Center(
                             child: Text(
                               '+94',
-                              style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Color(0xFF6B7280),
+                              ),
                             ),
                           ),
                         ),
@@ -230,21 +293,37 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
                             onChanged: _handlePhoneChange,
                             decoration: InputDecoration(
                               hintText: '77 123 4567',
-                              prefixIcon: const Icon(Icons.phone_outlined, size: 20, color: Color(0xFF9CA3AF)),
+                              prefixIcon: const Icon(
+                                Icons.phone_outlined,
+                                size: 20,
+                                color: Color(0xFF9CA3AF),
+                              ),
                               filled: true,
                               fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 18,
+                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE5E7EB),
+                                  width: 2,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE5E7EB),
+                                  width: 2,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF5B8CFF),
+                                  width: 2,
+                                ),
                               ),
                             ),
                           ),
@@ -261,7 +340,11 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
                     // Why we need this
                     const Text(
                       'Why we need this:',
-                      style: TextStyle(fontSize: 14, color: Color(0xFF1C2334), fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF1C2334),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     _InfoItem(
@@ -315,7 +398,9 @@ class _CustomerPersonalInfoScreenState extends State<CustomerPersonalInfoScreen>
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: _canProceed() ? Colors.white : const Color(0xFF9CA3AF),
+                      color: _canProceed()
+                          ? Colors.white
+                          : const Color(0xFF9CA3AF),
                     ),
                   ),
                 ),

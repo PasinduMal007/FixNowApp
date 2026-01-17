@@ -51,7 +51,6 @@ class _CustomerServiceSelectionScreenState extends State<CustomerServiceSelectio
       Navigator.pushReplacementNamed(
         context,
         '/customer-dashboard',
-        arguments: {'customerName': 'Sarah'},
       );
     }
   }

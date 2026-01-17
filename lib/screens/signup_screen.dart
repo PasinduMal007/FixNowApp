@@ -1,8 +1,11 @@
+import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class SignUpScreen extends StatefulWidget {
   final String? role; // 'worker' or 'customer'
-  
+
   const SignUpScreen({super.key, this.role});
 
   @override
@@ -60,7 +63,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                           onPressed: () => Navigator.pop(context),
                           padding: EdgeInsets.zero,
                         ),
@@ -116,7 +123,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),
                           filled: true,
                           fillColor: const Color(0xFFF5F5F5),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 18,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                             borderSide: BorderSide.none,
@@ -127,7 +137,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF5B8CFF),
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
@@ -151,7 +164,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),
                           filled: true,
                           fillColor: const Color(0xFFF5F5F5),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 18,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                             borderSide: BorderSide.none,
@@ -162,7 +178,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF5B8CFF),
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
@@ -186,14 +205,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),
                           filled: true,
                           fillColor: const Color(0xFFF5F5F5),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 18,
+                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _showPassword ? Icons.visibility_off : Icons.visibility,
+                              _showPassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
                               color: const Color(0xFF9CA3AF),
                               size: 22,
                             ),
-                            onPressed: () => setState(() => _showPassword = !_showPassword),
+                            onPressed: () =>
+                                setState(() => _showPassword = !_showPassword),
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -205,7 +230,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF5B8CFF),
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
@@ -229,14 +257,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),
                           filled: true,
                           fillColor: const Color(0xFFF5F5F5),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 18,
+                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _showConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                              _showConfirmPassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
                               color: const Color(0xFF9CA3AF),
                               size: 22,
                             ),
-                            onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
+                            onPressed: () => setState(
+                              () =>
+                                  _showConfirmPassword = !_showConfirmPassword,
+                            ),
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -248,7 +284,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF5B8CFF),
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
@@ -258,13 +297,69 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       SizedBox(
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: () {
-                            // Navigate based on role
-                            if (widget.role == 'customer') {
-                              Navigator.pushNamed(context, '/customer-personal-info');
-                            } else {
-                              // Default to worker flow
-                              Navigator.pushNamed(context, '/worker-profession');
+                          onPressed: () async {
+                            if (!_formKey.currentState!.validate()) return;
+
+                            try {
+                              // 1. Create Firebase Auth user
+                              await FirebaseAuth.instance
+                                  .createUserWithEmailAndPassword(
+                                    email: _emailController.text.trim(),
+                                    password: _passwordController.text.trim(),
+                                  );
+
+                              // 2. Store user profile in Realtime Database
+                              final user = FirebaseAuth.instance.currentUser!;
+                              final uid = user.uid;
+
+                              final DatabaseReference ref = DB.ref();
+
+                              if (widget.role == 'customer') {
+                                await ref.child('users/customers/$uid').set({
+                                  'uid': uid,
+                                  'fullName': _fullNameController.text.trim(),
+                                  'email':
+                                      FirebaseAuth.instance.currentUser!.email,
+                                  'role': 'customer',
+                                  'createdAt': ServerValue.timestamp,
+                                  'onboarding': {
+                                    'step': 0,
+                                    'completed': false,
+                                    'updatedAt': ServerValue.timestamp,
+                                  },
+                                });
+                              } else {
+                                await ref.child('users/workers/$uid').set({
+                                  'uid': uid,
+                                  'fullName': _fullNameController.text.trim(),
+                                  'email': user.email,
+                                  'role': 'worker',
+                                  'status': 'pending_verification',
+                                  'createdAt': ServerValue.timestamp,
+                                  'onboarding': {
+                                    'step': 0,
+                                    'completed': false,
+                                    'updatedAt': ServerValue.timestamp,
+                                  },
+                                });
+                              }
+
+                              // 3. Navigate based on role
+                              if (widget.role == 'customer') {
+                                Navigator.pushReplacementNamed(
+                                  context,
+                                  '/customer-personal-info',
+                                );
+                              } else {
+                                Navigator.pushReplacementNamed(
+                                  context,
+                                  '/worker-profession',
+                                );
+                              }
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(e.toString())),
+                              );
                             }
                           },
                           style: ElevatedButton.styleFrom(
@@ -289,7 +384,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       // Divider
                       Row(
                         children: [
-                          const Expanded(child: Divider(color: Color(0xFFE5E7EB))),
+                          const Expanded(
+                            child: Divider(color: Color(0xFFE5E7EB)),
+                          ),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Text(
@@ -300,7 +397,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                             ),
                           ),
-                          const Expanded(child: Divider(color: Color(0xFFE5E7EB))),
+                          const Expanded(
+                            child: Divider(color: Color(0xFFE5E7EB)),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 24),
@@ -312,8 +411,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             child: OutlinedButton(
                               onPressed: () {},
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: const BorderSide(color: Color(0xFFE5E7EB), width: 1.5),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                side: const BorderSide(
+                                  color: Color(0xFFE5E7EB),
+                                  width: 1.5,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -321,7 +425,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.g_mobiledata, color: Colors.grey[800], size: 28),
+                                  Icon(
+                                    Icons.g_mobiledata,
+                                    color: Colors.grey[800],
+                                    size: 28,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Google',
@@ -340,8 +448,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             child: OutlinedButton(
                               onPressed: () {},
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: const BorderSide(color: Color(0xFFE5E7EB), width: 1.5),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                side: const BorderSide(
+                                  color: Color(0xFFE5E7EB),
+                                  width: 1.5,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -349,7 +462,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.apple, color: Colors.grey[800], size: 24),
+                                  Icon(
+                                    Icons.apple,
+                                    color: Colors.grey[800],
+                                    size: 24,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Apple',

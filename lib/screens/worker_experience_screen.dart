@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fix_now_app/services/worker_onboarding_service.dart';
 
 class WorkerExperienceScreen extends StatefulWidget {
   final String profession;
@@ -55,14 +56,24 @@ class _WorkerExperienceScreenState extends State<WorkerExperienceScreen> {
     },
   ];
 
-  void handleNext() {
-    if (selectedExperience.isNotEmpty) {
-      // Navigate to profile screen
+  Future<void> handleNext() async {
+    if (selectedExperience.isEmpty) return;
+
+    try {
+      final service = WorkerOnboardingService();
+      await service.saveExperience(selectedExperience);
+
+      if (!mounted) return;
       Navigator.pushNamed(context, '/worker-profile');
-      
+
       if (widget.onNext != null) {
         widget.onNext!(selectedExperience);
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to save experience: $e")));
     }
   }
 
@@ -104,7 +115,11 @@ class _WorkerExperienceScreenState extends State<WorkerExperienceScreen> {
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(Icons.arrow_back, size: 20, color: Color(0xFF1C2334)),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        size: 20,
+                        color: Color(0xFF1C2334),
+                      ),
                     ),
                   ),
                 ],
@@ -151,7 +166,8 @@ class _WorkerExperienceScreenState extends State<WorkerExperienceScreen> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: GestureDetector(
-                      onTap: () => setState(() => selectedExperience = option['value']),
+                      onTap: () =>
+                          setState(() => selectedExperience = option['value']),
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -159,19 +175,26 @@ class _WorkerExperienceScreenState extends State<WorkerExperienceScreen> {
                               ? const LinearGradient(
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
-                                  colors: [Color(0xFFE8F0FF), Color(0xFFF0F6FF)],
+                                  colors: [
+                                    Color(0xFFE8F0FF),
+                                    Color(0xFFF0F6FF),
+                                  ],
                                 )
                               : null,
                           color: isSelected ? null : Colors.white,
                           border: Border.all(
-                            color: isSelected ? const Color(0xFF5B8CFF) : const Color(0xFFE5E7EB),
+                            color: isSelected
+                                ? const Color(0xFF5B8CFF)
+                                : const Color(0xFFE5E7EB),
                             width: 2,
                           ),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: const Color(0xFF5B8CFF).withOpacity(0.2),
+                                    color: const Color(
+                                      0xFF5B8CFF,
+                                    ).withOpacity(0.2),
                                     blurRadius: 12,
                                     offset: const Offset(0, 4),
                                   ),
@@ -192,13 +215,17 @@ class _WorkerExperienceScreenState extends State<WorkerExperienceScreen> {
                                         colors: option['gradient'],
                                       )
                                     : null,
-                                color: isSelected ? null : const Color(0xFFF3F4F6),
+                                color: isSelected
+                                    ? null
+                                    : const Color(0xFFF3F4F6),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
                                 option['icon'],
                                 size: 24,
-                                color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF6B7280),
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -221,7 +248,9 @@ class _WorkerExperienceScreenState extends State<WorkerExperienceScreen> {
                                     option['badge'],
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: isSelected ? const Color(0xFF5B8CFF) : const Color(0xFF9CA3AF),
+                                      color: isSelected
+                                          ? const Color(0xFF5B8CFF)
+                                          : const Color(0xFF9CA3AF),
                                     ),
                                   ),
                                 ],
@@ -233,15 +262,23 @@ class _WorkerExperienceScreenState extends State<WorkerExperienceScreen> {
                               width: 24,
                               height: 24,
                               decoration: BoxDecoration(
-                                color: isSelected ? const Color(0xFF5B8CFF) : Colors.white,
+                                color: isSelected
+                                    ? const Color(0xFF5B8CFF)
+                                    : Colors.white,
                                 border: Border.all(
-                                  color: isSelected ? const Color(0xFF5B8CFF) : const Color(0xFFD1D5DB),
+                                  color: isSelected
+                                      ? const Color(0xFF5B8CFF)
+                                      : const Color(0xFFD1D5DB),
                                   width: 2,
                                 ),
                                 shape: BoxShape.circle,
                               ),
                               child: isSelected
-                                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 14,
+                                      color: Colors.white,
+                                    )
                                   : null,
                             ),
                           ],
@@ -270,7 +307,7 @@ class _WorkerExperienceScreenState extends State<WorkerExperienceScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: selectedExperience.isEmpty ? null : handleNext,
+                  onPressed: selectedExperience.isEmpty ? null : () => handleNext(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5B8CFF),
                     disabledBackgroundColor: const Color(0xFFE5E7EB),
@@ -284,7 +321,9 @@ class _WorkerExperienceScreenState extends State<WorkerExperienceScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: selectedExperience.isEmpty ? const Color(0xFF9CA3AF) : Colors.white,
+                      color: selectedExperience.isEmpty
+                          ? const Color(0xFF9CA3AF)
+                          : Colors.white,
                     ),
                   ),
                 ),

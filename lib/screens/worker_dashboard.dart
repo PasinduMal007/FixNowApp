@@ -1,3 +1,4 @@
+import 'package:fix_now_app/Services/worker_profile_service.dart';
 import 'package:flutter/material.dart';
 import 'worker_home_screen.dart';
 import 'worker_bookings_screen.dart';
@@ -6,12 +7,7 @@ import 'worker_account_screen.dart';
 import 'quick_actions_sheet.dart';
 
 class WorkerDashboard extends StatefulWidget {
-  final String workerName;
-
-  const WorkerDashboard({
-    super.key,
-    this.workerName = 'Michael Rodriguez',
-  });
+  const WorkerDashboard({super.key});
 
   @override
   State<WorkerDashboard> createState() => _WorkerDashboardState();
@@ -21,47 +17,45 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
   int _currentIndex = 0;
   final int _unreadMessages = 3;
 
-  late final List<Widget> _screens;
+  String _workerName = "Worker";
+  bool _loadingName = true;
+
+  List<Widget> get _screens => [
+    WorkerHomeScreen(workerName: _workerName, unreadMessages: _unreadMessages),
+    const WorkerBookingsScreen(),
+    const WorkerChatScreen(),
+    WorkerAccountScreen(workerName: _workerName),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _screens = [
-      WorkerHomeScreen(workerName: widget.workerName, unreadMessages: _unreadMessages),
-      const WorkerBookingsScreen(),
-      const WorkerChatScreen(),
-      WorkerAccountScreen(workerName: widget.workerName),
-    ];
+    _loadName();
   }
 
-  Widget _buildPlaceholderScreen(String title, IconData icon) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: const Color(0xFF9CA3AF)),
-          const SizedBox(height: 16),
-          Text(
-            '$title Screen',
-            style: const TextStyle(fontSize: 20, color: Color(0xFF6B7280)),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Coming soon...',
-            style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
-          ),
-        ],
-      ),
-    );
+  Future<void> _loadName() async {
+    try {
+      final service = WorkerProfileService();
+      final name = await service.getWorkerName();
+
+      if (!mounted) return;
+      setState(() {
+        _workerName = name;
+        _loadingName = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingName = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loadingName) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -83,7 +77,12 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
                     _buildNavItem(Icons.home, 'Home', 0),
                     _buildNavItem(Icons.calendar_today, 'Bookings', 1),
                     const SizedBox(width: 60), // Space for center button
-                    _buildNavItem(Icons.chat_bubble_outline, 'Chat', 2, badge: _unreadMessages),
+                    _buildNavItem(
+                      Icons.chat_bubble_outline,
+                      'Chat',
+                      2,
+                      badge: _unreadMessages,
+                    ),
                     _buildNavItem(Icons.person_outline, 'Profile', 3),
                   ],
                 ),
@@ -92,7 +91,7 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
                   left: MediaQuery.of(context).size.width / 2 - 28,
                   top: -32,
                   child: GestureDetector(
-                  onTap: () {
+                    onTap: () {
                       showModalBottomSheet(
                         context: context,
                         isScrollControlled: true,
@@ -119,7 +118,11 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.add, color: Colors.white, size: 28),
+                      child: const Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 28,
+                      ),
                     ),
                   ),
                 ),
@@ -145,14 +148,18 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
               Icon(
                 icon,
                 size: 24,
-                color: isActive ? const Color(0xFF4A7FFF) : const Color(0xFF9CA3AF),
+                color: isActive
+                    ? const Color(0xFF4A7FFF)
+                    : const Color(0xFF9CA3AF),
               ),
               const SizedBox(height: 4),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: isActive ? const Color(0xFF4A7FFF) : const Color(0xFF9CA3AF),
+                  color: isActive
+                      ? const Color(0xFF4A7FFF)
+                      : const Color(0xFF9CA3AF),
                   fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),

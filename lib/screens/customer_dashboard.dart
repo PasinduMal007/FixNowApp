@@ -1,3 +1,4 @@
+import 'package:fix_now_app/Services/customer_profile_service.dart';
 import 'package:flutter/material.dart';
 import 'customer_home_screen.dart';
 import 'customer_quick_booking_screen.dart';
@@ -6,12 +7,7 @@ import 'customer_profile_screen.dart';
 import 'customer_bookings_screen.dart';
 
 class CustomerDashboard extends StatefulWidget {
-  final String customerName;
-
-  const CustomerDashboard({
-    super.key,
-    this.customerName = 'Sarah',
-  });
+  const CustomerDashboard({super.key});
 
   @override
   State<CustomerDashboard> createState() => _CustomerDashboardState();
@@ -21,47 +17,47 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   int _currentIndex = 0;
   final int _unreadMessages = 2;
 
-  late final List<Widget> _screens;
+  String _customerName = "Customer";
+  bool _loadingName = true;
+
+  List<Widget> get _screens => [
+    CustomerHomeScreen(customerName: _customerName),
+    const CustomerBookingsScreen(),
+    const CustomerMessagesScreen(),
+    const CustomerProfileScreen(),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _screens = [
-      CustomerHomeScreen(customerName: widget.customerName),
-      const CustomerBookingsScreen(),
-      const CustomerMessagesScreen(),
-      const CustomerProfileScreen(),
-    ];
+    _loadName();
   }
 
-  Widget _buildPlaceholderScreen(String title, IconData icon) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: const Color(0xFF9CA3AF)),
-          const SizedBox(height: 16),
-          Text(
-            '$title Screen',
-            style: const TextStyle(fontSize: 20, color: Color(0xFF6B7280)),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Coming soon...',
-            style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
-          ),
-        ],
-      ),
-    );
+  Future<void> _loadName() async {
+    try {
+      final service = CustomerProfileService();
+      final name = await service.getCustomerName();
+
+      if (!mounted) return;
+      setState(() {
+        _customerName = name;
+        _loadingName = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingName = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loadingName) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -83,7 +79,12 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     _buildNavItem(Icons.home, 'Home', 0),
                     _buildNavItem(Icons.calendar_today, 'Bookings', 1),
                     const SizedBox(width: 60), // Space for center button
-                    _buildNavItem(Icons.chat_bubble_outline, 'Messages', 2, badge: _unreadMessages),
+                    _buildNavItem(
+                      Icons.chat_bubble_outline,
+                      'Messages',
+                      2,
+                      badge: _unreadMessages,
+                    ),
                     _buildNavItem(Icons.person_outline, 'Profile', 3),
                   ],
                 ),
@@ -96,7 +97,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const CustomerQuickBookingScreen(),
+                          builder: (context) =>
+                              const CustomerQuickBookingScreen(),
                         ),
                       );
                     },
@@ -119,7 +121,11 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.add, color: Colors.white, size: 28),
+                      child: const Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 28,
+                      ),
                     ),
                   ),
                 ),
@@ -145,14 +151,18 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               Icon(
                 icon,
                 size: 24,
-                color: isActive ? const Color(0xFF4A7FFF) : const Color(0xFF9CA3AF),
+                color: isActive
+                    ? const Color(0xFF4A7FFF)
+                    : const Color(0xFF9CA3AF),
               ),
               const SizedBox(height: 4),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: isActive ? const Color(0xFF4A7FFF) : const Color(0xFF9CA3AF),
+                  color: isActive
+                      ? const Color(0xFF4A7FFF)
+                      : const Color(0xFF9CA3AF),
                   fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),

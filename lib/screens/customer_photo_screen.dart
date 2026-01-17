@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class CustomerPhotoScreen extends StatefulWidget {
   final Function(File? photo)? onNext;
@@ -33,17 +36,47 @@ class _CustomerPhotoScreenState extends State<CustomerPhotoScreen> {
     }
   }
 
-  void _handleNext() {
-    Navigator.pushNamed(context, '/customer-service-selection');
-    if (widget.onNext != null) {
-      widget.onNext!(_photo);
+  Future<void> _handleNext() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final ref = DB.ref();
+
+      await ref.child('users/customers/$uid').update({
+        'onboarding/step': 2,
+        'onboarding/updatedAt': ServerValue.timestamp,
+      });
+
+      Navigator.pushNamed(context, '/customer-service-selection');
+
+      if (widget.onNext != null) {
+        widget.onNext!(_photo);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
-  void _handleSkip() {
-    Navigator.pushNamed(context, '/customer-service-selection');
-    if (widget.onNext != null) {
-      widget.onNext!(null);
+  Future<void> _handleSkip() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final ref = DB.ref();
+
+      await ref.child('users/customers/$uid').update({
+        'onboarding/step': 2,
+        'onboarding/updatedAt': ServerValue.timestamp,
+      });
+
+      Navigator.pushNamed(context, '/customer-service-selection');
+
+      if (widget.onNext != null) {
+        widget.onNext!(null);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -86,7 +119,11 @@ class _CustomerPhotoScreenState extends State<CustomerPhotoScreen> {
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(Icons.arrow_back, size: 20, color: Color(0xFF1C2334)),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        size: 20,
+                        color: Color(0xFF1C2334),
+                      ),
                     ),
                   ),
                   const Text(
@@ -145,10 +182,7 @@ class _CustomerPhotoScreenState extends State<CustomerPhotoScreen> {
                         ),
                         child: _photo != null
                             ? ClipOval(
-                                child: Image.file(
-                                  _photo!,
-                                  fit: BoxFit.cover,
-                                ),
+                                child: Image.file(_photo!, fit: BoxFit.cover),
                               )
                             : const Icon(
                                 Icons.person_add_outlined,
@@ -170,7 +204,10 @@ class _CustomerPhotoScreenState extends State<CustomerPhotoScreen> {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFF5B8CFF),
                               padding: const EdgeInsets.symmetric(vertical: 16),
-                              side: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                              side: const BorderSide(
+                                color: Color(0xFF5B8CFF),
+                                width: 2,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -186,7 +223,10 @@ class _CustomerPhotoScreenState extends State<CustomerPhotoScreen> {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFF5B8CFF),
                               padding: const EdgeInsets.symmetric(vertical: 16),
-                              side: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                              side: const BorderSide(
+                                color: Color(0xFF5B8CFF),
+                                width: 2,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -200,7 +240,11 @@ class _CustomerPhotoScreenState extends State<CustomerPhotoScreen> {
                     // Benefits
                     const Text(
                       'Profiles with photos get:',
-                      style: TextStyle(fontSize: 14, color: Color(0xFF1C2334), fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF1C2334),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     _BenefitItem(
@@ -234,7 +278,11 @@ class _CustomerPhotoScreenState extends State<CustomerPhotoScreen> {
                           Expanded(
                             child: Text(
                               'For best results:\nClear face visible\nGood lighting',
-                              style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.4),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6B7280),
+                                height: 1.4,
+                              ),
                             ),
                           ),
                         ],

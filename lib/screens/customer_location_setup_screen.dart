@@ -1,13 +1,18 @@
+import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 class CustomerLocationSetupScreen extends StatefulWidget {
   const CustomerLocationSetupScreen({super.key});
 
   @override
-  State<CustomerLocationSetupScreen> createState() => _CustomerLocationSetupScreenState();
+  State<CustomerLocationSetupScreen> createState() =>
+      _CustomerLocationSetupScreenState();
 }
 
-class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScreen> {
+class _CustomerLocationSetupScreenState
+    extends State<CustomerLocationSetupScreen> {
   final _locationController = TextEditingController();
 
   @override
@@ -23,10 +28,7 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
         ),
         title: const Text(
           'Step 3 of 3 • Final step!',
-          style: TextStyle(
-            fontSize: 14,
-            color: Color(0xFF9CA3AF),
-          ),
+          style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
         ),
       ),
       body: SafeArea(
@@ -46,10 +48,7 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
               const SizedBox(height: 8),
               const Text(
                 'We\'ll connect you with the best professionals in your area',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Color(0xFF6B7280),
-                ),
+                style: TextStyle(fontSize: 15, color: Color(0xFF6B7280)),
               ),
               const SizedBox(height: 24),
 
@@ -62,7 +61,11 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.verified_user, color: Color(0xFF4A7FFF), size: 20),
+                    Icon(
+                      Icons.verified_user,
+                      color: Color(0xFF4A7FFF),
+                      size: 20,
+                    ),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -101,9 +104,15 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
                         decoration: const InputDecoration(
                           hintText: 'Enter your location...',
                           hintStyle: TextStyle(color: Color(0xFF9CA3AF)),
-                          prefixIcon: Icon(Icons.location_on_outlined, color: Color(0xFF9CA3AF)),
+                          prefixIcon: Icon(
+                            Icons.location_on_outlined,
+                            color: Color(0xFF9CA3AF),
+                          ),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -119,7 +128,11 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
                           _locationController.text = 'Colombo, Sri Lanka';
                           setState(() {});
                         },
-                        icon: const Icon(Icons.my_location, color: Colors.white, size: 20),
+                        icon: const Icon(
+                          Icons.my_location,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ],
@@ -128,10 +141,7 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
               const SizedBox(height: 12),
               const Text(
                 'We\'ll show you nearby workers when you search for services',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF9CA3AF),
-                ),
+                style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
               ),
               const SizedBox(height: 32),
 
@@ -145,18 +155,33 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
                 ),
               ),
               const SizedBox(height: 16),
-              _buildNextStep('1', 'Browse Services', 'Search for plumbers, electricians, cleaners, and more', const Color(0xFF10B981)),
+              _buildNextStep(
+                '1',
+                'Browse Services',
+                'Search for plumbers, electricians, cleaners, and more',
+                const Color(0xFF10B981),
+              ),
               const SizedBox(height: 12),
-              _buildNextStep('2', 'Find Workers', 'View profiles, ratings, and reviews from your area', const Color(0xFF3B82F6)),
+              _buildNextStep(
+                '2',
+                'Find Workers',
+                'View profiles, ratings, and reviews from your area',
+                const Color(0xFF3B82F6),
+              ),
               const SizedBox(height: 12),
-              _buildNextStep('3', 'Book & Pay', 'Schedule services and pay securely through the app', const Color(0xFFFBBF24)),
+              _buildNextStep(
+                '3',
+                'Book & Pay',
+                'Schedule services and pay securely through the app',
+                const Color(0xFFFBBF24),
+              ),
 
               const Spacer(),
 
               // Complete Setup Button
               ElevatedButton(
-                onPressed: () {
-                  if (_locationController.text.isEmpty) {
+                onPressed: () async {
+                  if (_locationController.text.trim().isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Please enter your location'),
@@ -165,22 +190,53 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
                     );
                     return;
                   }
-                  
-                  // Navigate to customer dashboard
-                  Navigator.pushReplacementNamed(
-                    context,
-                    '/customer-dashboard',
-                    arguments: {'customerName': 'Sarah'},
-                  );
-                  
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('🎉 Welcome to FixNow! Let\'s find you a professional.'),
-                      backgroundColor: Color(0xFF10B981),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
+
+                  // Capture before async gap (no lint)
+                  final navigator = Navigator.of(context);
+                  final messenger = ScaffoldMessenger.of(context);
+
+                  try {
+                    final uid = FirebaseAuth.instance.currentUser!.uid;
+                    final ref = DB.ref();
+
+                    await ref.child('users/customers/$uid').update({
+                      'locationText': _locationController.text.trim(),
+                      'onboarding/step': 3,
+                      'onboarding/completed': true,
+                      'onboarding/updatedAt': ServerValue.timestamp,
+                    });
+
+                    final snapshot = await ref
+                        .child('users/customers/$uid/fullName')
+                        .get();
+                    final customerName = snapshot.exists
+                        ? snapshot.value.toString()
+                        : 'Customer';
+
+                    if (!mounted) return;
+
+                    navigator.pushReplacementNamed(
+                      '/customer-dashboard',
+                      arguments: {'customerName': customerName},
+                    );
+
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          '🎉 Welcome to FixNow! Let\'s find you a professional.',
+                        ),
+                        backgroundColor: Color(0xFF10B981),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      SnackBar(content: Text(e.toString())),
+                    );
+                  }
                 },
+
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4A7FFF),
                   minimumSize: const Size(double.infinity, 56),
@@ -206,7 +262,12 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
     );
   }
 
-  Widget _buildNextStep(String number, String title, String description, Color color) {
+  Widget _buildNextStep(
+    String number,
+    String title,
+    String description,
+    Color color,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -236,7 +297,11 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
               Row(
                 children: [
                   Icon(
-                    number == '1' ? Icons.search : (number == '2' ? Icons.people_outline : Icons.event_available),
+                    number == '1'
+                        ? Icons.search
+                        : (number == '2'
+                              ? Icons.people_outline
+                              : Icons.event_available),
                     size: 18,
                     color: color,
                   ),
@@ -254,10 +319,7 @@ class _CustomerLocationSetupScreenState extends State<CustomerLocationSetupScree
               const SizedBox(height: 4),
               Text(
                 description,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF6B7280),
-                ),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
               ),
             ],
           ),

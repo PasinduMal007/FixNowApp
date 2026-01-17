@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fix_now_app/services/worker_onboarding_service.dart';
 
 class WorkerProfileScreen extends StatefulWidget {
   final Function(Map<String, String> profileData)? onNext;
@@ -30,7 +31,8 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
     final digits = value.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return '';
     if (digits.length <= 2) return digits;
-    if (digits.length <= 5) return '${digits.substring(0, 2)} ${digits.substring(2)}';
+    if (digits.length <= 5)
+      return '${digits.substring(0, 2)} ${digits.substring(2)}';
     if (digits.length <= 9) {
       return '${digits.substring(0, 2)} ${digits.substring(2, 5)} ${digits.substring(5)}';
     }
@@ -82,20 +84,39 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
     }
   }
 
-  void _handleNext() {
-    if (_canProceed()) {
-      final profileData = {
-        'firstName': _firstNameController.text.trim(),
-        'lastName': _lastNameController.text.trim(),
-        'mobileNumber': _mobileController.text.replaceAll(RegExp(r'\D'), ''),
-        'dateOfBirth': _selectedDate!.toIso8601String(),
-      };
+  Future<void> _handleNext() async {
+    if (!_canProceed()) return;
 
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final phone9 = _mobileController.text.replaceAll(RegExp(r'\D'), '');
+    final dobIso = _selectedDate!.toIso8601String();
+
+    try {
+      final service = WorkerOnboardingService();
+      await service.saveProfileDetails(
+        firstName: firstName,
+        lastName: lastName,
+        mobileNumber9Digits: phone9,
+        dateOfBirthIso: dobIso,
+      );
+
+      if (!mounted) return;
       Navigator.pushNamed(context, '/worker-verification');
 
       if (widget.onNext != null) {
-        widget.onNext!(profileData);
+        widget.onNext!({
+          'firstName': firstName,
+          'lastName': lastName,
+          'mobileNumber': phone9,
+          'dateOfBirth': dobIso,
+        });
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to save profile: $e")));
     }
   }
 
@@ -137,7 +158,11 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(Icons.arrow_back, size: 20, color: Color(0xFF1C2334)),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        size: 20,
+                        color: Color(0xFF1C2334),
+                      ),
                     ),
                   ),
                 ],
@@ -176,7 +201,10 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                       // First Name
                       const Text(
                         'First Name *',
-                        style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
@@ -184,21 +212,37 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
                           hintText: 'Enter your first name',
-                          prefixIcon: const Icon(Icons.person_outline, size: 20, color: Color(0xFF9CA3AF)),
+                          prefixIcon: const Icon(
+                            Icons.person_outline,
+                            size: 20,
+                            color: Color(0xFF9CA3AF),
+                          ),
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 18,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                              width: 2,
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                              width: 2,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF5B8CFF),
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
@@ -207,7 +251,10 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                       // Last Name
                       const Text(
                         'Last Name *',
-                        style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
@@ -215,21 +262,37 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
                           hintText: 'Enter your last name',
-                          prefixIcon: const Icon(Icons.person_outline, size: 20, color: Color(0xFF9CA3AF)),
+                          prefixIcon: const Icon(
+                            Icons.person_outline,
+                            size: 20,
+                            color: Color(0xFF9CA3AF),
+                          ),
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 18,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                              width: 2,
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                              width: 2,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF5B8CFF),
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
@@ -238,7 +301,10 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                       // Mobile Number
                       const Text(
                         'Mobile Number *',
-                        style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -249,13 +315,19 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                             height: 56,
                             decoration: BoxDecoration(
                               color: const Color(0xFFF9FAFB),
-                              border: Border.all(color: const Color(0xFFE5E7EB), width: 2),
+                              border: Border.all(
+                                color: const Color(0xFFE5E7EB),
+                                width: 2,
+                              ),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Center(
                               child: Text(
                                 '+94',
-                                style: TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Color(0xFF6B7280),
+                                ),
                               ),
                             ),
                           ),
@@ -281,21 +353,37 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                               },
                               decoration: InputDecoration(
                                 hintText: '77 123 4567',
-                                prefixIcon: const Icon(Icons.phone_outlined, size: 20, color: Color(0xFF9CA3AF)),
+                                prefixIcon: const Icon(
+                                  Icons.phone_outlined,
+                                  size: 20,
+                                  color: Color(0xFF9CA3AF),
+                                ),
                                 filled: true,
                                 fillColor: Colors.white,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 18,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFE5E7EB),
+                                    width: 2,
+                                  ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFFE5E7EB),
+                                    width: 2,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF5B8CFF),
+                                    width: 2,
+                                  ),
                                 ),
                               ),
                             ),
@@ -305,14 +393,20 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                       const SizedBox(height: 4),
                       const Text(
                         'Enter your mobile number',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF9CA3AF),
+                        ),
                       ),
                       const SizedBox(height: 20),
 
                       // Date of Birth
                       const Text(
                         'Date of Birth *',
-                        style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       GestureDetector(
@@ -322,12 +416,19 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            border: Border.all(color: const Color(0xFFE5E7EB), width: 2),
+                            border: Border.all(
+                              color: const Color(0xFFE5E7EB),
+                              width: 2,
+                            ),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.calendar_today_outlined, size: 20, color: Color(0xFF9CA3AF)),
+                              const Icon(
+                                Icons.calendar_today_outlined,
+                                size: 20,
+                                color: Color(0xFF9CA3AF),
+                              ),
                               const SizedBox(width: 12),
                               Text(
                                 _selectedDate == null
@@ -335,7 +436,9 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                                     : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
                                 style: TextStyle(
                                   fontSize: 16,
-                                  color: _selectedDate == null ? const Color(0xFF9CA3AF) : const Color(0xFF1C2334),
+                                  color: _selectedDate == null
+                                      ? const Color(0xFF9CA3AF)
+                                      : const Color(0xFF1C2334),
                                 ),
                               ),
                             ],
@@ -366,7 +469,7 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _canProceed() ? _handleNext : null,
+                  onPressed: _canProceed() ? () => _handleNext() : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5B8CFF),
                     disabledBackgroundColor: const Color(0xFFE5E7EB),
@@ -380,7 +483,9 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: _canProceed() ? Colors.white : const Color(0xFF9CA3AF),
+                      color: _canProceed()
+                          ? Colors.white
+                          : const Color(0xFF9CA3AF),
                     ),
                   ),
                 ),

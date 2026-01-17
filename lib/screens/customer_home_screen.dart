@@ -436,7 +436,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                                 builder: (context) =>
                                                     CustomerLiveTrackingScreen(
                                                       booking:
-                                                          _activeService ?? {},
+                                                          _activeService,
                                                     ),
                                               ),
                                             );

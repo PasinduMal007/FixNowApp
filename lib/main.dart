@@ -15,8 +15,22 @@ import 'screens/customer_photo_screen.dart';
 import 'screens/customer_service_selection_screen.dart';
 import 'screens/customer_location_setup_screen.dart';
 import 'screens/customer_dashboard.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'dart:io';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isAndroid) {
+    // Android already has google-services.json and auto-initializes [DEFAULT]
+    await Firebase.initializeApp();
+  } else {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
+
   runApp(const MyApp());
 }
 
@@ -38,10 +52,10 @@ class MyApp extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/onboarding': (context) => OnboardingScreens(
-              onComplete: () {
-                Navigator.of(context).pushReplacementNamed('/role-selection');
-              },
-            ),
+          onComplete: () {
+            Navigator.of(context).pushReplacementNamed('/role-selection');
+          },
+        ),
         '/role-selection': (context) => const RoleSelectionScreen(),
         // Worker onboarding routes
         '/worker-profession': (context) => const WorkerProfessionScreen(),
@@ -50,10 +64,13 @@ class MyApp extends StatelessWidget {
         '/worker-rates': (context) => const WorkerRatesScreen(),
         '/worker-dashboard': (context) => const WorkerDashboard(),
         // Customer onboarding routes
-        '/customer-personal-info': (context) => const CustomerPersonalInfoScreen(),
+        '/customer-personal-info': (context) =>
+            const CustomerPersonalInfoScreen(),
         '/customer-photo': (context) => const CustomerPhotoScreen(),
-        '/customer-service-selection': (context) => const CustomerServiceSelectionScreen(),
-        '/customer-location-setup': (context) => const CustomerLocationSetupScreen(),
+        '/customer-service-selection': (context) =>
+            const CustomerServiceSelectionScreen(),
+        '/customer-location-setup': (context) =>
+            const CustomerLocationSetupScreen(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/login') {
@@ -71,14 +88,13 @@ class MyApp extends StatelessWidget {
         if (settings.name == '/worker-experience') {
           final profession = settings.arguments as String? ?? 'this profession';
           return MaterialPageRoute(
-            builder: (context) => WorkerExperienceScreen(profession: profession),
+            builder: (context) =>
+                WorkerExperienceScreen(profession: profession),
           );
         }
         if (settings.name == '/customer-dashboard') {
-          final args = settings.arguments as Map<String, dynamic>?;
-          final customerName = args?['customerName'] as String? ?? 'Customer';
           return MaterialPageRoute(
-            builder: (context) => CustomerDashboard(customerName: customerName),
+            builder: (context) => const CustomerDashboard(),
           );
         }
         return null;

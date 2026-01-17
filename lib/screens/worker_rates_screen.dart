@@ -1,3 +1,4 @@
+import 'package:fix_now_app/Services/worker_onboarding_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,11 +6,7 @@ class WorkerRatesScreen extends StatefulWidget {
   final String? profession;
   final Function(Map<String, dynamic> ratesData)? onNext;
 
-  const WorkerRatesScreen({
-    super.key,
-    this.profession,
-    this.onNext,
-  });
+  const WorkerRatesScreen({super.key, this.profession, this.onNext});
 
   @override
   State<WorkerRatesScreen> createState() => _WorkerRatesScreenState();
@@ -53,7 +50,7 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
   String _formatCurrency(String value) {
     final numbers = value.replaceAll(RegExp(r'\D'), '');
     if (numbers.isEmpty) return '';
-    
+
     final number = int.parse(numbers);
     return number.toString().replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -85,23 +82,43 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
     return numericBaseRate >= 500;
   }
 
-  void _handleNext() {
-    if (_canProceed()) {
-      final ratesData = {
-        'rateType': _rateType,
-        'baseRate': int.parse(_baseRateController.text.replaceAll(',', '')),
-        'negotiable': _negotiable,
-        'callOutCharge': _callOutChargeController.text.isEmpty
-            ? 0
-            : int.parse(_callOutChargeController.text.replaceAll(',', '')),
-      };
+  Future<void> _handleNext() async {
+    if (!_canProceed()) return;
 
-      // Navigate to worker dashboard (with persistent bottom nav)
-      Navigator.pushNamedAndRemoveUntil(context, '/worker-dashboard', (route) => false);
+    final baseRate = int.parse(_baseRateController.text.replaceAll(',', ''));
+    final callOut = _callOutChargeController.text.isEmpty
+        ? 0
+        : int.parse(_callOutChargeController.text.replaceAll(',', ''));
+
+    try {
+      final service = WorkerOnboardingService();
+      await service.saveRatesAndComplete(
+        rateType: _rateType,
+        baseRate: baseRate,
+        callOutCharge: callOut,
+        negotiable: _negotiable,
+      );
+
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/worker-dashboard',
+        (route) => false,
+      );
 
       if (widget.onNext != null) {
-        widget.onNext!(ratesData);
+        widget.onNext!({
+          'rateType': _rateType,
+          'baseRate': baseRate,
+          'negotiable': _negotiable,
+          'callOutCharge': callOut,
+        });
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to save rates: $e")));
     }
   }
 
@@ -136,7 +153,11 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(Icons.arrow_back, size: 20, color: Color(0xFF1C2334)),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        size: 20,
+                        color: Color(0xFF1C2334),
+                      ),
                     ),
                   ),
                 ],
@@ -160,7 +181,11 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                             color: Color(0xFFE8F0FF),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.attach_money, size: 16, color: Color(0xFF5B8CFF)),
+                          child: const Icon(
+                            Icons.attach_money,
+                            size: 16,
+                            color: Color(0xFF5B8CFF),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         const Text(
@@ -199,13 +224,18 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                               right: type == _rateTypes.last ? 0 : 12,
                             ),
                             child: GestureDetector(
-                              onTap: () => setState(() => _rateType = type['value']),
+                              onTap: () =>
+                                  setState(() => _rateType = type['value']),
                               child: Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: isSelected ? const Color(0xFF5B8CFF) : Colors.white,
+                                  color: isSelected
+                                      ? const Color(0xFF5B8CFF)
+                                      : Colors.white,
                                   border: Border.all(
-                                    color: isSelected ? const Color(0xFF5B8CFF) : const Color(0xFFE5E7EB),
+                                    color: isSelected
+                                        ? const Color(0xFF5B8CFF)
+                                        : const Color(0xFFE5E7EB),
                                     width: 2,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
@@ -215,14 +245,18 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                                     Icon(
                                       type['icon'],
                                       size: 24,
-                                      color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                                      color: isSelected
+                                          ? Colors.white
+                                          : const Color(0xFF6B7280),
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
                                       type['label'],
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                                        color: isSelected
+                                            ? Colors.white
+                                            : const Color(0xFF6B7280),
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -232,7 +266,9 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         fontSize: 10,
-                                        color: isSelected ? Colors.white.withOpacity(0.8) : const Color(0xFF9CA3AF),
+                                        color: isSelected
+                                            ? Colors.white.withOpacity(0.8)
+                                            : const Color(0xFF9CA3AF),
                                       ),
                                     ),
                                   ],
@@ -256,7 +292,10 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onChanged: _handleBaseRateChange,
-                      style: const TextStyle(fontSize: 20, color: Color(0xFF1C2334)),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        color: Color(0xFF1C2334),
+                      ),
                       decoration: InputDecoration(
                         hintText: '2,500',
                         prefixIcon: Container(
@@ -265,23 +304,38 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                           padding: const EdgeInsets.only(left: 16),
                           child: const Text(
                             'LKR',
-                            style: TextStyle(fontSize: 15, color: Color(0xFF6B7280)),
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Color(0xFF6B7280),
+                            ),
                           ),
                         ),
                         filled: true,
                         fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 22,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                            width: 2,
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                            width: 2,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF5B8CFF),
+                            width: 2,
+                          ),
                         ),
                       ),
                     ),
@@ -290,9 +344,12 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                       _rateType == 'per-hour'
                           ? 'Amount you charge per hour of work'
                           : _rateType == 'per-visit'
-                              ? 'Fixed fee for each service visit'
-                              : 'Base price per completed job',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                          ? 'Fixed fee for each service visit'
+                          : 'Base price per completed job',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF9CA3AF),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -301,11 +358,17 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                       children: const [
                         Text(
                           'Call-out Charge ',
-                          style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF6B7280),
+                          ),
                         ),
                         Text(
                           '(Optional)',
-                          style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF9CA3AF),
+                          ),
                         ),
                       ],
                     ),
@@ -315,7 +378,10 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onChanged: _handleCallOutChargeChange,
-                      style: const TextStyle(fontSize: 18, color: Color(0xFF1C2334)),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        color: Color(0xFF1C2334),
+                      ),
                       decoration: InputDecoration(
                         hintText: '500',
                         prefixIcon: Container(
@@ -324,23 +390,38 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                           padding: const EdgeInsets.only(left: 16),
                           child: const Text(
                             'LKR',
-                            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                            ),
                           ),
                         ),
                         filled: true,
                         fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 18,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                            width: 2,
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                            width: 2,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF5B8CFF),
+                            width: 2,
+                          ),
                         ),
                       ),
                     ),
@@ -356,12 +437,19 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF9FAFB),
-                        border: Border.all(color: const Color(0xFFE5E7EB), width: 2),
+                        border: Border.all(
+                          color: const Color(0xFFE5E7EB),
+                          width: 2,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.flash_on, size: 20, color: Color(0xFF5B8CFF)),
+                          const Icon(
+                            Icons.flash_on,
+                            size: 20,
+                            color: Color(0xFF5B8CFF),
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -369,27 +457,38 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                               children: const [
                                 Text(
                                   'Open to negotiation',
-                                  style: TextStyle(fontSize: 15, color: Color(0xFF1C2334)),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: Color(0xFF1C2334),
+                                  ),
                                 ),
                                 SizedBox(height: 2),
                                 Text(
                                   'Rates can be discussed with customers',
-                                  style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF9CA3AF),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                           GestureDetector(
-                            onTap: () => setState(() => _negotiable = !_negotiable),
+                            onTap: () =>
+                                setState(() => _negotiable = !_negotiable),
                             child: Container(
                               width: 56,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: _negotiable ? const Color(0xFF5B8CFF) : const Color(0xFFD1D5DB),
+                                color: _negotiable
+                                    ? const Color(0xFF5B8CFF)
+                                    : const Color(0xFFD1D5DB),
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: AnimatedAlign(
-                                alignment: _negotiable ? Alignment.centerRight : Alignment.centerLeft,
+                                alignment: _negotiable
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
                                 duration: const Duration(milliseconds: 300),
                                 curve: Curves.easeInOut,
                                 child: Container(
@@ -418,7 +517,11 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                       ),
                       child: const Text(
                         '💡 Tip: You can adjust your rates anytime from your profile settings. Set competitive rates to attract more customers!',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.5),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
+                          height: 1.5,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 100),
@@ -444,7 +547,7 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _canProceed() ? _handleNext : null,
+                  onPressed: _canProceed() ? () => _handleNext() : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5B8CFF),
                     disabledBackgroundColor: const Color(0xFFE5E7EB),
@@ -458,7 +561,9 @@ class _WorkerRatesScreenState extends State<WorkerRatesScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: _canProceed() ? Colors.white : const Color(0xFF9CA3AF),
+                      color: _canProceed()
+                          ? Colors.white
+                          : const Color(0xFF9CA3AF),
                     ),
                   ),
                 ),

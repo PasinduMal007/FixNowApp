@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fix_now_app/services/worker_onboarding_service.dart';
 
 class WorkerProfessionScreen extends StatefulWidget {
   final Function(String profession)? onNext;
@@ -13,7 +14,8 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
   String selectedProfession = '';
   bool showOtherInput = false;
   String addedCustomProfession = '';
-  final TextEditingController _customProfessionController = TextEditingController();
+  final TextEditingController _customProfessionController =
+      TextEditingController();
 
   final List<Map<String, dynamic>> professions = [
     {'name': 'Electrician', 'icon': Icons.flash_on},
@@ -68,20 +70,30 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
     });
   }
 
-  void handleNext() {
-    if (canProceed()) {
-      final professionToSubmit = selectedProfession;      
-      
-      // Navigate to experience screen with profession
+  Future<void> handleNext() async {
+    if (!canProceed()) return;
+
+    final professionToSubmit = selectedProfession;
+
+    try {
+      final service = WorkerOnboardingService();
+      await service.saveProfession(professionToSubmit);
+
+      if (!mounted) return;
       Navigator.pushNamed(
         context,
         '/worker-experience',
         arguments: professionToSubmit,
       );
-      
+
       if (widget.onNext != null) {
         widget.onNext!(professionToSubmit);
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to save profession: $e")));
     }
   }
 
@@ -127,7 +139,11 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(Icons.arrow_back, size: 20, color: Color(0xFF1C2334)),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        size: 20,
+                        color: Color(0xFF1C2334),
+                      ),
                     ),
                   ),
                 ],
@@ -161,24 +177,31 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 2.5,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 2.5,
+                          ),
                       itemCount: professions.length,
                       itemBuilder: (context, index) {
                         final profession = professions[index];
-                        final isSelected = selectedProfession == profession['name'];
+                        final isSelected =
+                            selectedProfession == profession['name'];
 
                         return GestureDetector(
-                          onTap: () => handleProfessionClick(profession['name']),
+                          onTap: () =>
+                              handleProfessionClick(profession['name']),
                           child: Container(
                             decoration: BoxDecoration(
-                              color: isSelected ? const Color(0xFFE8F0FF) : Colors.white,
+                              color: isSelected
+                                  ? const Color(0xFFE8F0FF)
+                                  : Colors.white,
                               border: Border.all(
-                                color: isSelected ? const Color(0xFF5B8CFF) : const Color(0xFFE5E7EB),
+                                color: isSelected
+                                    ? const Color(0xFF5B8CFF)
+                                    : const Color(0xFFE5E7EB),
                                 width: 2,
                               ),
                               borderRadius: BorderRadius.circular(12),
@@ -192,7 +215,9 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                       Icon(
                                         profession['icon'],
                                         size: 20,
-                                        color: isSelected ? const Color(0xFF5B8CFF) : const Color(0xFF6B7280),
+                                        color: isSelected
+                                            ? const Color(0xFF5B8CFF)
+                                            : const Color(0xFF6B7280),
                                       ),
                                       const SizedBox(width: 8),
                                       Flexible(
@@ -200,7 +225,9 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                           profession['name'],
                                           style: TextStyle(
                                             fontSize: 14,
-                                            color: isSelected ? const Color(0xFF5B8CFF) : const Color(0xFF6B7280),
+                                            color: isSelected
+                                                ? const Color(0xFF5B8CFF)
+                                                : const Color(0xFF6B7280),
                                           ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -219,7 +246,11 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                         color: Color(0xFF5B8CFF),
                                         shape: BoxShape.circle,
                                       ),
-                                      child: const Icon(Icons.check, size: 12, color: Colors.white),
+                                      child: const Icon(
+                                        Icons.check,
+                                        size: 12,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
                               ],
@@ -236,9 +267,13 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                       child: Container(
                         height: 60,
                         decoration: BoxDecoration(
-                          color: showOtherInput ? const Color(0xFFE8F0FF) : Colors.white,
+                          color: showOtherInput
+                              ? const Color(0xFFE8F0FF)
+                              : Colors.white,
                           border: Border.all(
-                            color: showOtherInput ? const Color(0xFF5B8CFF) : const Color(0xFFE5E7EB),
+                            color: showOtherInput
+                                ? const Color(0xFF5B8CFF)
+                                : const Color(0xFFE5E7EB),
                             width: 2,
                           ),
                           borderRadius: BorderRadius.circular(12),
@@ -250,7 +285,9 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                 'Other',
                                 style: TextStyle(
                                   fontSize: 16,
-                                  color: showOtherInput ? const Color(0xFF5B8CFF) : const Color(0xFF6B7280),
+                                  color: showOtherInput
+                                      ? const Color(0xFF5B8CFF)
+                                      : const Color(0xFF6B7280),
                                 ),
                               ),
                             ),
@@ -265,7 +302,11 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                     color: Color(0xFF5B8CFF),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.check, size: 12, color: Colors.white),
+                                  child: const Icon(
+                                    Icons.check,
+                                    size: 12,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                           ],
@@ -281,7 +322,10 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                         children: [
                           const Text(
                             'Enter your profession',
-                            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -292,7 +336,9 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                   autofocus: true,
                                   onChanged: (_) => setState(() {}),
                                   onSubmitted: (_) {
-                                    if (_customProfessionController.text.trim().isNotEmpty) {
+                                    if (_customProfessionController.text
+                                        .trim()
+                                        .isNotEmpty) {
                                       handleAddCustomProfession();
                                     }
                                   },
@@ -303,40 +349,66 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                     contentPadding: const EdgeInsets.all(16),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF5B8CFF),
+                                        width: 2,
+                                      ),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF5B8CFF),
+                                        width: 2,
+                                      ),
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF5B8CFF),
+                                        width: 2,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               ElevatedButton(
-                                onPressed: _customProfessionController.text.trim().isEmpty
+                                onPressed:
+                                    _customProfessionController.text
+                                        .trim()
+                                        .isEmpty
                                     ? null
                                     : handleAddCustomProfession,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF5B8CFF),
-                                  disabledBackgroundColor: const Color(0xFFE5E7EB),
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                                  disabledBackgroundColor: const Color(
+                                    0xFFE5E7EB,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 18,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
-                                child: const Text('Add', style: TextStyle(fontSize: 16, color: Colors.white)),
+                                child: const Text(
+                                  'Add',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
                           const Text(
                             'Please specify your profession',
-                            style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF9CA3AF),
+                            ),
                           ),
                         ],
                       ),
@@ -348,7 +420,9 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                       GestureDetector(
                         onTap: () {
                           if (selectedProfession != addedCustomProfession) {
-                            setState(() => selectedProfession = addedCustomProfession);
+                            setState(
+                              () => selectedProfession = addedCustomProfession,
+                            );
                           }
                         },
                         child: Container(
@@ -371,7 +445,8 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                               Icon(
                                 Icons.work,
                                 size: 20,
-                                color: selectedProfession == addedCustomProfession
+                                color:
+                                    selectedProfession == addedCustomProfession
                                     ? const Color(0xFF5B8CFF)
                                     : const Color(0xFF6B7280),
                               ),
@@ -381,7 +456,9 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                   addedCustomProfession,
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color: selectedProfession == addedCustomProfession
+                                    color:
+                                        selectedProfession ==
+                                            addedCustomProfession
                                         ? const Color(0xFF5B8CFF)
                                         : const Color(0xFF6B7280),
                                   ),
@@ -396,10 +473,15 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                     color: const Color(0xFFF3F4F6),
                                     borderRadius: BorderRadius.circular(16),
                                   ),
-                                  child: const Icon(Icons.close, size: 16, color: Color(0xFF6B7280)),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: Color(0xFF6B7280),
+                                  ),
                                 ),
                               ),
-                              if (selectedProfession == addedCustomProfession) ...[
+                              if (selectedProfession ==
+                                  addedCustomProfession) ...[
                                 const SizedBox(width: 8),
                                 Container(
                                   width: 20,
@@ -408,7 +490,11 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                                     color: Color(0xFF5B8CFF),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.check, size: 12, color: Colors.white),
+                                  child: const Icon(
+                                    Icons.check,
+                                    size: 12,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ],
                             ],
@@ -416,7 +502,9 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 100), // Extra space for bottom button
+                    const SizedBox(
+                      height: 100,
+                    ), // Extra space for bottom button
                   ],
                 ),
               ),
@@ -439,7 +527,7 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: canProceed() ? handleNext : null,
+                  onPressed: canProceed() ? () => handleNext() : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5B8CFF),
                     disabledBackgroundColor: const Color(0xFFE5E7EB),
@@ -453,7 +541,9 @@ class _WorkerProfessionScreenState extends State<WorkerProfessionScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: canProceed() ? Colors.white : const Color(0xFF9CA3AF),
+                      color: canProceed()
+                          ? Colors.white
+                          : const Color(0xFF9CA3AF),
                     ),
                   ),
                 ),
