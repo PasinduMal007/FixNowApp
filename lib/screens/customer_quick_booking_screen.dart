@@ -1,13 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
 
 class CustomerQuickBookingScreen extends StatefulWidget {
-  const CustomerQuickBookingScreen({super.key});
+  final Map<String, dynamic> worker;
+  final String categoryName;
+
+  const CustomerQuickBookingScreen({
+    super.key,
+    required this.worker,
+    required this.categoryName,
+  });
 
   @override
-  State<CustomerQuickBookingScreen> createState() => _CustomerQuickBookingScreenState();
+  State<CustomerQuickBookingScreen> createState() =>
+      _CustomerQuickBookingScreenState();
 }
 
-class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen> {
+class _CustomerQuickBookingScreenState
+    extends State<CustomerQuickBookingScreen> {
   int _currentStep = 0;
   bool _emergencyBooking = false;
   String _selectedDate = 'Today';
@@ -17,8 +29,15 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
   final _instructionsController = TextEditingController();
 
   final List<String> _timeSlots = [
-    '06:00 AM', '09:00 AM', '10:00 AM', '11:00 AM',
-    '12:00 PM', '01:00 PM', '04:00 PM', '05:00 PM', '06:00 PM'
+    '08:00 AM',
+    '09:00 AM',
+    '10:00 AM',
+    '11:00 AM',
+    '12:00 PM',
+    '01:00 PM',
+    '03:00 PM',
+    '04:00 PM',
+    '05:00 PM',
   ];
 
   int get _completionProgress => _calculateProgress();
@@ -32,8 +51,45 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
     return progress;
   }
 
+  // ✅ worker data getters
+  String get _workerName => (widget.worker['name'] ?? 'Worker').toString();
+  String get _workerType =>
+      (widget.worker['type'] ?? widget.categoryName).toString();
+
+  String get _workerId =>
+      (widget.worker['uid'] ?? widget.worker['workerId'] ?? '').toString();
+
+  String get _serviceId =>
+      (widget.worker['serviceId'] ?? widget.categoryName).toString();
+
+  String get _serviceName => widget.categoryName;
+
+  double get _workerRating {
+    final v = widget.worker['rating'];
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0.0;
+    return 0.0;
+  }
+
+  int get _workerReviews {
+    final v = widget.worker['reviews'];
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
+  int get _workerHourlyRate {
+    final v = widget.worker['hourlyRate'];
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 2500;
+    return 2500;
+  }
+
+  // ✅ price getters
   double get _platformFee => 500.0;
-  double get _serviceCharge => _emergencyBooking ? 2500.0 + 1000.0 : 2500.0;
+  double get _baseHourly => _workerHourlyRate.toDouble();
+  double get _serviceCharge =>
+      _emergencyBooking ? (_baseHourly + 1000.0) : _baseHourly;
   double get _totalAmount => _serviceCharge + _platformFee;
 
   @override
@@ -64,7 +120,11 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -101,54 +161,24 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.bookmark_outline, color: Colors.white, size: 16),
+                          Icon(
+                            Icons.bookmark_outline,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                           SizedBox(width: 6),
                           Text(
                             'Save Draft',
                             style: TextStyle(color: Colors.white, fontSize: 13),
                           ),
                         ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Progress Bar
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Completion Progress',
-                          style: TextStyle(fontSize: 13, color: Colors.white70),
-                        ),
-                        Text(
-                          '$_completionProgress of 4',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: _completionProgress / 4,
-                        backgroundColor: Colors.white.withOpacity(0.3),
-                        valueColor: const AlwaysStoppedAnimation(Colors.white),
-                        minHeight: 6,
                       ),
                     ),
                   ],
@@ -185,21 +215,28 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                                 height: 56,
                                 decoration: BoxDecoration(
                                   gradient: const LinearGradient(
-                                    colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+                                    colors: [
+                                      Color(0xFFE8F0FF),
+                                      Color(0xFFD0E2FF),
+                                    ],
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 28),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Color(0xFF4A7FFF),
+                                  size: 28,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Row(
+                                    Row(
                                       children: [
                                         Text(
-                                          'Kasun Perera',
+                                          _workerName,
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold,
@@ -207,12 +244,16 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                                           ),
                                         ),
                                         SizedBox(width: 6),
-                                        Icon(Icons.verified, size: 16, color: Color(0xFF10B981)),
+                                        Icon(
+                                          Icons.verified,
+                                          size: 16,
+                                          color: Color(0xFF10B981),
+                                        ),
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    const Text(
-                                      'Rated Electrician',
+                                    Text(
+                                      _workerType,
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: Color(0xFF6B7280),
@@ -222,17 +263,28 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                                     Row(
                                       children: [
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: const Color(0xFFFEF3C7),
-                                            borderRadius: BorderRadius.circular(4),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
                                           ),
-                                          child: const Row(
+                                          child: Row(
                                             children: [
-                                              Icon(Icons.star, size: 12, color: Color(0xFFFBBF24)),
+                                              Icon(
+                                                Icons.star,
+                                                size: 12,
+                                                color: Color(0xFFFBBF24),
+                                              ),
                                               SizedBox(width: 2),
                                               Text(
-                                                '4.9',
+                                                _workerRating.toStringAsFixed(
+                                                  1,
+                                                ),
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w600,
@@ -245,7 +297,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                                         const SizedBox(width: 8),
                                         const Text(
                                           'Active 2 mins ago',
-                                          style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF9CA3AF),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -265,11 +320,18 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                           ),
                           child: const Row(
                             children: [
-                              Icon(Icons.schedule, size: 16, color: Color(0xFF4A7FFF)),
+                              Icon(
+                                Icons.schedule,
+                                size: 16,
+                                color: Color(0xFF4A7FFF),
+                              ),
                               SizedBox(width: 8),
                               Text(
                                 'Response time ',
-                                style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF6B7280),
+                                ),
                               ),
                               Text(
                                 '~15 mins',
@@ -282,7 +344,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                               Spacer(),
                               Text(
                                 '450 jobs',
-                                style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF6B7280),
+                                ),
                               ),
                             ],
                           ),
@@ -293,13 +358,13 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: _emergencyBooking 
-                                ? const Color(0xFFFEE2E2) 
+                            color: _emergencyBooking
+                                ? const Color(0xFFFEE2E2)
                                 : Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: _emergencyBooking 
-                                  ? const Color(0xFFEF4444) 
+                              color: _emergencyBooking
+                                  ? const Color(0xFFEF4444)
                                   : const Color(0xFFE5E7EB),
                             ),
                           ),
@@ -309,14 +374,16 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: _emergencyBooking 
-                                      ? const Color(0xFFEF4444) 
+                                  color: _emergencyBooking
+                                      ? const Color(0xFFEF4444)
                                       : const Color(0xFFF3F4F6),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(
                                   Icons.flash_on,
-                                  color: _emergencyBooking ? Colors.white : const Color(0xFF9CA3AF),
+                                  color: _emergencyBooking
+                                      ? Colors.white
+                                      : const Color(0xFF9CA3AF),
                                   size: 22,
                                 ),
                               ),
@@ -338,8 +405,8 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                                       'Get faster response with priority service +LKR 1,000',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: _emergencyBooking 
-                                            ? const Color(0xFFEF4444) 
+                                        color: _emergencyBooking
+                                            ? const Color(0xFFEF4444)
                                             : const Color(0xFF9CA3AF),
                                       ),
                                     ),
@@ -361,7 +428,11 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                         // Select Date
                         Row(
                           children: [
-                            const Icon(Icons.calendar_today, size: 18, color: Color(0xFF4A7FFF)),
+                            const Icon(
+                              Icons.calendar_today,
+                              size: 18,
+                              color: Color(0xFF4A7FFF),
+                            ),
                             const SizedBox(width: 8),
                             const Text(
                               'Select Date',
@@ -373,7 +444,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                             ),
                             const Text(
                               ' *',
-                              style: TextStyle(color: Color(0xFFEF4444), fontSize: 15),
+                              style: TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontSize: 15,
+                              ),
                             ),
                           ],
                         ),
@@ -384,7 +458,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                             const SizedBox(width: 12),
                             _buildDateChip('Tomorrow'),
                             const SizedBox(width: 12),
-                            _buildDateChip('Pick Date', icon: Icons.calendar_month),
+                            _buildDateChip(
+                              'Pick Date',
+                              icon: Icons.calendar_month,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -392,7 +469,11 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                         // Select Time
                         Row(
                           children: [
-                            const Icon(Icons.access_time, size: 18, color: Color(0xFF4A7FFF)),
+                            const Icon(
+                              Icons.access_time,
+                              size: 18,
+                              color: Color(0xFF4A7FFF),
+                            ),
                             const SizedBox(width: 8),
                             const Text(
                               'Select Time',
@@ -404,7 +485,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                             ),
                             const Text(
                               ' *',
-                              style: TextStyle(color: Color(0xFFEF4444), fontSize: 15),
+                              style: TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontSize: 15,
+                              ),
                             ),
                           ],
                         ),
@@ -412,14 +496,20 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                         Wrap(
                           spacing: 12,
                           runSpacing: 12,
-                          children: _timeSlots.map((time) => _buildTimeChip(time)).toList(),
+                          children: _timeSlots
+                              .map((time) => _buildTimeChip(time))
+                              .toList(),
                         ),
                         const SizedBox(height: 24),
 
                         // Service Location
                         Row(
                           children: [
-                            const Icon(Icons.location_on, size: 18, color: Color(0xFF4A7FFF)),
+                            const Icon(
+                              Icons.location_on,
+                              size: 18,
+                              color: Color(0xFF4A7FFF),
+                            ),
                             const SizedBox(width: 8),
                             const Text(
                               'Service Location',
@@ -431,7 +521,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                             ),
                             const Text(
                               ' *',
-                              style: TextStyle(color: Color(0xFFEF4444), fontSize: 15),
+                              style: TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontSize: 15,
+                              ),
                             ),
                             const Spacer(),
                             TextButton.icon(
@@ -440,14 +533,20 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                               label: const Text('Saved'),
                               style: TextButton.styleFrom(
                                 foregroundColor: const Color(0xFF4A7FFF),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 12),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
@@ -459,7 +558,8 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                                 child: TextField(
                                   controller: _locationController,
                                   decoration: const InputDecoration(
-                                    hintText: 'Enter complete address with landmarks...',
+                                    hintText:
+                                        'Enter complete address with landmarks...',
                                     hintStyle: TextStyle(
                                       fontSize: 14,
                                       color: Color(0xFF9CA3AF),
@@ -473,7 +573,11 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                               ),
                               IconButton(
                                 onPressed: () {},
-                                icon: const Icon(Icons.send, color: Color(0xFF4A7FFF), size: 20),
+                                icon: const Icon(
+                                  Icons.send,
+                                  color: Color(0xFF4A7FFF),
+                                  size: 20,
+                                ),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                               ),
@@ -495,7 +599,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
                           ),
                         ),
                         if (_instructionsController.text.isNotEmpty) ...[
@@ -506,14 +613,20 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                             decoration: BoxDecoration(
                               color: const Color(0xFFF9FAFB),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                              border: Border.all(
+                                color: const Color(0xFFE5E7EB),
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Row(
                                   children: [
-                                    Icon(Icons.note_outlined, size: 16, color: Color(0xFF6B7280)),
+                                    Icon(
+                                      Icons.note_outlined,
+                                      size: 16,
+                                      color: Color(0xFF6B7280),
+                                    ),
                                     SizedBox(width: 6),
                                     Text(
                                       'Special Instructions (Optional)',
@@ -542,7 +655,11 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                         // Payment Method
                         Row(
                           children: [
-                            const Icon(Icons.payment, size: 18, color: Color(0xFF4A7FFF)),
+                            const Icon(
+                              Icons.payment,
+                              size: 18,
+                              color: Color(0xFF4A7FFF),
+                            ),
                             const SizedBox(width: 8),
                             const Text(
                               'Payment Method',
@@ -554,10 +671,17 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                             ),
                             const Text(
                               ' *',
-                              style: TextStyle(color: Color(0xFFEF4444), fontSize: 15),
+                              style: TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontSize: 15,
+                              ),
                             ),
                             const Spacer(),
-                            const Icon(Icons.help_outline, size: 16, color: Color(0xFF9CA3AF)),
+                            const Icon(
+                              Icons.help_outline,
+                              size: 16,
+                              color: Color(0xFF9CA3AF),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -581,7 +705,11 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                         // Price Summary
                         Row(
                           children: [
-                            const Icon(Icons.receipt_long, size: 18, color: Color(0xFF4A7FFF)),
+                            const Icon(
+                              Icons.receipt_long,
+                              size: 18,
+                              color: Color(0xFF4A7FFF),
+                            ),
                             const SizedBox(width: 8),
                             const Text(
                               'Price Summary',
@@ -603,16 +731,23 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                           ),
                           child: Column(
                             children: [
-                              _buildPriceRow('Service (2hrs × LKR 2500)', 'LKR ${_serviceCharge.toStringAsFixed(0)}'),
+                              _buildPriceRow(
+                                'Service (2hrs × LKR 2500)',
+                                'LKR ${_serviceCharge.toStringAsFixed(0)}',
+                              ),
                               const SizedBox(height: 12),
                               const Divider(height: 1),
                               const SizedBox(height: 12),
-                              _buildPriceRow('Platform Fee', 'LKR ${_platformFee.toStringAsFixed(0)}'),
+                              _buildPriceRow(
+                                'Platform Fee',
+                                'LKR ${_platformFee.toStringAsFixed(0)}',
+                              ),
                               const SizedBox(height: 16),
                               const Divider(height: 1, thickness: 2),
                               const SizedBox(height: 16),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text(
                                     'Total Amount',
@@ -654,7 +789,11 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                                   color: Color(0xFF10B981),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.verified_user, color: Colors.white, size: 20),
+                                child: const Icon(
+                                  Icons.verified_user,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               const Expanded(
@@ -691,7 +830,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                           children: [
                             const Text(
                               'I agree to the ',
-                              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF6B7280),
+                              ),
                             ),
                             GestureDetector(
                               onTap: () {},
@@ -706,7 +848,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                             ),
                             const Text(
                               ' and ',
-                              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF6B7280),
+                              ),
                             ),
                           ],
                         ),
@@ -730,24 +875,41 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
 
                         // Confirm Button
                         ElevatedButton(
-                          onPressed: () {
-                            if (_completionProgress == 4) {
+                          onPressed: () async {
+                            if (_completionProgress != 4) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Booking confirmed!'),
+                                  content: Text(
+                                    'Please complete all required fields',
+                                  ),
+                                  backgroundColor: Color(0xFFEF4444),
+                                ),
+                              );
+                              return;
+                            }
+
+                            try {
+                              await _createBooking();
+
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Booking requested!'),
                                   backgroundColor: Color(0xFF10B981),
                                 ),
                               );
                               Navigator.pop(context);
-                            } else {
+                            } catch (e) {
+                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Please complete all required fields'),
-                                  backgroundColor: Color(0xFFEF4444),
+                                SnackBar(
+                                  content: Text('Booking failed: $e'),
+                                  backgroundColor: const Color(0xFFEF4444),
                                 ),
                               );
                             }
                           },
+
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF4A7FFF),
                             minimumSize: const Size(double.infinity, 56),
@@ -759,7 +921,10 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.check_circle_outline, color: Colors.white),
+                              const Icon(
+                                Icons.check_circle_outline,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 8),
                               const Text(
                                 'Confirm Booking',
@@ -785,6 +950,50 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
     );
   }
 
+  Future<void> _createBooking() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) throw Exception('User not logged in');
+
+  final customerId = user.uid;
+
+  if (_workerId.trim().isEmpty) {
+    throw Exception('Worker ID is missing (uid not found in worker map).');
+  }
+
+  final location = _locationController.text.trim();
+  if (location.isEmpty) throw Exception('Location is required');
+
+  final rootRef = DB.ref();
+
+  final bookingRef = rootRef.child('bookings').push();
+  final bookingId = bookingRef.key;
+  if (bookingId == null) throw Exception('Failed to generate bookingId');
+
+  final scheduledAt = '${_selectedDate.trim()} ${_selectedTime.trim()}';
+  final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+  final bookingData = <String, dynamic>{
+    'bookingId': bookingId,
+    'customerId': customerId,
+    'workerId': _workerId.trim(),
+    'serviceId': _serviceId.toString(),
+    'serviceName': _serviceName.toString(),
+    'locationText': location,
+    'scheduledAt': scheduledAt,
+    'status': 'requested',
+    'createdAt': nowMs,
+    'updatedAt': nowMs,
+  };
+
+  final updates = <String, dynamic>{
+    'bookings/$bookingId': bookingData,
+    'userBookings/customers/$customerId/$bookingId': true,
+    'userBookings/workers/${_workerId.trim()}/$bookingId': true,
+  };
+
+  await rootRef.update(updates);
+}
+
   Widget _buildDateChip(String label, {IconData? icon}) {
     final isSelected = _selectedDate == label;
     return Expanded(
@@ -796,14 +1005,20 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
             color: isSelected ? const Color(0xFF4A7FFF) : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? const Color(0xFF4A7FFF) : const Color(0xFFE5E7EB),
+              color: isSelected
+                  ? const Color(0xFF4A7FFF)
+                  : const Color(0xFFE5E7EB),
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 16, color: isSelected ? Colors.white : const Color(0xFF6B7280)),
+                Icon(
+                  icon,
+                  size: 16,
+                  color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                ),
                 const SizedBox(width: 6),
               ],
               Text(
@@ -831,7 +1046,9 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
           color: isSelected ? const Color(0xFF4A7FFF) : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? const Color(0xFF4A7FFF) : const Color(0xFFE5E7EB),
+            color: isSelected
+                ? const Color(0xFF4A7FFF)
+                : const Color(0xFFE5E7EB),
           ),
         ),
         child: Text(
@@ -846,7 +1063,13 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
     );
   }
 
-  Widget _buildPaymentOption(String value, String title, String subtitle, IconData icon, Color iconColor) {
+  Widget _buildPaymentOption(
+    String value,
+    String title,
+    String subtitle,
+    IconData icon,
+    Color iconColor,
+  ) {
     final isSelected = _paymentMethod == value;
     return GestureDetector(
       onTap: () => setState(() => _paymentMethod = value),
@@ -856,7 +1079,9 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
           color: isSelected ? const Color(0xFFE8F0FF) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? const Color(0xFF4A7FFF) : const Color(0xFFE5E7EB),
+            color: isSelected
+                ? const Color(0xFF4A7FFF)
+                : const Color(0xFFE5E7EB),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -901,10 +1126,14 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? const Color(0xFF4A7FFF) : const Color(0xFFD1D5DB),
+                  color: isSelected
+                      ? const Color(0xFF4A7FFF)
+                      : const Color(0xFFD1D5DB),
                   width: 2,
                 ),
-                color: isSelected ? const Color(0xFF4A7FFF) : Colors.transparent,
+                color: isSelected
+                    ? const Color(0xFF4A7FFF)
+                    : Colors.transparent,
               ),
               child: isSelected
                   ? const Icon(Icons.check, size: 16, color: Colors.white)
@@ -922,10 +1151,7 @@ class _CustomerQuickBookingScreenState extends State<CustomerQuickBookingScreen>
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 14,
-            color: Color(0xFF6B7280),
-          ),
+          style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
         ),
         Text(
           amount,

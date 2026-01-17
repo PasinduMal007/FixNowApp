@@ -98,7 +98,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
-                              const CustomerQuickBookingScreen(),
+                              const CustomerQuickBookingScreen(worker: {}, categoryName: '',),
                         ),
                       );
                     },

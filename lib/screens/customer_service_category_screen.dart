@@ -1,5 +1,8 @@
+import 'package:fix_now_app/screens/customer_quick_booking_screen.dart';
 import 'package:flutter/material.dart';
 import 'customer_worker_profile_detail_screen.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
 
 class CustomerServiceCategoryScreen extends StatefulWidget {
   final String categoryName;
@@ -12,51 +15,106 @@ class CustomerServiceCategoryScreen extends StatefulWidget {
   });
 
   @override
-  State<CustomerServiceCategoryScreen> createState() => _CustomerServiceCategoryScreenState();
+  State<CustomerServiceCategoryScreen> createState() =>
+      _CustomerServiceCategoryScreenState();
 }
 
-class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryScreen> {
+class _CustomerServiceCategoryScreenState
+    extends State<CustomerServiceCategoryScreen> {
   String _selectedFilter = 'All';
   String _selectedSort = 'Top Rated';
 
-  final List<Map<String, dynamic>> _workers = [
-    {
-      'id': 1,
-      'name': 'Kasun Perera',
-      'type': 'Expert Electrician',
-      'rating': 4.9,
-      'reviews': 450,
-      'hourlyRate': 2500,
-      'distance': 2.5,
-      'experience': 8,
-      'description': 'Specialized in residential and commercial wiring',
-      'isAvailable': true,
-    },
-    {
-      'id': 2,
-      'name': 'Nimal Silva',
-      'type': 'Master Electrician',
-      'rating': 4.7,
-      'reviews': 320,
-      'hourlyRate': 2200,
-      'distance': 4.2,
-      'experience': 6,
-      'description': 'Expert in electrical installations and repairs',
-      'isAvailable': true,
-    },
-    {
-      'id': 3,
-      'name': 'Saman Fernando',
-      'type': 'Licensed Electrician',
-      'rating': 4.8,
-      'reviews': 280,
-      'hourlyRate': 2000,
-      'distance': 1.8,
-      'experience': 5,
-      'description': 'Quality electrical work with fast service',
-      'isAvailable': false,
-    },
-  ];
+  Stream<DatabaseEvent> get _workersStream =>
+      DB.ref().child('workersPublic').onValue;
+
+  // ✅ Robust: use snapshot.children, not snapshot.value
+  List<Map<String, dynamic>> _mapWorkersFromSnapshot(DataSnapshot snap) {
+    final list = <Map<String, dynamic>>[];
+
+    for (final child in snap.children) {
+      final key = (child.key ?? '').toString();
+
+      if (child.value is! Map) continue;
+
+      final data = Map<String, dynamic>.from(child.value as Map);
+
+      final fullName = (data['fullName'] ?? '').toString().trim();
+      final profession = (data['profession'] ?? '').toString().trim();
+
+      final ratingVal = data['rating'];
+      final reviewsVal = data['reviews'];
+      final hourlyVal = data['hourlyRate'];
+
+      final rating = (ratingVal is num)
+          ? ratingVal.toDouble()
+          : double.tryParse(ratingVal?.toString() ?? '') ?? 0.0;
+
+      final reviews = (reviewsVal is num)
+          ? reviewsVal.toInt()
+          : int.tryParse(reviewsVal?.toString() ?? '') ?? 0;
+
+      final hourlyRate = (hourlyVal is num)
+          ? hourlyVal.toInt()
+          : int.tryParse(hourlyVal?.toString() ?? '') ?? 2500;
+
+      final isAvailableVal = data['isAvailable'];
+      final isAvailable = isAvailableVal is bool ? isAvailableVal : false;
+
+      list.add(<String, dynamic>{
+        'uid': (data['uid'] ?? key).toString(),
+        'name': fullName.isEmpty ? 'Worker' : fullName,
+        'type': profession.isEmpty ? widget.categoryName : profession,
+        'rating': rating,
+        'reviews': reviews,
+        'hourlyRate': hourlyRate,
+
+        // If you later store these in workersPublic, map them here
+        'distance': (data['distance'] is num) ? (data['distance'] as num).toDouble() : 0.0,
+        'experience': (data['experience'] ?? 0),
+        'description': (data['description'] ?? '').toString(),
+
+        'isAvailable': isAvailable,
+        'photoUrl': (data['photoUrl'] ?? '').toString(),
+        'locationText': (data['locationText'] ?? '').toString(),
+      });
+    }
+
+    return list;
+  }
+
+  List<Map<String, dynamic>> _applyFilterSort(List<Map<String, dynamic>> list) {
+    var out = List<Map<String, dynamic>>.from(list);
+
+    switch (_selectedFilter) {
+      case 'Top Rated':
+        out.sort((a, b) =>
+            (b['rating'] as num).compareTo((a['rating'] as num)));
+        out = out.take(20).toList();
+        break;
+      case 'Nearby':
+        // only works if distance is stored
+        out.sort((a, b) =>
+            (a['distance'] as num).compareTo((b['distance'] as num)));
+        break;
+      case 'Available Now':
+        out = out.where((w) => w['isAvailable'] == true).toList();
+        break;
+      case 'All':
+      default:
+        break;
+    }
+
+    switch (_selectedSort) {
+      case 'Top Rated':
+        out.sort((a, b) =>
+            (b['rating'] as num).compareTo((a['rating'] as num)));
+        break;
+      default:
+        break;
+    }
+
+    return out;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +130,6 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
         child: SafeArea(
           child: Column(
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -88,7 +145,11 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                               color: Colors.white.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                            child: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -104,12 +165,34 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                                   color: Colors.white,
                                 ),
                               ),
-                              Text(
-                                '${_workers.length} professionals available',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.white70,
-                                ),
+                              StreamBuilder<DatabaseEvent>(
+                                stream: _workersStream,
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasError) {
+                                    return Text(
+                                      'Error: ${snapshot.error}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.white70,
+                                      ),
+                                    );
+                                  }
+
+                                  final snap = snapshot.data?.snapshot;
+                                  final workers = (snap == null)
+                                      ? <Map<String, dynamic>>[]
+                                      : _applyFilterSort(
+                                          _mapWorkersFromSnapshot(snap),
+                                        );
+
+                                  return Text(
+                                    '${workers.length} professionals available',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.white70,
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
@@ -121,12 +204,15 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(widget.categoryIcon, color: Colors.white, size: 24),
+                          child: Icon(
+                            widget.categoryIcon,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // Filter Chips
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -145,7 +231,6 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                 ),
               ),
 
-              // Content
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -157,22 +242,30 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                   ),
                   child: Column(
                     children: [
-                      // Sort and Filter Bar
                       Padding(
                         padding: const EdgeInsets.all(20),
                         child: Row(
                           children: [
                             Expanded(
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                                  border: Border.all(
+                                    color: const Color(0xFFE5E7EB),
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.sort, size: 18, color: Color(0xFF6B7280)),
+                                    const Icon(
+                                      Icons.sort,
+                                      size: 18,
+                                      color: Color(0xFF6B7280),
+                                    ),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Sort: $_selectedSort',
@@ -183,7 +276,10 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                                       ),
                                     ),
                                     const Spacer(),
-                                    const Icon(Icons.arrow_drop_down, color: Color(0xFF6B7280)),
+                                    const Icon(
+                                      Icons.arrow_drop_down,
+                                      color: Color(0xFF6B7280),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -195,19 +291,53 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                                 color: const Color(0xFF4A7FFF),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(Icons.tune, color: Colors.white, size: 20),
+                              child: const Icon(
+                                Icons.tune,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
                           ],
                         ),
                       ),
 
-                      // Workers List
                       Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: _workers.length,
-                          itemBuilder: (context, index) {
-                            return _buildWorkerCard(_workers[index]);
+                        child: StreamBuilder<DatabaseEvent>(
+                          stream: _workersStream,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+
+                            if (snapshot.hasError) {
+                              return Center(
+                                child: Text('Error: ${snapshot.error}'),
+                              );
+                            }
+
+                            final snap = snapshot.data?.snapshot;
+                            if (snap == null) {
+                              return const Center(child: Text('No workers found'));
+                            }
+
+                            final workers = _applyFilterSort(
+                              _mapWorkersFromSnapshot(snap),
+                            );
+
+                            if (workers.isEmpty) {
+                              return const Center(child: Text('No workers found'));
+                            }
+
+                            return ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              itemCount: workers.length,
+                              itemBuilder: (context, index) {
+                                return _buildWorkerCard(workers[index]);
+                              },
+                            );
                           },
                         ),
                       ),
@@ -250,7 +380,8 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => CustomerWorkerProfileDetailScreen(worker: worker),
+            builder: (context) =>
+                CustomerWorkerProfileDetailScreen(worker: worker),
           ),
         );
       },
@@ -273,7 +404,6 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
           children: [
             Row(
               children: [
-                // Avatar
                 Container(
                   width: 64,
                   height: 64,
@@ -283,10 +413,13 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                     ),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 32),
+                  child: const Icon(
+                    Icons.person,
+                    color: Color(0xFF4A7FFF),
+                    size: 32,
+                  ),
                 ),
                 const SizedBox(width: 12),
-                // Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,7 +428,7 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                         children: [
                           Expanded(
                             child: Text(
-                              worker['name'],
+                              (worker['name'] ?? 'Worker').toString(),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -303,9 +436,12 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                               ),
                             ),
                           ),
-                          if (worker['isAvailable'])
+                          if (worker['isAvailable'] == true)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFD1FAE5),
                                 borderRadius: BorderRadius.circular(6),
@@ -323,7 +459,7 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        worker['type'],
+                        (worker['type'] ?? '').toString(),
                         style: const TextStyle(
                           fontSize: 13,
                           color: Color(0xFF9CA3AF),
@@ -332,10 +468,16 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.star, size: 14, color: Color(0xFFFBBF24)),
+                          const Icon(
+                            Icons.star,
+                            size: 14,
+                            color: Color(0xFFFBBF24),
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            '${worker['rating']}',
+                            (worker['rating'] is num)
+                                ? (worker['rating'] as num).toStringAsFixed(1)
+                                : (worker['rating'] ?? '0').toString(),
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -359,18 +501,19 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
             ),
             const SizedBox(height: 12),
             Text(
-              worker['description'],
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF6B7280),
-              ),
+              (worker['description'] ?? '').toString(),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
             ),
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(Icons.account_balance_wallet, size: 16, color: const Color(0xFF4A7FFF)),
+                const Icon(
+                  Icons.account_balance_wallet,
+                  size: 16,
+                  color: Color(0xFF4A7FFF),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'LKR ${worker['hourlyRate']}/hr',
@@ -381,7 +524,11 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                   ),
                 ),
                 const SizedBox(width: 16),
-                Icon(Icons.location_on, size: 16, color: const Color(0xFF9CA3AF)),
+                const Icon(
+                  Icons.location_on,
+                  size: 16,
+                  color: Color(0xFF9CA3AF),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   '${worker['distance']} km away',
@@ -392,10 +539,23 @@ class _CustomerServiceCategoryScreenState extends State<CustomerServiceCategoryS
                 ),
                 const Spacer(),
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CustomerQuickBookingScreen(
+                          worker: worker,
+                          categoryName: widget.categoryName,
+                        ),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4A7FFF),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),

@@ -8,7 +8,7 @@ class WorkerOnboardingService {
 
   WorkerOnboardingService({FirebaseAuth? auth, FirebaseDatabase? db})
     : _auth = auth ?? FirebaseAuth.instance,
-      _db = DB.instance;
+      _db = db ?? DB.instance;
 
   String get _uid {
     final user = _auth.currentUser;
@@ -18,11 +18,14 @@ class WorkerOnboardingService {
 
   DatabaseReference get _workerRef => _db.ref().child("users/workers/$_uid");
 
+  // ✅ Public profile node for customer browsing
+  DatabaseReference get _workerPublicRef =>
+      _db.ref().child("workersPublic/$_uid");
+
   Future<void> ensureBaseProfile() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception("Not logged in");
 
-    // Do not overwrite if it already exists
     await _workerRef.runTransaction((current) {
       if (current != null) return Transaction.success(current);
 
@@ -39,24 +42,70 @@ class WorkerOnboardingService {
         },
       });
     });
+
+    // Optional: create public node skeleton (safe fields only)
+    await _workerPublicRef.update({
+      "uid": _uid,
+      "updatedAt": ServerValue.timestamp,
+    });
+  }
+
+  // ✅ Keeps workersPublic in sync with what the customer app needs
+  Future<void> _syncPublicProfile({
+    String? fullName,
+    String? profession,
+    int? hourlyRate,
+    bool? isAvailable,
+    String? locationText,
+    String? experience,
+    String? description,
+  }) async {
+    final updates = <String, Object?>{
+      "uid": _uid,
+      "updatedAt": ServerValue.timestamp,
+    };
+
+    if (fullName != null) updates["fullName"] = fullName;
+    if (profession != null) updates["profession"] = profession;
+    if (hourlyRate != null) updates["hourlyRate"] = hourlyRate;
+    if (isAvailable != null) updates["isAvailable"] = isAvailable;
+    if (locationText != null) updates["locationText"] = locationText;
+    if (experience != null) updates["experience"] = experience;
+    if (description != null) updates["description"] = description;
+
+    // Optional defaults for the UI if you want
+    updates.putIfAbsent("rating", () => 0);
+    updates.putIfAbsent("reviews", () => 0);
+
+    await _workerPublicRef.update(updates);
   }
 
   Future<void> saveProfession(String profession) async {
     await ensureBaseProfile();
+
+    final p = profession.trim();
+
     await _workerRef.update({
-      "profession": profession.trim(),
+      "profession": p,
       "onboarding/step": 1,
       "onboarding/updatedAt": ServerValue.timestamp,
     });
+
+    await _syncPublicProfile(profession: p);
   }
 
   Future<void> saveExperience(String experienceValue) async {
     await ensureBaseProfile();
+
     await _workerRef.update({
       "experience": experienceValue,
       "onboarding/step": 2,
       "onboarding/updatedAt": ServerValue.timestamp,
     });
+
+    await _syncPublicProfile(experience: experienceValue);
+
+    // No public change needed here unless you want to expose experience publicly
   }
 
   Future<void> saveProfileDetails({
@@ -67,14 +116,47 @@ class WorkerOnboardingService {
   }) async {
     await ensureBaseProfile();
 
+    final f = firstName.trim();
+    final l = lastName.trim();
+    final fullName = "$f $l".trim();
+
     await _workerRef.update({
-      "firstName": firstName.trim(),
-      "lastName": lastName.trim(),
+      "firstName": f,
+      "lastName": l,
+      "fullName": fullName, // ✅ helpful for dashboards + queries
       "phoneNumber": mobileNumber9Digits,
       "dateOfBirth": dateOfBirthIso,
       "onboarding/step": 3,
       "onboarding/updatedAt": ServerValue.timestamp,
     });
+
+    await _syncPublicProfile(fullName: fullName);
+  }
+
+  Future<void> saveLocationText(String locationText) async {
+    await ensureBaseProfile();
+
+    final loc = locationText.trim();
+
+    await _workerRef.update({
+      "locationText": loc,
+      "onboarding/updatedAt": ServerValue.timestamp,
+    });
+
+    await _syncPublicProfile(locationText: loc);
+  }
+
+  Future<void> saveDescription(String description) async {
+    await ensureBaseProfile();
+
+    final desc = description.trim();
+
+    await _workerRef.update({
+      "description": desc,
+      "onboarding/updatedAt": ServerValue.timestamp,
+    });
+
+    await _syncPublicProfile(description: desc);
   }
 
   Future<void> saveVerification({
@@ -87,14 +169,11 @@ class WorkerOnboardingService {
 
     await _workerRef.update({
       "idType": idType,
-
-      // Flags only — no files
       "verification": {
         "profilePhotoPending": hasProfilePhoto,
         "idFrontPending": hasIdFront,
         "idBackPending": hasIdBack,
       },
-
       "onboarding/step": 4,
       "onboarding/updatedAt": ServerValue.timestamp,
     });
@@ -108,6 +187,10 @@ class WorkerOnboardingService {
   }) async {
     await ensureBaseProfile();
 
+    // Your UI uses hourlyRate, so publish a good value here.
+    // If rateType is not per-hour, you can still show baseRate as a displayed price.
+    final hourlyRate = baseRate;
+
     await _workerRef.update({
       "rates/rateType": rateType,
       "rates/baseRate": baseRate,
@@ -117,5 +200,11 @@ class WorkerOnboardingService {
       "onboarding/completed": true,
       "onboarding/updatedAt": ServerValue.timestamp,
     });
+
+    // ✅ Publish to workersPublic so customers can see pricing
+    await _syncPublicProfile(
+      hourlyRate: hourlyRate,
+      isAvailable: true, // change based on your logic
+    );
   }
 }
