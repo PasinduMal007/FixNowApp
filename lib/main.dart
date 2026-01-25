@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_screens.dart';
-import 'screens/role_selection_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/worker_profession_screen.dart';
@@ -60,21 +59,6 @@ class MyApp extends StatelessWidget {
           },
         ),
         '/app-entry': (context) => const AppEntry(),
-        '/role-selection': (context) => RoleSelectionScreen(
-          onSelectRole: (raw) async {
-            final role = (raw == 'work')
-                ? 'worker'
-                : (raw == 'hire')
-                ? 'customer'
-                : raw;
-
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('selectedRole', role);
-
-            if (!context.mounted) return;
-            Navigator.pushReplacementNamed(context, '/login', arguments: role);
-          },
-        ),
         '/login': (context) => const LoginScreen(),
         // Worker onboarding routes
         '/worker-profession': (context) => const WorkerProfessionScreen(),
