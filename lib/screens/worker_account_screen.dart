@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class WorkerAccountScreen extends StatefulWidget {
   final String workerName;
@@ -53,7 +55,11 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const Expanded(
@@ -75,7 +81,11 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.settings, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.settings,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
@@ -122,11 +132,18 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                         height: 64,
                                         decoration: BoxDecoration(
                                           gradient: const LinearGradient(
-                                            colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+                                            colors: [
+                                              Color(0xFFE8F0FF),
+                                              Color(0xFFD0E2FF),
+                                            ],
                                           ),
                                           shape: BoxShape.circle,
                                         ),
-                                        child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 32),
+                                        child: const Icon(
+                                          Icons.person,
+                                          color: Color(0xFF4A7FFF),
+                                          size: 32,
+                                        ),
                                       ),
                                       Positioned(
                                         bottom: 0,
@@ -137,7 +154,10 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                           decoration: BoxDecoration(
                                             color: const Color(0xFF10B981),
                                             shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white, width: 2),
+                                            border: Border.all(
+                                              color: Colors.white,
+                                              width: 2,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -146,7 +166,8 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           widget.workerName,
@@ -159,7 +180,11 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                         const SizedBox(height: 4),
                                         Row(
                                           children: [
-                                            const Icon(Icons.star, size: 16, color: Color(0xFFFBBF24)),
+                                            const Icon(
+                                              Icons.star,
+                                              size: 16,
+                                              color: Color(0xFFFBBF24),
+                                            ),
                                             const SizedBox(width: 4),
                                             Text(
                                               '${widget.rating}',
@@ -182,7 +207,11 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                         const SizedBox(height: 4),
                                         const Row(
                                           children: [
-                                            Icon(Icons.calendar_today, size: 12, color: Color(0xFF9CA3AF)),
+                                            Icon(
+                                              Icons.calendar_today,
+                                              size: 12,
+                                              color: Color(0xFF9CA3AF),
+                                            ),
                                             SizedBox(width: 4),
                                             Text(
                                               'Joined January 2024',
@@ -203,7 +232,11 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                       color: const Color(0xFFE8F0FF),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
-                                    child: const Icon(Icons.edit, color: Color(0xFF4A7FFF), size: 18),
+                                    child: const Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF4A7FFF),
+                                      size: 18,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -215,7 +248,10 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                               const SizedBox(height: 12),
                               _buildInfoRow(Icons.phone_outlined, widget.phone),
                               const SizedBox(height: 12),
-                              _buildInfoRow(Icons.location_on_outlined, widget.location),
+                              _buildInfoRow(
+                                Icons.location_on_outlined,
+                                widget.location,
+                              ),
                             ],
                           ),
                         ),
@@ -249,7 +285,9 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                 'Notifications',
                                 trailing: Switch(
                                   value: _notificationsEnabled,
-                                  onChanged: (value) => setState(() => _notificationsEnabled = value),
+                                  onChanged: (value) => setState(
+                                    () => _notificationsEnabled = value,
+                                  ),
                                   activeColor: const Color(0xFF4A7FFF),
                                 ),
                                 onTap: null,
@@ -344,53 +382,32 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                         const SizedBox(height: 24),
 
                         // Logout Button
-                        GestureDetector(
-                          onTap: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Logout'),
-                                content: const Text('Are you sure you want to logout?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                      // Handle logout
-                                    },
-                                    child: const Text(
-                                      'Logout',
-                                      style: TextStyle(color: Color(0xFFEF4444)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
+                        ElevatedButton(
+                          onPressed: () {
+                            _showLogoutDialog();
                           },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFEE2E2),
+                            foregroundColor: const Color(0xFFEF4444),
+                            minimumSize: const Size(double.infinity, 52),
+                            shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.logout, color: Color(0xFFEF4444), size: 20),
-                                SizedBox(width: 12),
-                                Text(
-                                  'Logout',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFFEF4444),
-                                  ),
+                            elevation: 0,
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.logout, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Logout',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 100),
@@ -414,17 +431,19 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMenuItem(IconData icon, String title, {VoidCallback? onTap, Widget? trailing}) {
+  Widget _buildMenuItem(
+    IconData icon,
+    String title, {
+    VoidCallback? onTap,
+    Widget? trailing,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -445,7 +464,11 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
               ),
             ),
             trailing ??
-                const Icon(Icons.chevron_right, size: 20, color: Color(0xFF9CA3AF)),
+                const Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: Color(0xFF9CA3AF),
+                ),
           ],
         ),
       ),
@@ -456,6 +479,48 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
     return const Padding(
       padding: EdgeInsets.symmetric(horizontal: 16),
       child: Divider(height: 1),
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              // 1. Close dialog
+              Navigator.pop(context);
+
+              // 2. Read saved role (do NOT delete it)
+              final prefs = await SharedPreferences.getInstance();
+              final role = prefs.getString('selectedRole') ?? 'worker';
+
+              // 3. Firebase sign out
+              await FirebaseAuth.instance.signOut();
+
+              if (!mounted) return;
+
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (route) => false,
+                arguments: role,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -3,6 +3,9 @@ import 'customer_personal_info_settings_screen.dart';
 import 'customer_payment_methods_screen.dart';
 import 'customer_saved_addresses_screen.dart';
 import 'customer_favorite_workers_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'login_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CustomerProfileScreen extends StatefulWidget {
   const CustomerProfileScreen({super.key});
@@ -50,7 +53,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.settings_outlined, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.settings_outlined,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
@@ -97,11 +104,20 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                         height: 72,
                                         decoration: BoxDecoration(
                                           gradient: const LinearGradient(
-                                            colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+                                            colors: [
+                                              Color(0xFFE8F0FF),
+                                              Color(0xFFD0E2FF),
+                                            ],
                                           ),
-                                          borderRadius: BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                         ),
-                                        child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 36),
+                                        child: const Icon(
+                                          Icons.person,
+                                          color: Color(0xFF4A7FFF),
+                                          size: 36,
+                                        ),
                                       ),
                                       Positioned(
                                         bottom: 0,
@@ -112,7 +128,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                           decoration: BoxDecoration(
                                             color: const Color(0xFF10B981),
                                             shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white, width: 3),
+                                            border: Border.all(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -122,7 +141,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                   // User Info
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Sarah Johnson',
@@ -135,7 +155,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                         const SizedBox(height: 6),
                                         Row(
                                           children: [
-                                            const Icon(Icons.star, size: 16, color: Color(0xFFFBBF24)),
+                                            const Icon(
+                                              Icons.star,
+                                              size: 16,
+                                              color: Color(0xFFFBBF24),
+                                            ),
                                             const SizedBox(width: 4),
                                             const Text(
                                               '4.8',
@@ -158,7 +182,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                         const SizedBox(height: 4),
                                         Row(
                                           children: [
-                                            const Icon(Icons.calendar_today, size: 14, color: Color(0xFF9CA3AF)),
+                                            const Icon(
+                                              Icons.calendar_today,
+                                              size: 14,
+                                              color: Color(0xFF9CA3AF),
+                                            ),
                                             const SizedBox(width: 4),
                                             const Text(
                                               'Joined January 2024',
@@ -180,7 +208,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                       color: const Color(0xFFE8F0FF),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
-                                    child: const Icon(Icons.edit_outlined, color: Color(0xFF4A7FFF), size: 20),
+                                    child: const Icon(
+                                      Icons.edit_outlined,
+                                      color: Color(0xFF4A7FFF),
+                                      size: 20,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -188,11 +220,20 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                               const Divider(),
                               const SizedBox(height: 16),
                               // Contact Info
-                              _buildContactRow(Icons.email_outlined, 'sarah.johnson@email.com'),
+                              _buildContactRow(
+                                Icons.email_outlined,
+                                'sarah.johnson@email.com',
+                              ),
                               const SizedBox(height: 12),
-                              _buildContactRow(Icons.phone_outlined, '+94 77 123 4567'),
+                              _buildContactRow(
+                                Icons.phone_outlined,
+                                '+94 77 123 4567',
+                              ),
                               const SizedBox(height: 12),
-                              _buildContactRow(Icons.location_on_outlined, 'Colombo, Sri Lanka'),
+                              _buildContactRow(
+                                Icons.location_on_outlined,
+                                'Colombo, Sri Lanka',
+                              ),
                             ],
                           ),
                         ),
@@ -222,7 +263,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const CustomerPersonalInfoSettingsScreen(),
+                                      builder: (context) =>
+                                          const CustomerPersonalInfoSettingsScreen(),
                                     ),
                                   );
                                 },
@@ -234,7 +276,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                 trailing: Switch(
                                   value: _notificationsEnabled,
                                   onChanged: (value) {
-                                    setState(() => _notificationsEnabled = value);
+                                    setState(
+                                      () => _notificationsEnabled = value,
+                                    );
                                   },
                                   activeColor: const Color(0xFF4A7FFF),
                                 ),
@@ -253,7 +297,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const CustomerPaymentMethodsScreen(),
+                                      builder: (context) =>
+                                          const CustomerPaymentMethodsScreen(),
                                     ),
                                   );
                                 },
@@ -287,7 +332,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const CustomerSavedAddressesScreen(),
+                                      builder: (context) =>
+                                          const CustomerSavedAddressesScreen(),
                                     ),
                                   );
                                 },
@@ -300,7 +346,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => const CustomerFavoriteWorkersScreen(),
+                                      builder: (context) =>
+                                          const CustomerFavoriteWorkersScreen(),
                                     ),
                                   );
                                 },
@@ -360,17 +407,19 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSettingItem(IconData icon, String title, {VoidCallback? onTap, Widget? trailing}) {
+  Widget _buildSettingItem(
+    IconData icon,
+    String title, {
+    VoidCallback? onTap,
+    Widget? trailing,
+  }) {
     return ListTile(
       onTap: onTap,
       leading: Container(
@@ -390,7 +439,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           color: Color(0xFF1F2937),
         ),
       ),
-      trailing: trailing ?? const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
+      trailing:
+          trailing ?? const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     );
   }
@@ -407,13 +457,24 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              // 1. Close dialog
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Logged out successfully'),
-                  backgroundColor: Color(0xFF10B981),
-                ),
+
+              // 2. Read saved role (do NOT delete it)
+              final prefs = await SharedPreferences.getInstance();
+              final role = prefs.getString('selectedRole') ?? 'customer';
+
+              // 3. Firebase sign out
+              await FirebaseAuth.instance.signOut();
+
+              if (!mounted) return;
+
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (route) => false,
+                arguments: role,
               );
             },
             style: ElevatedButton.styleFrom(

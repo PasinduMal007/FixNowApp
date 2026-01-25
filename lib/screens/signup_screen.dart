@@ -496,7 +496,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ),
                           GestureDetector(
-                            onTap: () => Navigator.pop(context),
+                            onTap: () {
+                              final role = widget.role ?? 'customer'; // default
+                              Navigator.pushReplacementNamed(
+                                context,
+                                '/login',
+                                arguments:
+                                    widget.role, // 'customer' or 'worker'
+                              );
+                            },
                             child: const Text(
                               'Log In',
                               style: TextStyle(

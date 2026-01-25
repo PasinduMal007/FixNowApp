@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
   final Function(String role)? onSelectRole;
@@ -13,11 +14,7 @@ class RoleSelectionScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF3B82F6),
-              Color(0xFF2563EB),
-              Color(0xFF1D4ED8),
-            ],
+            colors: [Color(0xFF3B82F6), Color(0xFF2563EB), Color(0xFF1D4ED8)],
           ),
         ),
         child: Stack(
@@ -116,7 +113,8 @@ class RoleSelectionScreen extends StatelessWidget {
                               colors: [Color(0xFF5B8CFF), Color(0xFF4A7FFF)],
                             ),
                             title: 'I want to Hire',
-                            description: 'Find trusted professionals for repairs and services',
+                            description:
+                                'Find trusted professionals for repairs and services',
                             benefits: const [
                               'Verified professionals',
                               'Secure payment protection',
@@ -125,12 +123,20 @@ class RoleSelectionScreen extends StatelessWidget {
                             socialProof: 'Trusted by 50,000+ homeowners',
                             socialProofColor: const Color(0xFF5B8CFF),
                             hoverColor: const Color(0xFF5B8CFF),
-                            onTap: () {
+                            onTap: () async {
                               if (onSelectRole != null) {
-                                onSelectRole!('hire');
+                                onSelectRole!('customer');
                               }
-                              // Navigate to login with customer role
-                              Navigator.pushNamed(context, '/login', arguments: 'customer');
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              await prefs.setString('selectedRole', 'customer');
+                              
+                              if (!context.mounted) return;
+                              Navigator.pushNamed(
+                                context,
+                                '/signup',
+                                arguments: 'customer',
+                              );
                             },
                             delay: 200,
                           ),
@@ -144,7 +150,8 @@ class RoleSelectionScreen extends StatelessWidget {
                               colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                             ),
                             title: 'I want to Work',
-                            description: 'Offer your skills and earn money on your schedule',
+                            description:
+                                'Offer your skills and earn money on your schedule',
                             benefits: const [
                               'Flexible working hours',
                               'Get paid instantly',
@@ -153,12 +160,20 @@ class RoleSelectionScreen extends StatelessWidget {
                             socialProof: 'Join 10,000+ professionals earning',
                             socialProofColor: const Color(0xFFF59E0B),
                             hoverColor: const Color(0xFFF59E0B),
-                            onTap: () {
+                            onTap: () async {
                               if (onSelectRole != null) {
-                                onSelectRole!('work');
+                                onSelectRole!('worker');
                               }
-                              // Navigate to login with worker role
-                              Navigator.pushNamed(context, '/login', arguments: 'worker');
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              await prefs.setString('selectedRole', 'worker');
+
+                              if (!context.mounted) return;
+                              Navigator.pushNamed(
+                                context,
+                                '/signup',
+                                arguments: 'worker',
+                              );
                             },
                             delay: 350,
                           ),
@@ -255,11 +270,7 @@ class RoleSelectionScreen extends StatelessWidget {
         },
         child: Opacity(
           opacity: 0.1,
-          child: Icon(
-            icon,
-            size: size,
-            color: Colors.white,
-          ),
+          child: Icon(icon, size: size, color: Colors.white),
         ),
       ),
     );
@@ -344,11 +355,7 @@ class _RoleCardState extends State<_RoleCard> {
                       gradient: widget.iconGradient,
                       borderRadius: BorderRadius.circular(18),
                     ),
-                    child: Icon(
-                      widget.icon,
-                      size: 30,
-                      color: Colors.white,
-                    ),
+                    child: Icon(widget.icon, size: 30, color: Colors.white),
                   ),
                   const SizedBox(width: 16),
 
@@ -376,28 +383,30 @@ class _RoleCardState extends State<_RoleCard> {
                         const SizedBox(height: 12),
 
                         // Benefits
-                        ...widget.benefits.map((benefit) => Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.check_circle,
-                                    size: 14,
-                                    color: Color(0xFF10B981),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      benefit,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF6B7280),
-                                      ),
+                        ...widget.benefits.map(
+                          (benefit) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  size: 14,
+                                  color: Color(0xFF10B981),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    benefit,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF6B7280),
                                     ),
                                   ),
-                                ],
-                              ),
-                            )),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -409,7 +418,9 @@ class _RoleCardState extends State<_RoleCard> {
                     child: Icon(
                       Icons.chevron_right,
                       size: 24,
-                      color: _isHovered ? widget.hoverColor : const Color(0xFF9CA3AF),
+                      color: _isHovered
+                          ? widget.hoverColor
+                          : const Color(0xFF9CA3AF),
                     ),
                   ),
                 ],

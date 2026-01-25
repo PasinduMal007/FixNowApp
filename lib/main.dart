@@ -1,4 +1,6 @@
+import 'package:fix_now_app/app_entry.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_screens.dart';
 import 'screens/role_selection_screen.dart';
@@ -18,6 +20,7 @@ import 'screens/customer_dashboard.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'dart:io';
+import 'main.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,10 +56,26 @@ class MyApp extends StatelessWidget {
       routes: {
         '/onboarding': (context) => OnboardingScreens(
           onComplete: () {
-            Navigator.of(context).pushReplacementNamed('/role-selection');
+            Navigator.of(context).pushReplacementNamed('/app-entry');
           },
         ),
-        '/role-selection': (context) => const RoleSelectionScreen(),
+        '/app-entry': (context) => const AppEntry(),
+        '/role-selection': (context) => RoleSelectionScreen(
+          onSelectRole: (raw) async {
+            final role = (raw == 'work')
+                ? 'worker'
+                : (raw == 'hire')
+                ? 'customer'
+                : raw;
+
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('selectedRole', role);
+
+            if (!context.mounted) return;
+            Navigator.pushReplacementNamed(context, '/login', arguments: role);
+          },
+        ),
+        '/login': (context) => const LoginScreen(),
         // Worker onboarding routes
         '/worker-profession': (context) => const WorkerProfessionScreen(),
         '/worker-profile': (context) => const WorkerProfileScreen(),
@@ -64,6 +83,7 @@ class MyApp extends StatelessWidget {
         '/worker-rates': (context) => const WorkerRatesScreen(),
         '/worker-dashboard': (context) => const WorkerDashboard(),
         // Customer onboarding routes
+        '/customer-dashboard': (context) => const CustomerDashboard(),
         '/customer-personal-info': (context) =>
             const CustomerPersonalInfoScreen(),
         '/customer-photo': (context) => const CustomerPhotoScreen(),
