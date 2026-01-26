@@ -36,8 +36,9 @@ class _LoginScreenState extends State<LoginScreen> {
       routeRole = args;
     }
 
-    final widgetRole =
-        (widget.role == 'customer' || widget.role == 'worker') ? widget.role : null;
+    final widgetRole = (widget.role == 'customer' || widget.role == 'worker')
+        ? widget.role
+        : null;
 
     setState(() {
       _role = routeRole ?? widgetRole ?? 'customer';
@@ -101,22 +102,46 @@ class _LoginScreenState extends State<LoginScreen> {
 
       switch (step) {
         case 0:
-          Navigator.pushNamedAndRemoveUntil(context, '/worker-profession', (r) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/worker-profession',
+            (r) => false,
+          );
           break;
         case 1:
-          Navigator.pushNamedAndRemoveUntil(context, '/worker-experience', (r) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/worker-experience',
+            (r) => false,
+          );
           break;
         case 2:
-          Navigator.pushNamedAndRemoveUntil(context, '/worker-profile', (r) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/worker-profile',
+            (r) => false,
+          );
           break;
         case 3:
-          Navigator.pushNamedAndRemoveUntil(context, '/worker-verification', (r) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/worker-verification',
+            (r) => false,
+          );
           break;
         case 4:
-          Navigator.pushNamedAndRemoveUntil(context, '/worker-rates', (r) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/worker-rates',
+            (r) => false,
+          );
           break;
         default:
-          Navigator.pushNamedAndRemoveUntil(context, '/worker-profession', (r) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/worker-profession',
+            (r) => false,
+          );
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
@@ -153,13 +178,17 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final emailIsValid =
-        _emailController.text.isNotEmpty && _isValidEmail(_emailController.text);
+        _emailController.text.isNotEmpty &&
+        _isValidEmail(_emailController.text);
     final emailIsInvalid =
-        _emailTouched && _emailController.text.isNotEmpty && !_isValidEmail(_emailController.text);
+        _emailTouched &&
+        _emailController.text.isNotEmpty &&
+        !_isValidEmail(_emailController.text);
 
     final roleTitle = _role == 'worker' ? 'Worker Login' : 'Customer Login';
-    final roleSubtitle =
-        _role == 'worker' ? 'Sign in to continue as a worker' : 'Sign in to continue as a customer';
+    final roleSubtitle = _role == 'worker'
+        ? 'Sign in to continue as a worker'
+        : 'Sign in to continue as a customer';
 
     return Scaffold(
       body: Container(
@@ -172,9 +201,26 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         child: Stack(
           children: [
-            _buildFloatingIcon(top: 80, left: 32, icon: Icons.build_rounded, size: 48),
-            _buildFloatingIcon(top: 160, right: 48, icon: Icons.hardware_rounded, size: 40, delay: 1000),
-            _buildFloatingIcon(top: 256, left: 64, icon: Icons.handyman_rounded, size: 36, delay: 2000),
+            _buildFloatingIcon(
+              top: 80,
+              left: 32,
+              icon: Icons.build_rounded,
+              size: 48,
+            ),
+            _buildFloatingIcon(
+              top: 160,
+              right: 48,
+              icon: Icons.hardware_rounded,
+              size: 40,
+              delay: 1000,
+            ),
+            _buildFloatingIcon(
+              top: 256,
+              left: 64,
+              icon: Icons.handyman_rounded,
+              size: 36,
+              delay: 2000,
+            ),
 
             SafeArea(
               child: Column(
@@ -213,8 +259,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: const Stack(
                               alignment: Alignment.center,
                               children: [
-                                Icon(Icons.settings, size: 70, color: Color(0xFFF59E0B)),
-                                Positioned(child: Icon(Icons.build, size: 35, color: Color(0xFFF59E0B))),
+                                Icon(
+                                  Icons.settings,
+                                  size: 70,
+                                  color: Color(0xFFF59E0B),
+                                ),
+                                Positioned(
+                                  child: Icon(
+                                    Icons.build,
+                                    size: 35,
+                                    color: Color(0xFFF59E0B),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -274,18 +330,128 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              // Role Selection Toggle
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3F4F6),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: const Color(0xFFE5E7EB),
+                                  ),
+                                ),
+                                padding: const EdgeInsets.all(4),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () =>
+                                            setState(() => _role = 'customer'),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _role == 'customer'
+                                                ? const Color(0xFF3B82F6)
+                                                : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.person,
+                                                size: 18,
+                                                color: _role == 'customer'
+                                                    ? Colors.white
+                                                    : const Color(0xFF6B7280),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                'Customer',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: _role == 'customer'
+                                                      ? Colors.white
+                                                      : const Color(0xFF6B7280),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () =>
+                                            setState(() => _role = 'worker'),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _role == 'worker'
+                                                ? const Color(0xFF3B82F6)
+                                                : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.build_circle,
+                                                size: 18,
+                                                color: _role == 'worker'
+                                                    ? Colors.white
+                                                    : const Color(0xFF6B7280),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                'Worker',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: _role == 'worker'
+                                                      ? Colors.white
+                                                      : const Color(0xFF6B7280),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
                               if (_errorMessage != null)
                                 Container(
                                   margin: const EdgeInsets.only(bottom: 16),
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFFEF2F2),
-                                    border: Border.all(color: const Color(0xFFFECACA)),
+                                    border: Border.all(
+                                      color: const Color(0xFFFECACA),
+                                    ),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+                                      const Icon(
+                                        Icons.error,
+                                        color: Color(0xFFEF4444),
+                                        size: 16,
+                                      ),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
@@ -314,20 +480,34 @@ class _LoginScreenState extends State<LoginScreen> {
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
                                 onChanged: (_) => setState(() {}),
-                                onTap: () => setState(() => _emailTouched = true),
+                                onTap: () =>
+                                    setState(() => _emailTouched = true),
                                 decoration: InputDecoration(
                                   hintText: 'john@example.com',
                                   filled: true,
                                   fillColor: const Color(0xFFF9FAFB),
-                                  prefixIcon: const Icon(Icons.mail_outline, size: 20),
+                                  prefixIcon: const Icon(
+                                    Icons.mail_outline,
+                                    size: 20,
+                                  ),
                                   suffixIcon: emailIsValid
-                                      ? const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 20)
+                                      ? const Icon(
+                                          Icons.check_circle,
+                                          color: Color(0xFF10B981),
+                                          size: 20,
+                                        )
                                       : emailIsInvalid
-                                          ? const Icon(Icons.error, color: Color(0xFFEF4444), size: 20)
-                                          : null,
+                                      ? const Icon(
+                                          Icons.error,
+                                          color: Color(0xFFEF4444),
+                                          size: 20,
+                                        )
+                                      : null,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE5E7EB),
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
@@ -335,8 +515,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       color: emailIsValid
                                           ? const Color(0xFF10B981)
                                           : emailIsInvalid
-                                              ? const Color(0xFFEF4444)
-                                              : const Color(0xFFE5E7EB),
+                                          ? const Color(0xFFEF4444)
+                                          : const Color(0xFFE5E7EB),
                                     ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
@@ -345,15 +525,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                       color: emailIsValid
                                           ? const Color(0xFF10B981)
                                           : emailIsInvalid
-                                              ? const Color(0xFFEF4444)
-                                              : const Color(0xFF5B8CFF),
+                                          ? const Color(0xFFEF4444)
+                                          : const Color(0xFF5B8CFF),
                                       width: 2,
                                     ),
                                   ),
                                 ),
                                 validator: (value) {
-                                  if (value == null || value.isEmpty) return 'Please enter your email';
-                                  if (!_isValidEmail(value)) return 'Please enter a valid email';
+                                  if (value == null || value.isEmpty)
+                                    return 'Please enter your email';
+                                  if (!_isValidEmail(value))
+                                    return 'Please enter a valid email';
                                   return null;
                                 },
                               ),
@@ -376,36 +558,52 @@ class _LoginScreenState extends State<LoginScreen> {
                                   hintText: '••••••••',
                                   filled: true,
                                   fillColor: const Color(0xFFF9FAFB),
-                                  prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline,
+                                    size: 20,
+                                  ),
                                   suffixIcon: IconButton(
                                     icon: Icon(
-                                      _showPassword ? Icons.visibility : Icons.visibility_off,
+                                      _showPassword
+                                          ? Icons.visibility
+                                          : Icons.visibility_off,
                                       size: 20,
                                     ),
-                                    onPressed: () => setState(() => _showPassword = !_showPassword),
+                                    onPressed: () => setState(
+                                      () => _showPassword = !_showPassword,
+                                    ),
                                   ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE5E7EB),
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE5E7EB),
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    borderSide: const BorderSide(color: Color(0xFF5B8CFF), width: 2),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF5B8CFF),
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
                                 validator: (value) {
-                                  if (value == null || value.isEmpty) return 'Please enter your password';
+                                  if (value == null || value.isEmpty)
+                                    return 'Please enter your password';
                                   return null;
                                 },
                               ),
                               const SizedBox(height: 12),
 
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Row(
                                     children: [
@@ -414,17 +612,23 @@ class _LoginScreenState extends State<LoginScreen> {
                                         height: 18,
                                         child: Checkbox(
                                           value: _rememberMe,
-                                          onChanged: (value) =>
-                                              setState(() => _rememberMe = value ?? false),
+                                          onChanged: (value) => setState(
+                                            () => _rememberMe = value ?? false,
+                                          ),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(4),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
                                           ),
                                         ),
                                       ),
                                       const SizedBox(width: 8),
                                       const Text(
                                         'Remember me',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF6B7280),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -432,7 +636,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                     onPressed: () {},
                                     child: const Text(
                                       'Forgot Password?',
-                                      style: TextStyle(fontSize: 12, color: Color(0xFF5B8CFF)),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF5B8CFF),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -456,12 +663,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                           height: 20,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
                                           ),
                                         )
                                       : const Text(
                                           'Log In',
-                                          style: TextStyle(fontSize: 16, color: Colors.white),
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.white,
+                                          ),
                                         ),
                                 ),
                               ),
@@ -471,10 +684,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 children: [
                                   Expanded(child: Divider()),
                                   Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 16),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
                                     child: Text(
                                       'OR',
-                                      style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF9CA3AF),
+                                      ),
                                     ),
                                   ),
                                   Expanded(child: Divider()),
@@ -501,7 +719,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 children: [
                                   const Text(
                                     "Don't have an account? ",
-                                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF6B7280),
+                                    ),
                                   ),
                                   GestureDetector(
                                     // ✅ keep role when going to signup
