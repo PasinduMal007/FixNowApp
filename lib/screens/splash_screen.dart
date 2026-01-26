@@ -48,7 +48,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     // Auto-navigate to app entry (will show login if not authenticated)
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/app-entry');
+        Navigator.of(context).pushReplacementNamed('/onboarding');
       }
     });
   }
