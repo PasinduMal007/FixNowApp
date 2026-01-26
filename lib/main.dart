@@ -1,6 +1,5 @@
 import 'package:fix_now_app/app_entry.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_screens.dart';
 import 'screens/login_screen.dart';
@@ -19,7 +18,6 @@ import 'screens/customer_dashboard.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'dart:io';
-import 'main.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
