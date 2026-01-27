@@ -4,7 +4,6 @@ import 'worker_home_screen.dart';
 import 'worker_bookings_screen.dart';
 import 'worker_chat_screen.dart';
 import 'worker_account_screen.dart';
-import 'quick_actions_sheet.dart';
 
 class WorkerDashboard extends StatefulWidget {
   const WorkerDashboard({super.key});
@@ -76,7 +75,6 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
                   children: [
                     _buildNavItem(Icons.home, 'Home', 0),
                     _buildNavItem(Icons.calendar_today, 'Bookings', 1),
-                    const SizedBox(width: 60), // Space for center button
                     _buildNavItem(
                       Icons.chat_bubble_outline,
                       'Chat',
@@ -85,46 +83,6 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
                     ),
                     _buildNavItem(Icons.person_outline, 'Profile', 3),
                   ],
-                ),
-                // Center Plus Button
-                Positioned(
-                  left: MediaQuery.of(context).size.width / 2 - 28,
-                  top: -32,
-                  child: GestureDetector(
-                    onTap: () {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (context) => const QuickActionsSheet(),
-                      );
-                    },
-                    child: Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
-                        ),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 4),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF4A7FFF).withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                    ),
-                  ),
                 ),
               ],
             ),

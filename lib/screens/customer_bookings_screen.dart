@@ -8,7 +8,8 @@ class CustomerBookingsScreen extends StatefulWidget {
   State<CustomerBookingsScreen> createState() => _CustomerBookingsScreenState();
 }
 
-class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> with SingleTickerProviderStateMixin {
+class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   final List<Map<String, dynamic>> _upcomingBookings = [
@@ -99,15 +100,15 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> with Si
                     const SizedBox(height: 4),
                     const Text(
                       'Track all your service bookings',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.white70),
                     ),
                     const SizedBox(height: 16),
                     // Search Bar
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(16),
@@ -148,9 +149,28 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> with Si
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        dividerColor: Colors.transparent,
+                        labelPadding: EdgeInsets.zero,
                         tabs: [
-                          Tab(text: 'Upcoming (${_upcomingBookings.length})'),
-                          Tab(text: 'Past (${_pastBookings.length})'),
+                          Tab(
+                            height: 44,
+                            child: Center(
+                              child: Text(
+                                'Upcoming (${_upcomingBookings.length})',
+                              ),
+                            ),
+                          ),
+                          Tab(
+                            height: 44,
+                            child: Center(
+                              child: Text('Past (${_pastBookings.length})'),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -216,7 +236,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> with Si
 
   Widget _buildBookingCard(Map<String, dynamic> booking) {
     final isConfirmed = booking['status'] == 'confirmed';
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -244,7 +264,11 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> with Si
                   color: const Color(0xFFFBBF24).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.flash_on, color: Color(0xFFFBBF24), size: 20),
+                child: const Icon(
+                  Icons.flash_on,
+                  color: Color(0xFFFBBF24),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -272,7 +296,10 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> with Si
               ),
               if (isConfirmed)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFD1FAE5),
                     borderRadius: BorderRadius.circular(8),
@@ -315,7 +342,11 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> with Si
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 24),
+                child: const Icon(
+                  Icons.person,
+                  color: Color(0xFF4A7FFF),
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -362,24 +393,22 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> with Si
           // Date & Time
           Row(
             children: [
-              const Icon(Icons.calendar_today, size: 16, color: Color(0xFF9CA3AF)),
+              const Icon(
+                Icons.calendar_today,
+                size: 16,
+                color: Color(0xFF9CA3AF),
+              ),
               const SizedBox(width: 8),
               Text(
                 booking['date'],
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF6B7280),
-                ),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
               ),
               const SizedBox(width: 16),
               const Icon(Icons.schedule, size: 16, color: Color(0xFF9CA3AF)),
               const SizedBox(width: 8),
               Text(
                 booking['duration'],
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF6B7280),
-                ),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
               ),
             ],
           ),
@@ -446,7 +475,8 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen> with Si
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => CustomerBookingDetailsScreen(booking: booking),
+                        builder: (context) =>
+                            CustomerBookingDetailsScreen(booking: booking),
                       ),
                     );
                   },

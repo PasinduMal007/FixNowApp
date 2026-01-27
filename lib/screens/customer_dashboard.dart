@@ -1,7 +1,7 @@
 import 'package:fix_now_app/Services/customer_profile_service.dart';
 import 'package:flutter/material.dart';
 import 'customer_home_screen.dart';
-import 'customer_quick_booking_screen.dart';
+
 import 'customer_messages_screen.dart';
 import 'customer_profile_screen.dart';
 import 'customer_bookings_screen.dart';
@@ -78,7 +78,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                   children: [
                     _buildNavItem(Icons.home, 'Home', 0),
                     _buildNavItem(Icons.calendar_today, 'Bookings', 1),
-                    const SizedBox(width: 60), // Space for center button
                     _buildNavItem(
                       Icons.chat_bubble_outline,
                       'Messages',
@@ -87,47 +86,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     ),
                     _buildNavItem(Icons.person_outline, 'Profile', 3),
                   ],
-                ),
-                // Center Plus Button
-                Positioned(
-                  left: MediaQuery.of(context).size.width / 2 - 28,
-                  top: -32,
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const CustomerQuickBookingScreen(worker: {}, categoryName: '',),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
-                        ),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 4),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF4A7FFF).withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                    ),
-                  ),
                 ),
               ],
             ),

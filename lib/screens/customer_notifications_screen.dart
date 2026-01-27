@@ -4,10 +4,13 @@ class CustomerNotificationsScreen extends StatefulWidget {
   const CustomerNotificationsScreen({super.key});
 
   @override
-  State<CustomerNotificationsScreen> createState() => _CustomerNotificationsScreenState();
+  State<CustomerNotificationsScreen> createState() =>
+      _CustomerNotificationsScreenState();
 }
 
-class _CustomerNotificationsScreenState extends State<CustomerNotificationsScreen> with SingleTickerProviderStateMixin {
+class _CustomerNotificationsScreenState
+    extends State<CustomerNotificationsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   final List<Map<String, dynamic>> _notifications = [
@@ -15,7 +18,8 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
       'id': 1,
       'type': 'booking',
       'title': 'Booking Confirmed',
-      'message': 'Your booking with Kasun Perera has been confirmed for Dec 29, 10:00 AM',
+      'message':
+          'Your booking with Kasun Perera has been confirmed for Dec 29, 10:00 AM',
       'time': '2 hours ago',
       'isRead': false,
       'icon': Icons.check_circle,
@@ -25,7 +29,8 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
       'id': 2,
       'type': 'message',
       'title': 'New Message',
-      'message': 'Nimal Silva: Sure, I can help with that. When would you like me to come over?',
+      'message':
+          'Nimal Silva: Sure, I can help with that. When would you like me to come over?',
       'time': '5 hours ago',
       'isRead': false,
       'icon': Icons.message,
@@ -92,7 +97,11 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                               color: Colors.white.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                            child: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -136,6 +145,7 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                     const SizedBox(height: 16),
                     // Tabs
                     Container(
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
@@ -148,12 +158,28 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                         ),
                         labelColor: const Color(0xFF4A7FFF),
                         unselectedLabelColor: Colors.white,
-                        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        labelStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        dividerColor: Colors.transparent,
+                        labelPadding: EdgeInsets.zero,
                         tabs: const [
-                          Tab(text: 'All'),
-                          Tab(text: 'Bookings'),
-                          Tab(text: 'Messages'),
-                          Tab(text: 'Promos'),
+                          Tab(height: 40, child: Center(child: Text('All'))),
+                          Tab(
+                            height: 40,
+                            child: Center(child: Text('Bookings')),
+                          ),
+                          Tab(
+                            height: 40,
+                            child: Center(child: Text('Messages')),
+                          ),
+                          Tab(height: 40, child: Center(child: Text('Promos'))),
                         ],
                       ),
                     ),
@@ -175,9 +201,21 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                     controller: _tabController,
                     children: [
                       _buildNotificationsList(_notifications),
-                      _buildNotificationsList(_notifications.where((n) => n['type'] == 'booking').toList()),
-                      _buildNotificationsList(_notifications.where((n) => n['type'] == 'message').toList()),
-                      _buildNotificationsList(_notifications.where((n) => n['type'] == 'promo').toList()),
+                      _buildNotificationsList(
+                        _notifications
+                            .where((n) => n['type'] == 'booking')
+                            .toList(),
+                      ),
+                      _buildNotificationsList(
+                        _notifications
+                            .where((n) => n['type'] == 'message')
+                            .toList(),
+                      ),
+                      _buildNotificationsList(
+                        _notifications
+                            .where((n) => n['type'] == 'promo')
+                            .toList(),
+                      ),
                     ],
                   ),
                 ),
@@ -195,7 +233,11 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey[400]),
+            Icon(
+              Icons.notifications_off_outlined,
+              size: 64,
+              color: Colors.grey[400],
+            ),
             const SizedBox(height: 16),
             Text(
               'No notifications',
@@ -235,7 +277,9 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
           color: isUnread ? const Color(0xFFE8F0FF) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isUnread ? const Color(0xFF4A7FFF).withOpacity(0.3) : const Color(0xFFE5E7EB),
+            color: isUnread
+                ? const Color(0xFF4A7FFF).withOpacity(0.3)
+                : const Color(0xFFE5E7EB),
           ),
         ),
         child: Row(
@@ -266,7 +310,9 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                           notification['title'],
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                            fontWeight: isUnread
+                                ? FontWeight.bold
+                                : FontWeight.w600,
                             color: const Color(0xFF1F2937),
                           ),
                         ),
@@ -287,7 +333,9 @@ class _CustomerNotificationsScreenState extends State<CustomerNotificationsScree
                     notification['message'],
                     style: TextStyle(
                       fontSize: 13,
-                      color: isUnread ? const Color(0xFF1F2937) : const Color(0xFF6B7280),
+                      color: isUnread
+                          ? const Color(0xFF1F2937)
+                          : const Color(0xFF6B7280),
                       height: 1.4,
                     ),
                   ),

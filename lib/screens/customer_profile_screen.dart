@@ -16,6 +16,33 @@ class CustomerProfileScreen extends StatefulWidget {
 
 class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   bool _notificationsEnabled = true;
+  String _userName = '';
+  String _userEmail = '';
+  String _userPhone = '';
+  String _userLocation = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final prefs = await SharedPreferences.getInstance();
+
+    setState(() {
+      _userName =
+          prefs.getString('customerName') ?? user?.displayName ?? 'Customer';
+      _userEmail =
+          user?.email ??
+          prefs.getString('customerEmail') ??
+          'email@example.com';
+      _userPhone = prefs.getString('customerPhone') ?? '+94 77 123 4567';
+      _userLocation =
+          prefs.getString('customerLocation') ?? 'Colombo, Sri Lanka';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,19 +73,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                         ),
                       ),
                     ),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.settings_outlined,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
+                    const SizedBox(width: 40, height: 40),
                   ],
                 ),
               ),
@@ -144,9 +159,9 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        const Text(
-                                          'Sarah Johnson',
-                                          style: TextStyle(
+                                        Text(
+                                          _userName,
+                                          style: const TextStyle(
                                             fontSize: 20,
                                             fontWeight: FontWeight.bold,
                                             color: Color(0xFF1F2937),
@@ -200,20 +215,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                       ],
                                     ),
                                   ),
-                                  // Edit Button
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFE8F0FF),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.edit_outlined,
-                                      color: Color(0xFF4A7FFF),
-                                      size: 20,
-                                    ),
-                                  ),
                                 ],
                               ),
                               const SizedBox(height: 16),
@@ -222,17 +223,17 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                               // Contact Info
                               _buildContactRow(
                                 Icons.email_outlined,
-                                'sarah.johnson@email.com',
+                                _userEmail,
                               ),
                               const SizedBox(height: 12),
                               _buildContactRow(
                                 Icons.phone_outlined,
-                                '+94 77 123 4567',
+                                _userPhone,
                               ),
                               const SizedBox(height: 12),
                               _buildContactRow(
                                 Icons.location_on_outlined,
-                                'Colombo, Sri Lanka',
+                                _userLocation,
                               ),
                             ],
                           ),
@@ -282,12 +283,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                   },
                                   activeColor: const Color(0xFF4A7FFF),
                                 ),
-                              ),
-                              const Divider(height: 1),
-                              _buildSettingItem(
-                                Icons.lock_outline,
-                                'Privacy & Security',
-                                onTap: () {},
                               ),
                               const Divider(height: 1),
                               _buildSettingItem(

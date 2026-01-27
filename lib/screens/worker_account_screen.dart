@@ -74,19 +74,7 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                         ),
                       ),
                     ),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.settings,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
+                    const SizedBox(width: 40, height: 40),
                   ],
                 ),
               ),

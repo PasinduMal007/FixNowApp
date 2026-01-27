@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'customer_notifications_screen.dart';
 import 'customer_search_results_screen.dart';
 import 'customer_service_category_screen.dart';
 import 'customer_live_tracking_screen.dart';
+import 'customer_chat_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   final String customerName;
@@ -15,26 +17,61 @@ class CustomerHomeScreen extends StatefulWidget {
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final List<Map<String, dynamic>> _serviceCategories = [
-    {'name': 'Electrical', 'icon': Icons.flash_on, 'color': Color(0xFFFBBF24)},
+    {'name': 'Electrician', 'icon': Icons.flash_on, 'color': Color(0xFFFBBF24)},
     {
-      'name': 'Plumbing',
+      'name': 'Plumber',
       'icon': Icons.water_drop_outlined,
       'color': Color(0xFF3B82F6),
     },
     {
-      'name': 'Cleaning',
-      'icon': Icons.cleaning_services_outlined,
-      'color': Color(0xFF10B981),
+      'name': 'Carpenter',
+      'icon': Icons.handyman_outlined,
+      'color': Color(0xFF8B4513),
     },
     {
-      'name': 'Painting',
+      'name': 'Mason',
+      'icon': Icons.home_repair_service,
+      'color': Color(0xFF6B7280),
+    },
+    {
+      'name': 'Painter',
       'icon': Icons.format_paint_outlined,
       'color': Color(0xFFF97316),
     },
     {
-      'name': 'AC Repair',
+      'name': 'Mechanic',
+      'icon': Icons.build_circle_outlined,
+      'color': Color(0xFF1F2937),
+    },
+    {
+      'name': 'Welder',
+      'icon': Icons.whatshot_outlined,
+      'color': Color(0xFFEF4444),
+    },
+    {
+      'name': 'AC Technician',
       'icon': Icons.ac_unit_outlined,
-      'color': Color(0xFF6B7280),
+      'color': Color(0xFF06B6D4),
+    },
+    {
+      'name': 'Tile Setter',
+      'icon': Icons.grid_on_outlined,
+      'color': Color(0xFF8B5CF6),
+    },
+    {
+      'name': 'Roofer',
+      'icon': Icons.roofing_outlined,
+      'color': Color(0xFF78716C),
+    },
+    {
+      'name': 'Gardener',
+      'icon': Icons.yard_outlined,
+      'color': Color(0xFF10B981),
+    },
+    {
+      'name': 'Cleaner',
+      'icon': Icons.cleaning_services_outlined,
+      'color': Color(0xFF06B6D4),
     },
   ];
 
@@ -46,6 +83,51 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     'distance': '1.3 km away',
     'status': 'in-progress',
   };
+
+  String _selectedFilter = 'Top Rated';
+
+  // Real-time update variables
+  Timer? _updateTimer;
+  int _arrivingMinutes = 15;
+  double _distanceKm = 1.3;
+
+  @override
+  void initState() {
+    super.initState();
+    _startRealTimeUpdates();
+  }
+
+  @override
+  void dispose() {
+    _updateTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startRealTimeUpdates() {
+    // Update arrival time and distance every 3 seconds
+    _updateTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() {
+        // Decrease arrival time
+        if (_arrivingMinutes > 0) {
+          _arrivingMinutes--;
+        }
+
+        // Decrease distance (assume worker moving at ~10 km/h)
+        if (_distanceKm > 0.1) {
+          _distanceKm -= 0.05; // Reduce by 50 meters every 3 seconds
+        } else {
+          _distanceKm = 0.0;
+          _arrivingMinutes = 0;
+          timer.cancel(); // Stop when arrived
+        }
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,20 +175,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             ],
                           ),
                         ),
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.settings_outlined,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
+
                         GestureDetector(
                           onTap: () {
                             Navigator.push(
@@ -211,11 +280,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                 ),
                               ),
                             ),
-                            const Icon(
-                              Icons.mic_outlined,
-                              color: Color(0xFF9CA3AF),
-                              size: 20,
-                            ),
                           ],
                         ),
                       ),
@@ -249,19 +313,19 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                               _buildFilterChip(
                                 'Top Rated',
                                 Icons.star_outline,
-                                true,
+                                _selectedFilter == 'Top Rated',
                               ),
                               const SizedBox(width: 12),
                               _buildFilterChip(
                                 'Nearby',
                                 Icons.location_on_outlined,
-                                false,
+                                _selectedFilter == 'Nearby',
                               ),
                               const SizedBox(width: 12),
                               _buildFilterChip(
                                 'Available Now',
                                 Icons.schedule,
-                                false,
+                                _selectedFilter == 'Available Now',
                               ),
                             ],
                           ),
@@ -332,22 +396,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                           ],
                                         ),
                                       ),
-                                      const Spacer(),
-                                      Container(
-                                        width: 32,
-                                        height: 32,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.more_horiz,
-                                          color: Colors.white,
-                                          size: 18,
-                                        ),
-                                      ),
                                     ],
                                   ),
                                   const SizedBox(height: 16),
@@ -377,7 +425,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                       ),
                                       const SizedBox(width: 6),
                                       Text(
-                                        'Arriving in ${_activeService['arrivingIn']}',
+                                        'Arriving in $_arrivingMinutes min',
                                         style: const TextStyle(
                                           fontSize: 13,
                                           color: Colors.white70,
@@ -391,7 +439,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                       ),
                                       const SizedBox(width: 6),
                                       Text(
-                                        _activeService['distance'],
+                                        '${_distanceKm.toStringAsFixed(1)} km away',
                                         style: const TextStyle(
                                           fontSize: 13,
                                           color: Colors.white70,
@@ -404,12 +452,37 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                     children: [
                                       Expanded(
                                         child: ElevatedButton.icon(
-                                          onPressed: () {},
+                                          onPressed: () {
+                                            // Navigate to chat with specific worker
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => CustomerChatScreen(
+                                                  conversation: {
+                                                    'workerId':
+                                                        _activeService!['workerId'] ??
+                                                        '1',
+                                                    'workerName':
+                                                        _activeService!['worker'],
+                                                    'workerType':
+                                                        _activeService!['workerType'] ??
+                                                        'Service Professional',
+                                                    'service':
+                                                        _activeService!['service'],
+                                                    'lastMessage':
+                                                        'Chat with ${_activeService!['worker']}',
+                                                    'timestamp': 'Now',
+                                                    'isOnline': true,
+                                                  },
+                                                ),
+                                              ),
+                                            );
+                                          },
                                           icon: const Icon(
-                                            Icons.phone,
+                                            Icons.chat_bubble_outline,
                                             size: 18,
                                           ),
-                                          label: const Text('Call Pro'),
+                                          label: const Text('Message'),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.white,
                                             foregroundColor: const Color(
@@ -435,8 +508,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                               MaterialPageRoute(
                                                 builder: (context) =>
                                                     CustomerLiveTrackingScreen(
-                                                      booking:
-                                                          _activeService,
+                                                      booking: _activeService,
                                                     ),
                                               ),
                                             );
@@ -470,114 +542,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                           const SizedBox(height: 20),
                         ],
 
-                        // Emergency & Schedule
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.flash_on,
-                                          color: Colors.white,
-                                          size: 22,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      const Text(
-                                        'Emergency',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        'Available Now',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: const Color(0xFFE5E7EB),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFE8F0FF),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.calendar_today_outlined,
-                                          color: Color(0xFF4A7FFF),
-                                          size: 22,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      const Text(
-                                        'Schedule',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF1F2937),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        'Book Later',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF9CA3AF),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-
                         // Browse Services
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 24),
@@ -591,12 +555,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: _serviceCategories.map((category) {
+                        SizedBox(
+                          height: 60,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _serviceCategories.length,
+                            itemBuilder: (context, index) {
+                              final category = _serviceCategories[index];
                               return GestureDetector(
                                 onTap: () {
                                   Navigator.push(
@@ -611,44 +577,39 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                   );
                                 },
                                 child: Container(
-                                  width:
-                                      (MediaQuery.of(context).size.width - 72) /
-                                      5,
-                                  child: Column(
+                                  margin: const EdgeInsets.only(right: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFE5E7EB),
+                                    ),
+                                  ),
+                                  child: Row(
                                     children: [
-                                      Container(
-                                        width: 56,
-                                        height: 56,
-                                        decoration: BoxDecoration(
-                                          color: category['color'].withOpacity(
-                                            0.1,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          category['icon'],
-                                          color: category['color'],
-                                          size: 28,
-                                        ),
+                                      Icon(
+                                        category['icon'],
+                                        color: category['color'],
+                                        size: 20,
                                       ),
-                                      const SizedBox(height: 8),
+                                      const SizedBox(width: 12),
                                       Text(
                                         category['name'],
                                         style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF6B7280),
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF1F2937),
                                         ),
-                                        textAlign: TextAlign.center,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
                                 ),
                               );
-                            }).toList(),
+                            },
                           ),
                         ),
                         const SizedBox(height: 28),
@@ -797,32 +758,41 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   Widget _buildFilterChip(String label, IconData icon, bool isSelected) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF4A7FFF) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isSelected ? const Color(0xFF4A7FFF) : const Color(0xFFE5E7EB),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 16,
-            color: isSelected ? Colors.white : const Color(0xFF6B7280),
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedFilter = label;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF4A7FFF) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF4A7FFF)
+                : const Color(0xFFE5E7EB),
           ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
               color: isSelected ? Colors.white : const Color(0xFF6B7280),
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : const Color(0xFF6B7280),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,20 +1,61 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CustomerPersonalInfoSettingsScreen extends StatefulWidget {
   const CustomerPersonalInfoSettingsScreen({super.key});
 
   @override
-  State<CustomerPersonalInfoSettingsScreen> createState() => _CustomerPersonalInfoSettingsScreenState();
+  State<CustomerPersonalInfoSettingsScreen> createState() =>
+      _CustomerPersonalInfoSettingsScreenState();
 }
 
-class _CustomerPersonalInfoSettingsScreenState extends State<CustomerPersonalInfoSettingsScreen> {
-  final _nameController = TextEditingController(text: 'Michael Rodriguez');
-  final _emailController = TextEditingController(text: 'john.smith@email.com');
-  final _phoneController = TextEditingController(text: '+1 (555) 123-4567');
-  final _addressController = TextEditingController(text: '1234 Main Street, New York, NY 10001');
-  final _dobController = TextEditingController(text: 'January 15, 1990');
+class _CustomerPersonalInfoSettingsScreenState
+    extends State<CustomerPersonalInfoSettingsScreen> {
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _dobController = TextEditingController();
 
   bool _isEditing = false;
+  String _userName = '';
+  String _userInitial = 'C';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final prefs = await SharedPreferences.getInstance();
+
+    setState(() {
+      // Load name
+      _userName =
+          prefs.getString('customerName') ?? user?.displayName ?? 'Customer';
+      _userInitial = _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C';
+      _nameController.text = _userName;
+
+      // Load email
+      _emailController.text =
+          user?.email ?? prefs.getString('customerEmail') ?? '';
+
+      // Load phone
+      _phoneController.text = prefs.getString('customerPhone') ?? '';
+
+      // Load address/location
+      _addressController.text =
+          prefs.getString('customerLocation') ??
+          prefs.getString('customerAddress') ??
+          '';
+
+      // Load DOB if available
+      _dobController.text = prefs.getString('customerDOB') ?? '';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +85,11 @@ class _CustomerPersonalInfoSettingsScreenState extends State<CustomerPersonalInf
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -115,14 +160,17 @@ class _CustomerPersonalInfoSettingsScreenState extends State<CustomerPersonalInf
                               height: 100,
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+                                  colors: [
+                                    Color(0xFF4A7FFF),
+                                    Color(0xFF6B9FFF),
+                                  ],
                                 ),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Center(
+                              child: Center(
                                 child: Text(
-                                  'M',
-                                  style: TextStyle(
+                                  _userInitial,
+                                  style: const TextStyle(
                                     fontSize: 40,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
@@ -133,9 +181,9 @@ class _CustomerPersonalInfoSettingsScreenState extends State<CustomerPersonalInf
                           ],
                         ),
                         const SizedBox(height: 12),
-                        const Text(
-                          'Michael Rodriguez',
-                          style: TextStyle(
+                        Text(
+                          _userName,
+                          style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF1F2937),
@@ -143,7 +191,7 @@ class _CustomerPersonalInfoSettingsScreenState extends State<CustomerPersonalInf
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Worker Account',
+                          'Customer Account',
                           style: TextStyle(
                             fontSize: 14,
                             color: Color(0xFF6B7280),
@@ -153,7 +201,9 @@ class _CustomerPersonalInfoSettingsScreenState extends State<CustomerPersonalInf
                         TextButton(
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Change photo functionality')),
+                              const SnackBar(
+                                content: Text('Change photo functionality'),
+                              ),
                             );
                           },
                           child: const Text(
@@ -290,16 +340,14 @@ class _CustomerPersonalInfoSettingsScreenState extends State<CustomerPersonalInf
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _isEditing ? const Color(0xFF4A7FFF) : const Color(0xFFE5E7EB),
+              color: _isEditing
+                  ? const Color(0xFF4A7FFF)
+                  : const Color(0xFFE5E7EB),
             ),
           ),
           child: Row(
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: const Color(0xFF9CA3AF),
-              ),
+              Icon(icon, size: 20, color: const Color(0xFF9CA3AF)),
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(

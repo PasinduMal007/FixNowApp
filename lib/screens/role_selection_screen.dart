@@ -130,7 +130,7 @@ class RoleSelectionScreen extends StatelessWidget {
                               final prefs =
                                   await SharedPreferences.getInstance();
                               await prefs.setString('selectedRole', 'customer');
-                              
+
                               if (!context.mounted) return;
                               Navigator.pushNamed(
                                 context,
@@ -340,7 +340,7 @@ class _RoleCardState extends State<_RoleCard> {
               ),
             ],
           ),
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -372,7 +372,7 @@ class _RoleCardState extends State<_RoleCard> {
                             color: Color(0xFF1C2334),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         Text(
                           widget.description,
                           style: const TextStyle(
@@ -380,12 +380,12 @@ class _RoleCardState extends State<_RoleCard> {
                             color: Color(0xFF6B7280),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
 
                         // Benefits
                         ...widget.benefits.map(
                           (benefit) => Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.only(bottom: 4),
                             child: Row(
                               children: [
                                 const Icon(
@@ -428,8 +428,8 @@ class _RoleCardState extends State<_RoleCard> {
 
               // Social proof
               Container(
-                margin: const EdgeInsets.only(top: 16),
-                padding: const EdgeInsets.only(top: 16),
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.only(top: 12),
                 decoration: const BoxDecoration(
                   border: Border(
                     top: BorderSide(color: Color(0xFFE5E7EB), width: 1),
