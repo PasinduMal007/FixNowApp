@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
 
 class BookingService {
   final FirebaseAuth _auth;
@@ -7,7 +8,7 @@ class BookingService {
 
   BookingService({FirebaseAuth? auth, FirebaseDatabase? db})
       : _auth = auth ?? FirebaseAuth.instance,
-        _db = db ?? FirebaseDatabase.instance;
+        _db = db ?? DB.instance;
 
   String get _uid {
     final user = _auth.currentUser;

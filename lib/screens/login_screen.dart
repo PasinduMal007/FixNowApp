@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fix_now_app/Services/auth_login_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? role; // 'worker' or 'customer'
@@ -21,13 +22,38 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
   bool _emailTouched = false;
+  bool _roleInitialized = false;
 
   // ✅ resolved role for this screen (from route args or widget.role)
   String _role = 'customer';
 
   @override
+  void initState() {
+    super.initState();
+    _loadPrefError();
+  }
+
+  Future<void> _loadPrefError() async {
+    final prefs = await SharedPreferences.getInstance();
+    final msg = prefs.getString('authError');
+
+    if (!mounted) return;
+
+    if (msg != null && msg.trim().isNotEmpty) {
+      // Avoid setState during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _errorMessage = msg);
+      });
+
+      await prefs.remove('authError');
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_roleInitialized) return;
 
     final args = ModalRoute.of(context)?.settings.arguments;
 
@@ -40,8 +66,13 @@ class _LoginScreenState extends State<LoginScreen> {
         ? widget.role
         : null;
 
-    setState(() {
-      _role = routeRole ?? widgetRole ?? 'customer';
+    // ✅ set once WITHOUT setState (safe)
+    _role = routeRole ?? widgetRole ?? 'customer';
+    _roleInitialized = true;
+
+    // Optional: load any saved error after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPrefError(); // only if you have this method
     });
   }
 
@@ -73,6 +104,9 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
         expectedRole: _role,
       );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('selectedRole', result.role);
 
       if (!mounted) return;
 
@@ -144,13 +178,21 @@ class _LoginScreenState extends State<LoginScreen> {
           );
       }
     } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = _friendlyAuthError(e);
-      });
+      final msg = _friendlyAuthError(e);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('authError', msg);
+
+      if (!mounted) return;
+      setState(() => _errorMessage = msg);
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
-      });
+      final msg = e.toString().replaceFirst('Exception: ', '');
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('authError', msg);
+
+      if (!mounted) return;
+      setState(() => _errorMessage = msg);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -344,8 +386,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                   children: [
                                     Expanded(
                                       child: GestureDetector(
-                                        onTap: () =>
-                                            setState(() => _role = 'customer'),
+                                        onTap: () async {
+                                          setState(() => _role = 'customer');
+                                          final prefs =
+                                              await SharedPreferences.getInstance();
+                                          await prefs.setString(
+                                            'selectedRole',
+                                            'customer',
+                                          );
+                                        },
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
                                             vertical: 12,
@@ -388,8 +437,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                     const SizedBox(width: 4),
                                     Expanded(
                                       child: GestureDetector(
-                                        onTap: () =>
-                                            setState(() => _role = 'worker'),
+                                        onTap: () async {
+                                          setState(() => _role = 'worker');
+                                          final prefs =
+                                              await SharedPreferences.getInstance();
+                                          await prefs.setString(
+                                            'selectedRole',
+                                            'worker',
+                                          );
+                                        },
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
                                             vertical: 12,

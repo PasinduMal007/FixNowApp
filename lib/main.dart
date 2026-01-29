@@ -57,7 +57,6 @@ class MyApp extends StatelessWidget {
           },
         ),
         '/app-entry': (context) => const AppEntry(),
-        '/login': (context) => const LoginScreen(),
         // Worker onboarding routes
         '/worker-profession': (context) => const WorkerProfessionScreen(),
         '/worker-profile': (context) => const WorkerProfileScreen(),

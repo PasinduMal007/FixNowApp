@@ -1,3 +1,4 @@
+import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +7,7 @@ import 'screens/role_selection_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/customer_dashboard.dart';
 import 'screens/worker_dashboard.dart';
+import 'dart:async';
 
 class AppEntry extends StatefulWidget {
   const AppEntry({super.key});
@@ -16,6 +18,7 @@ class AppEntry extends StatefulWidget {
 
 class _AppEntryState extends State<AppEntry> {
   late final Future<String?> _roleFuture;
+  bool _redirecting = false;
 
   @override
   void initState() {
@@ -27,44 +30,58 @@ class _AppEntryState extends State<AppEntry> {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('selectedRole');
 
-    // Normalize if you accidentally stored "work/hire"
     if (saved == 'work') return 'worker';
     if (saved == 'hire') return 'customer';
 
-    return saved; // 'worker' | 'customer' | null
+    if (saved == 'customer' || saved == 'worker') return saved;
+    return null;
   }
 
-  Future<String?> _loadRoleFromDatabaseAndSave(String uid) async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<String?> _getRoleFromDatabase(String uid) async {
+    final db = DB.instance;
 
-    // If customer profile exists -> customer
-    final customerSnap =
-        await FirebaseDatabase.instance.ref('users/customers/$uid/role').get();
-    if (customerSnap.exists && customerSnap.value == 'customer') {
-      await prefs.setString('selectedRole', 'customer');
+    final customerRole = await db.ref('users/customers/$uid/role').get();
+    if (customerRole.exists && customerRole.value == 'customer')
       return 'customer';
-    }
 
-    // If worker profile exists -> worker
-    final workerSnap =
-        await FirebaseDatabase.instance.ref('users/workers/$uid/role').get();
-    if (workerSnap.exists && workerSnap.value == 'worker') {
-      await prefs.setString('selectedRole', 'worker');
-      return 'worker';
-    }
+    final workerRole = await db.ref('users/workers/$uid/role').get();
+    if (workerRole.exists && workerRole.value == 'worker') return 'worker';
 
     return null;
   }
 
-  Future<void> _saveRoleAndGoLogin(BuildContext context, String role) async {
+  Future<void> _setAuthError(String message) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('authError', message);
+  }
+
+  Future<void> _clearAuthError() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('authError');
+  }
+
+  Future<void> _saveRole(String role) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selectedRole', role);
+  }
 
-    if (!context.mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => LoginScreen(role: role)),
-    );
+  void _redirectToLogin({required String role, required String message}) {
+    if (_redirecting) return;
+    _redirecting = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _setAuthError(message);
+
+      // Sign out AFTER saving error (so login screen can read it)
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      // Clear stack and go login with the role we want the UI to show
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil('/login', (r) => false, arguments: role);
+    });
   }
 
   @override
@@ -72,72 +89,118 @@ class _AppEntryState extends State<AppEntry> {
     return FutureBuilder<String?>(
       future: _roleFuture,
       builder: (context, roleSnap) {
-        if (!roleSnap.hasData && roleSnap.connectionState != ConnectionState.done) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        if (roleSnap.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
-        final savedRole = roleSnap.data; // 'worker' | 'customer' | null
+        final savedRole = roleSnap.data; // 'customer' | 'worker' | null
 
         return StreamBuilder<User?>(
           stream: FirebaseAuth.instance.authStateChanges(),
           builder: (context, authSnap) {
             if (authSnap.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             }
 
             final user = authSnap.data;
 
-            // 1) Not logged in
+            // NOT LOGGED IN
             if (user == null) {
-              // No role saved -> show role selection (first launch)
               if (savedRole == null) {
                 return RoleSelectionScreen(
-                  onSelectRole: (raw) {
-                    // raw could be 'hire'/'work' or already 'customer'/'worker'
+                  onSelectRole: (raw) async {
                     final role = (raw == 'work')
                         ? 'worker'
                         : (raw == 'hire')
-                            ? 'customer'
-                            : raw;
+                        ? 'customer'
+                        : raw;
 
-                    _saveRoleAndGoLogin(context, role);
+                    if (role != 'customer' && role != 'worker') return;
+
+                    await _saveRole(role);
+                    if (!context.mounted) return;
+
+                    Navigator.pushReplacementNamed(
+                      context,
+                      '/login',
+                      arguments: role,
+                    );
                   },
                 );
               }
 
-              // Role saved -> show login for that role
+              // Role is known -> show login for that role
               return LoginScreen(role: savedRole);
             }
 
-            // 2) Logged in
-            // If role already saved -> go dashboard
-            if (savedRole == 'customer') return const CustomerDashboard();
-            if (savedRole == 'worker') return const WorkerDashboard();
-
-            // Role missing but user logged in -> derive role from DB and then show correct screen
+            // LOGGED IN -> verify role from DB safely
             return FutureBuilder<String?>(
-              future: _loadRoleFromDatabaseAndSave(user.uid),
+              future: _getRoleFromDatabase(
+                user.uid,
+              ).timeout(const Duration(seconds: 12)),
               builder: (context, dbRoleSnap) {
                 if (dbRoleSnap.connectionState != ConnectionState.done) {
-                  return const Scaffold(body: Center(child: CircularProgressIndicator()));
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                if (dbRoleSnap.hasError) {
+                  final err = dbRoleSnap.error;
+                  if (err is TimeoutException &&
+                      (savedRole == 'customer' || savedRole == 'worker')) {
+                    return savedRole == 'customer'
+                        ? const CustomerDashboard()
+                        : const WorkerDashboard();
+                  }
+                  _redirectToLogin(
+                    role: savedRole ?? 'customer',
+                    message: 'Could not verify account role. Please try again.',
+                  );
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
                 }
 
                 final dbRole = dbRoleSnap.data;
-                if (dbRole == 'customer') return const CustomerDashboard();
-                if (dbRole == 'worker') return const WorkerDashboard();
 
-                // Could not determine role -> fallback to role selection
-                return RoleSelectionScreen(
-                  onSelectRole: (raw) {
-                    final role = (raw == 'work')
-                        ? 'worker'
-                        : (raw == 'hire')
-                            ? 'customer'
-                            : raw;
+                if (dbRole != 'customer' && dbRole != 'worker') {
+                  _redirectToLogin(
+                    role: savedRole ?? 'customer',
+                    message: 'Account profile not found. Please log in again.',
+                  );
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
 
-                    _saveRoleAndGoLogin(context, role);
-                  },
-                );
+                // If savedRole exists but differs, force user to the correct role login
+                final resolvedRole = dbRole!;
+
+                if (savedRole != null && savedRole != dbRole) {
+                  _redirectToLogin(
+                    role: resolvedRole,
+                    message:
+                        'This account is registered as a $dbRole. Please log in as $dbRole.',
+                  );
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                // Success -> keep prefs clean and save role
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  await _clearAuthError();
+                  await _saveRole(resolvedRole);
+                });
+
+                return dbRole == 'customer'
+                    ? const CustomerDashboard()
+                    : const WorkerDashboard();
               },
             );
           },
