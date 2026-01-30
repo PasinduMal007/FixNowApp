@@ -64,7 +64,6 @@ class MyApp extends StatelessWidget {
         '/worker-rates': (context) => const WorkerRatesScreen(),
         '/worker-dashboard': (context) => const WorkerDashboard(),
         // Customer onboarding routes
-        '/customer-dashboard': (context) => const CustomerDashboard(),
         '/customer-personal-info': (context) =>
             const CustomerPersonalInfoScreen(),
         '/customer-photo': (context) => const CustomerPhotoScreen(),

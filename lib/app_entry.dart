@@ -1,13 +1,12 @@
-import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'screens/role_selection_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/customer_dashboard.dart';
 import 'screens/worker_dashboard.dart';
 import 'dart:async';
+import 'package:fix_now_app/Services/backend_auth_service.dart';
 
 class AppEntry extends StatefulWidget {
   const AppEntry({super.key});
@@ -37,16 +36,12 @@ class _AppEntryState extends State<AppEntry> {
     return null;
   }
 
-  Future<String?> _getRoleFromDatabase(String uid) async {
-    final db = DB.instance;
-
-    final customerRole = await db.ref('users/customers/$uid/role').get();
-    if (customerRole.exists && customerRole.value == 'customer')
-      return 'customer';
-
-    final workerRole = await db.ref('users/workers/$uid/role').get();
-    if (workerRole.exists && workerRole.value == 'worker') return 'worker';
-
+  Future<String?> _getRoleFromBackend(String expectedRole) async {
+    final data = await BackendAuthService().loginInfo(
+      expectedRole: expectedRole,
+    );
+    final role = data['role'];
+    if (role == 'customer' || role == 'worker') return role;
     return null;
   }
 
@@ -139,8 +134,8 @@ class _AppEntryState extends State<AppEntry> {
 
             // LOGGED IN -> verify role from DB safely
             return FutureBuilder<String?>(
-              future: _getRoleFromDatabase(
-                user.uid,
+              future: _getRoleFromBackend(
+                savedRole ?? 'customer',
               ).timeout(const Duration(seconds: 12)),
               builder: (context, dbRoleSnap) {
                 if (dbRoleSnap.connectionState != ConnectionState.done) {

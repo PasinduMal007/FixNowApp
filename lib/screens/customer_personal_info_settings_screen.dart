@@ -1,3 +1,4 @@
+import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,31 +31,79 @@ class _CustomerPersonalInfoSettingsScreenState
 
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
-    final prefs = await SharedPreferences.getInstance();
+    if (user == null) return;
 
-    setState(() {
-      // Load name
-      _userName =
-          prefs.getString('customerName') ?? user?.displayName ?? 'Customer';
-      _userInitial = _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C';
-      _nameController.text = _userName;
+    try {
+      final profile = await BackendAuthService().getCustomerProfile();
 
-      // Load email
-      _emailController.text =
-          user?.email ?? prefs.getString('customerEmail') ?? '';
+      final fullName = (profile['fullName'] ?? user.displayName ?? 'Customer')
+          .toString();
+      final email = (profile['email'] ?? user.email ?? '').toString();
+      final phone9 = (profile['phoneNumber'] ?? '').toString(); // 9 digits
+      final locationText = (profile['locationText'] ?? '').toString();
+      final dob = (profile['dob'] ?? '').toString();
 
-      // Load phone
-      _phoneController.text = prefs.getString('customerPhone') ?? '';
+      setState(() {
+        _userName = fullName;
+        _userInitial = _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C';
 
-      // Load address/location
-      _addressController.text =
-          prefs.getString('customerLocation') ??
-          prefs.getString('customerAddress') ??
-          '';
+        _nameController.text = fullName;
+        _emailController.text = email;
+        _phoneController.text = phone9;
+        _addressController.text = locationText;
+        _dobController.text = dob;
+      });
+    } catch (_) {
+      setState(() {
+        _userName = user.displayName ?? 'Customer';
+        _userInitial = _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C';
+        _nameController.text = _userName;
+        _emailController.text = user.email ?? '';
+        _phoneController.text = '';
+        _addressController.text = '';
+        _dobController.text = '';
+      });
+    }
+  }
 
-      // Load DOB if available
-      _dobController.text = prefs.getString('customerDOB') ?? '';
-    });
+  Future<void> _saveChanges() async {
+    final fullName = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final locationText = _addressController.text.trim();
+    final dob = _dobController.text.trim();
+
+    // phone: keep only digits
+    final phoneDigits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+
+    try {
+      final updatedProfile = await BackendAuthService().updateCustomerProfile(
+        fullName: fullName,
+        email: email.isEmpty ? null : email,
+        phoneNumber9Digits: phoneDigits.isEmpty ? null : phoneDigits,
+        locationText: locationText.isEmpty ? null : locationText,
+        dob: dob.isEmpty ? null : dob,
+      );
+
+      setState(() {
+        _isEditing = false;
+        _userName = (updatedProfile['fullName'] ?? fullName).toString();
+        _userInitial = _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C';
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Changes saved successfully!'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   @override
@@ -279,15 +328,7 @@ class _CustomerPersonalInfoSettingsScreenState
                         // Save Button (only visible when editing)
                         if (_isEditing)
                           ElevatedButton(
-                            onPressed: () {
-                              setState(() => _isEditing = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Changes saved successfully!'),
-                                  backgroundColor: Color(0xFF10B981),
-                                ),
-                              );
-                            },
+                            onPressed: _saveChanges,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF4A7FFF),
                               minimumSize: const Size(double.infinity, 52),

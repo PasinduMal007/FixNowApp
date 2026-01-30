@@ -1,72 +1,44 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:fix_now_app/services/db.dart';
+import 'package:fix_now_app/Services/backend_auth_service.dart';
 
 class LoginResult {
   final String uid;
   final String role; // 'customer' or 'worker'
-  final Map<dynamic, dynamic> profile;
+  final Map<String, dynamic> profile;
 
-  LoginResult({
-    required this.uid,
-    required this.role,
-    required this.profile,
-  });
+  LoginResult({required this.uid, required this.role, required this.profile});
 }
 
 class AuthLoginService {
   final FirebaseAuth _auth;
-  final FirebaseDatabase _db;
 
-  AuthLoginService({FirebaseAuth? auth, FirebaseDatabase? db})
-      : _auth = auth ?? FirebaseAuth.instance,
-        _db = db ?? DB.instance;
+  AuthLoginService({FirebaseAuth? auth}) : _auth = auth ?? FirebaseAuth.instance;
 
   Future<LoginResult> loginWithEmail({
     required String email,
     required String password,
-    String? expectedRole, // optional: 'customer' or 'worker'
+    required String expectedRole,
   }) async {
-    // 1) Auth sign in
     final cred = await _auth.signInWithEmailAndPassword(
       email: email.trim(),
-      password: password.trim(),
+      password: password,
     );
 
-    final uid = cred.user!.uid;
-
-    // 2) Read profile from RTDB
-    final customerSnap = await _db.ref("users/customers/$uid").get();
-    if (customerSnap.exists) {
-      final profile = (customerSnap.value as Map?) ?? {};
-      final role = (profile["role"] as String?) ?? "customer";
-
-      if (expectedRole != null && expectedRole != role) {
-        await _auth.signOut();
-        throw Exception("This account is not a $expectedRole account.");
-      }
-
-      return LoginResult(uid: uid, role: role, profile: profile);
+    final user = cred.user;
+    if (user == null) {
+      throw Exception('Login failed. Please try again.');
     }
 
-    final workerSnap = await _db.ref("users/workers/$uid").get();
-    if (workerSnap.exists) {
-      final profile = (workerSnap.value as Map?) ?? {};
-      final role = (profile["role"] as String?) ?? "worker";
+    try {
+      final data = await BackendAuthService().loginInfo(expectedRole: expectedRole);
 
-      if (expectedRole != null && expectedRole != role) {
-        await _auth.signOut();
-        throw Exception("This account is not a $expectedRole account.");
-      }
+      final role = (data['role'] as String?) ?? 'customer';
+      final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
 
-      return LoginResult(uid: uid, role: role, profile: profile);
+      return LoginResult(uid: user.uid, role: role, profile: profile);
+    } catch (e) {
+      await _auth.signOut();
+      rethrow;
     }
-
-    // If user authenticated but no profile exists in DB
-    // Decide how you want to handle this:
-    // - sign out and show error
-    // - or create profile here (not recommended silently)
-    await _auth.signOut();
-    throw Exception("No user profile found. Please sign up again.");
   }
 }

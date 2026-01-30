@@ -24,7 +24,12 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     CustomerHomeScreen(customerName: _customerName),
     const CustomerBookingsScreen(),
     const CustomerMessagesScreen(),
-    const CustomerProfileScreen(),
+    CustomerProfileScreen(
+      onNameChanged: (name) {
+        if (!mounted) return;
+        setState(() => _customerName = name);
+      },
+    ),
   ];
 
   @override
@@ -40,12 +45,13 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
       if (!mounted) return;
       setState(() {
-        _customerName = name;
+        _customerName = name.isNotEmpty ? name : 'Customer';
         _loadingName = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
+        _customerName = _customerName.isNotEmpty ? _customerName : 'Customer';
         _loadingName = false;
       });
     }

@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "fixnow-app-75722"
-  }
+    "default": "fixnow-app-75722",
+    "dev": "fixnow-app-75722",
+    "fixnow": "fixnow-app-75722"
+  },
+  "targets": {},
+  "etags": {}
 }

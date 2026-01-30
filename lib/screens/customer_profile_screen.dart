@@ -4,11 +4,13 @@ import 'customer_payment_methods_screen.dart';
 import 'customer_saved_addresses_screen.dart';
 import 'customer_favorite_workers_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fix_now_app/Services/backend_auth_service.dart';
 
 class CustomerProfileScreen extends StatefulWidget {
-  const CustomerProfileScreen({super.key});
+  final ValueChanged<String>? onNameChanged;
+
+  const CustomerProfileScreen({super.key, this.onNameChanged});
 
   @override
   State<CustomerProfileScreen> createState() => _CustomerProfileScreenState();
@@ -29,19 +31,52 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
 
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
-    final prefs = await SharedPreferences.getInstance();
+    if (user == null) return;
 
-    setState(() {
-      _userName =
-          prefs.getString('customerName') ?? user?.displayName ?? 'Customer';
-      _userEmail =
-          user?.email ??
-          prefs.getString('customerEmail') ??
-          'email@example.com';
-      _userPhone = prefs.getString('customerPhone') ?? '+94 77 123 4567';
-      _userLocation =
-          prefs.getString('customerLocation') ?? 'Colombo, Sri Lanka';
-    });
+    try {
+      // This returns profile from RTDB via backend
+      final data = await BackendAuthService().loginInfo(
+        expectedRole: 'customer',
+      );
+      final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? {};
+
+      final fullName = profile['fullName']?.toString().trim();
+      final email = profile['email']?.toString().trim();
+      final phone9 = profile['phoneNumber']
+          ?.toString()
+          .trim(); // expected 9 digits
+      final locationText = profile['locationText']?.toString().trim();
+
+      // display-friendly phone
+      final displayPhone =
+          (phone9 != null && RegExp(r'^\d{9}$').hasMatch(phone9))
+          ? '+94 $phone9'
+          : '+94 77 123 4567';
+
+      setState(() {
+        _userName = (fullName != null && fullName.isNotEmpty)
+            ? fullName
+            : (user.displayName ?? 'Customer');
+
+        _userEmail = (email != null && email.isNotEmpty)
+            ? email
+            : (user.email ?? 'email@example.com');
+
+        _userPhone = displayPhone;
+
+        _userLocation = (locationText != null && locationText.isNotEmpty)
+            ? locationText
+            : 'Colombo, Sri Lanka';
+      });
+      widget.onNameChanged?.call(_userName);
+    } catch (_) {
+      setState(() {
+        _userName = user.displayName ?? 'Customer';
+        _userEmail = user.email ?? 'email@example.com';
+        _userPhone = '+94 77 123 4567';
+        _userLocation = 'Colombo, Sri Lanka';
+      });
+    }
   }
 
   @override
@@ -260,16 +295,24 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                               _buildSettingItem(
                                 Icons.person_outline,
                                 'Personal Information',
-                                onTap: () {
-                                  Navigator.push(
+                                onTap: () async {
+                                  final changed = await Navigator.push<bool>(
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           const CustomerPersonalInfoSettingsScreen(),
                                     ),
                                   );
+
+                                  if (changed == true) {
+                                    await _loadUserData(); // reload updated details
+                                    widget.onNameChanged?.call(
+                                      _userName,
+                                    ); // notify dashboard (next change)
+                                  }
                                 },
                               ),
+
                               const Divider(height: 1),
                               _buildSettingItem(
                                 Icons.notifications_outlined,
