@@ -23,7 +23,12 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
     WorkerHomeScreen(workerName: _workerName, unreadMessages: _unreadMessages),
     const WorkerBookingsScreen(),
     const WorkerChatScreen(),
-    WorkerAccountScreen(workerName: _workerName),
+    WorkerAccountScreen(
+      onNameChanged: (name) {
+        if (!mounted) return;
+        setState(() => _workerName = name);
+      },
+    ),
   ];
 
   @override

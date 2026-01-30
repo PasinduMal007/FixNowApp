@@ -12,7 +12,6 @@ import 'screens/worker_rates_screen.dart';
 import 'screens/worker_dashboard.dart';
 import 'screens/customer_personal_info_screen.dart';
 import 'screens/customer_photo_screen.dart';
-import 'screens/customer_service_selection_screen.dart';
 import 'screens/customer_location_setup_screen.dart';
 import 'screens/customer_dashboard.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -67,8 +66,6 @@ class MyApp extends StatelessWidget {
         '/customer-personal-info': (context) =>
             const CustomerPersonalInfoScreen(),
         '/customer-photo': (context) => const CustomerPhotoScreen(),
-        '/customer-service-selection': (context) =>
-            const CustomerServiceSelectionScreen(),
         '/customer-location-setup': (context) =>
             const CustomerLocationSetupScreen(),
       },

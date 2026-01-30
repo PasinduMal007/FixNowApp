@@ -46,7 +46,7 @@ class _CustomerPhotoScreenState extends State<CustomerPhotoScreen> {
         'onboarding/updatedAt': ServerValue.timestamp,
       });
 
-      Navigator.pushNamed(context, '/customer-service-selection');
+      Navigator.pushNamed(context, '/customer-location-setup');
 
       if (widget.onNext != null) {
         widget.onNext!(_photo);

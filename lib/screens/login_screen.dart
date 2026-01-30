@@ -206,13 +206,28 @@ class _LoginScreenState extends State<LoginScreen> {
         return 'No account found for this email.';
       case 'wrong-password':
         return 'Invalid email or password.';
+
+      // Newer Firebase Auth codes (very common now)
+      case 'invalid-credential':
+      case 'invalid-login-credentials':
+        return 'Invalid email or password.';
+
       case 'invalid-email':
         return 'Please enter a valid email.';
       case 'user-disabled':
         return 'This account is disabled.';
       case 'too-many-requests':
         return 'Too many attempts. Try again later.';
+
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection and try again.';
+
+      case 'operation-not-allowed':
+        return 'Email/password sign-in is disabled in Firebase Console.';
       default:
+        // If Firebase provided a useful message, show it
+        final m = (e.message ?? '').trim();
+        if (m.isNotEmpty) return m;
         return 'Login failed. Please try again.';
     }
   }

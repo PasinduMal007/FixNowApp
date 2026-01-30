@@ -94,4 +94,27 @@ class BackendAuthService {
 
     return profile;
   }
+
+  Future<void> updateCustomerLocation({required String locationText}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    final token = await user.getIdToken();
+
+    final resp = await http.post(
+      Uri.parse('$_baseUrl/customer/location/update'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'locationText': locationText.trim()}),
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+
+    if (resp.statusCode != 200 || data['ok'] != true) {
+      final msg = (data['message'] ?? 'Failed to save location').toString();
+      throw Exception(msg);
+    }
+  }
 }

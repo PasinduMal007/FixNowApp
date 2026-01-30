@@ -1,24 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WorkerAccountScreen extends StatefulWidget {
-  final String workerName;
-  final String email;
-  final String phone;
-  final String location;
-  final double rating;
-  final int reviewCount;
+  final ValueChanged<String>? onNameChanged;
 
-  const WorkerAccountScreen({
-    super.key,
-    this.workerName = 'Michael Rodriguez',
-    this.email = 'sarah.johnson@email.com',
-    this.phone = '+94 77 123 4567',
-    this.location = 'Colombo, Sri Lanka',
-    this.rating = 4.8,
-    this.reviewCount = 156,
-  });
+  const WorkerAccountScreen({super.key, this.onNameChanged});
 
   @override
   State<WorkerAccountScreen> createState() => _WorkerAccountScreenState();
@@ -27,8 +15,79 @@ class WorkerAccountScreen extends StatefulWidget {
 class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
   bool _notificationsEnabled = true;
 
+  String _workerName = '';
+  String _workerEmail = '';
+  String _workerPhone = '';
+  String _workerLocation = '';
+  double _rating = 4.8;
+  int _reviewCount = 0;
+
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWorkerData();
+  }
+
+  Future<void> _loadWorkerData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final data = await BackendAuthService().loginInfo(expectedRole: 'worker');
+      final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? {};
+
+      final fullName = (profile['fullName'] ?? user.displayName ?? 'Worker')
+          .toString();
+      final email = (profile['email'] ?? user.email ?? 'email@example.com')
+          .toString();
+
+      // If your rules store 9 digits only, format for display
+      final phone9 = (profile['phoneNumber'] ?? '').toString().trim();
+      final displayPhone = RegExp(r'^\d{9}$').hasMatch(phone9)
+          ? '+94 $phone9'
+          : '+94 77 123 4567';
+
+      final locationText = (profile['locationText'] ?? 'Colombo, Sri Lanka')
+          .toString();
+
+      // Optional: if you later store these:
+      final rating = (profile['rating'] is num)
+          ? (profile['rating'] as num).toDouble()
+          : 4.8;
+      final reviewCount = (profile['reviewCount'] is int)
+          ? profile['reviewCount'] as int
+          : 0;
+
+      if (!mounted) return;
+      setState(() {
+        _workerName = fullName;
+        _workerEmail = email;
+        _workerPhone = displayPhone;
+        _workerLocation = locationText;
+        _rating = rating;
+        _reviewCount = reviewCount;
+        _loading = false;
+      });
+      widget.onNameChanged?.call(_workerName);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _workerName = user.displayName ?? 'Worker';
+        _workerEmail = user.email ?? 'email@example.com';
+        _workerPhone = '+94 77 123 4567';
+        _workerLocation = 'Colombo, Sri Lanka';
+        _loading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -158,7 +217,7 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          widget.workerName,
+                                          _workerName,
                                           style: const TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
@@ -175,7 +234,7 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              '${widget.rating}',
+                                              '${_rating}',
                                               style: const TextStyle(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w600,
@@ -184,7 +243,7 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              '(${widget.reviewCount} reviews)',
+                                              '(${_reviewCount} reviews)',
                                               style: const TextStyle(
                                                 fontSize: 13,
                                                 color: Color(0xFF9CA3AF),
@@ -232,13 +291,13 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                               const Divider(),
                               const SizedBox(height: 12),
                               // Contact info
-                              _buildInfoRow(Icons.email_outlined, widget.email),
+                              _buildInfoRow(Icons.email_outlined, _workerEmail),
                               const SizedBox(height: 12),
-                              _buildInfoRow(Icons.phone_outlined, widget.phone),
+                              _buildInfoRow(Icons.phone_outlined, _workerPhone),
                               const SizedBox(height: 12),
                               _buildInfoRow(
                                 Icons.location_on_outlined,
-                                widget.location,
+                                _workerLocation,
                               ),
                             ],
                           ),

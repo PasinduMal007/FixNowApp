@@ -49,9 +49,7 @@ async function verifyFirebaseToken(
   }
 }
 
-async function getRoleAndProfile(
-  uid: string,
-): Promise<{
+async function getRoleAndProfile(uid: string): Promise<{
   role: "customer" | "worker" | null;
   profile: Record<string, unknown> | null;
 }> {
@@ -105,12 +103,10 @@ app.post(
       }
 
       if (expectedRole && result.role !== expectedRole) {
-        res
-          .status(403)
-          .json({
-            ok: false,
-            message: `This account is not a ${expectedRole} account.`,
-          });
+        res.status(403).json({
+          ok: false,
+          message: `This account is not a ${expectedRole} account.`,
+        });
         return;
       }
 
@@ -171,12 +167,10 @@ app.post(
       locationText &&
       (locationText.length < 2 || locationText.length > 120)
     ) {
-      res
-        .status(400)
-        .json({
-          ok: false,
-          message: "locationText must be 2 to 120 characters.",
-        });
+      res.status(400).json({
+        ok: false,
+        message: "locationText must be 2 to 120 characters.",
+      });
       return;
     }
 
@@ -219,6 +213,51 @@ app.post(
 
     const updatedSnap = await ref.get();
     res.json({ok: true, profile: updatedSnap.val()});
+  },
+);
+
+app.post(
+  "/customer/location/update",
+  verifyFirebaseToken,
+  async (req: AuthedRequest, res: Response) => {
+    const uid = req.uid;
+    if (!uid) {
+      res.status(401).json({ok: false, message: "Unauthenticated"});
+      return;
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const locationText =
+      typeof body.locationText === "string" ? body.locationText.trim() : "";
+
+    if (locationText.length < 2 || locationText.length > 120) {
+      res.status(400).json({
+        ok: false,
+        message: "locationText must be 2 to 120 characters.",
+      });
+      return;
+    }
+
+    const db = admin.database();
+    const ref = db.ref(`users/customers/${uid}`);
+
+    const snap = await ref.get();
+    if (!snap.exists()) {
+      res
+        .status(404)
+        .json({ok: false, message: "Customer profile not found."});
+      return;
+    }
+
+    const current = snap.val() as Record<string, unknown>;
+    if (current.role !== "customer" || current.uid !== uid) {
+      res.status(403).json({ok: false, message: "Not a customer profile."});
+      return;
+    }
+
+    await ref.update({locationText});
+
+    res.json({ok: true, locationText});
   },
 );
 
