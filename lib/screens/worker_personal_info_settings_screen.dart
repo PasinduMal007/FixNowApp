@@ -1,70 +1,74 @@
 import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-class CustomerPersonalInfoSettingsScreen extends StatefulWidget {
-  const CustomerPersonalInfoSettingsScreen({super.key});
+class WorkerPersonalInfoSettingsScreen extends StatefulWidget {
+  const WorkerPersonalInfoSettingsScreen({super.key});
 
   @override
-  State<CustomerPersonalInfoSettingsScreen> createState() =>
-      _CustomerPersonalInfoSettingsScreenState();
+  State<WorkerPersonalInfoSettingsScreen> createState() =>
+      _WorkerPersonalInfoSettingsScreenState();
 }
 
-class _CustomerPersonalInfoSettingsScreenState
-    extends State<CustomerPersonalInfoSettingsScreen> {
+class _WorkerPersonalInfoSettingsScreenState
+    extends State<WorkerPersonalInfoSettingsScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _dobController = TextEditingController();
+  final _professionController = TextEditingController();
   final _aboutMeController = TextEditingController();
 
   bool _isEditing = false;
-  String _userName = '';
-  String _userInitial = 'C';
+  String _workerName = '';
+  String _userInitial = 'W';
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _loadWorkerData();
   }
 
-  Future<void> _loadUserData() async {
+  Future<void> _loadWorkerData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     try {
-      final profile = await BackendAuthService().getCustomerProfile();
+      final data = await BackendAuthService().loginInfo(expectedRole: 'worker');
+      final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? {};
 
-      final fullName = (profile['fullName'] ?? user.displayName ?? 'Customer')
+      final fullName = (profile['fullName'] ?? user.displayName ?? 'Worker')
           .toString();
       final email = (profile['email'] ?? user.email ?? '').toString();
       final phone9 = (profile['phoneNumber'] ?? '').toString(); // 9 digits
       final locationText = (profile['locationText'] ?? '').toString();
-      final dob = (profile['dob'] ?? '').toString();
+      final profession = (profile['profession'] ?? '').toString();
       final aboutMe = (profile['aboutMe'] ?? '').toString();
 
       setState(() {
-        _userName = fullName;
-        _userInitial = _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C';
+        _workerName = fullName;
+        _userInitial = _workerName.isNotEmpty
+            ? _workerName[0].toUpperCase()
+            : 'W';
 
         _nameController.text = fullName;
         _emailController.text = email;
         _phoneController.text = phone9;
         _addressController.text = locationText;
-        _dobController.text = dob;
+        _professionController.text = profession;
         _aboutMeController.text = aboutMe;
       });
     } catch (_) {
       setState(() {
-        _userName = user.displayName ?? 'Customer';
-        _userInitial = _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C';
-        _nameController.text = _userName;
+        _workerName = user.displayName ?? 'Worker';
+        _userInitial = _workerName.isNotEmpty
+            ? _workerName[0].toUpperCase()
+            : 'W';
+        _nameController.text = _workerName;
         _emailController.text = user.email ?? '';
         _phoneController.text = '';
         _addressController.text = '';
-        _dobController.text = '';
+        _professionController.text = '';
         _aboutMeController.text = '';
       });
     }
@@ -74,26 +78,28 @@ class _CustomerPersonalInfoSettingsScreenState
     final fullName = _nameController.text.trim();
     final email = _emailController.text.trim();
     final locationText = _addressController.text.trim();
-    final dob = _dobController.text.trim();
+    final profession = _professionController.text.trim();
     final aboutMe = _aboutMeController.text.trim();
 
     // phone: keep only digits
     final phoneDigits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
 
     try {
-      final updatedProfile = await BackendAuthService().updateCustomerProfile(
+      final updatedProfile = await BackendAuthService().updateWorkerProfile(
         fullName: fullName,
         email: email.isEmpty ? null : email,
         phoneNumber9Digits: phoneDigits.isEmpty ? null : phoneDigits,
         locationText: locationText.isEmpty ? null : locationText,
-        dob: dob.isEmpty ? null : dob,
+        profession: profession.isEmpty ? null : profession,
         aboutMe: aboutMe.isEmpty ? null : aboutMe,
       );
 
       setState(() {
         _isEditing = false;
-        _userName = (updatedProfile['fullName'] ?? fullName).toString();
-        _userInitial = _userName.isNotEmpty ? _userName[0].toUpperCase() : 'C';
+        _workerName = (updatedProfile['fullName'] ?? fullName).toString();
+        _userInitial = _workerName.isNotEmpty
+            ? _workerName[0].toUpperCase()
+            : 'W';
       });
 
       if (!mounted) return;
@@ -237,7 +243,7 @@ class _CustomerPersonalInfoSettingsScreenState
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          _userName,
+                          _workerName,
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -246,7 +252,7 @@ class _CustomerPersonalInfoSettingsScreenState
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Customer Account',
+                          'Worker Account',
                           style: TextStyle(
                             fontSize: 14,
                             color: Color(0xFF6B7280),
@@ -296,19 +302,19 @@ class _CustomerPersonalInfoSettingsScreenState
                         ),
                         const SizedBox(height: 20),
 
-                        // Home Address
+                        // Work Location
                         _buildInfoField(
-                          label: 'Home Address',
+                          label: 'Work Location',
                           controller: _addressController,
                           icon: Icons.location_on_outlined,
                         ),
                         const SizedBox(height: 20),
 
-                        // Date of Birth
+                        // Profession
                         _buildInfoField(
-                          label: 'Date of Birth',
-                          controller: _dobController,
-                          icon: Icons.calendar_today_outlined,
+                          label: 'Profession',
+                          controller: _professionController,
+                          icon: Icons.work_outline,
                         ),
                         const SizedBox(height: 20),
 
@@ -329,7 +335,7 @@ class _CustomerPersonalInfoSettingsScreenState
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Text(
-                            'Your personal information is kept secure and private. We only share necessary details with service providers.',
+                            'Your personal information is kept secure and private. We only share necessary details with customers.',
                             style: TextStyle(
                               fontSize: 13,
                               color: Color(0xFF1F2937),
@@ -435,7 +441,7 @@ class _CustomerPersonalInfoSettingsScreenState
     _emailController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _dobController.dispose();
+    _professionController.dispose();
     _aboutMeController.dispose();
     super.dispose();
   }

@@ -60,6 +60,7 @@ class BackendAuthService {
     String? phoneNumber9Digits, // 9 digits only, e.g. 771234567
     String? locationText,
     String? dob, // YYYY-MM-DD
+    String? aboutMe,
   }) async {
     final token = await _requireToken();
 
@@ -69,6 +70,7 @@ class BackendAuthService {
       if (phoneNumber9Digits != null) 'phoneNumber': phoneNumber9Digits.trim(),
       if (locationText != null) 'locationText': locationText.trim(),
       if (dob != null) 'dob': dob.trim(),
+      if (aboutMe != null) 'aboutMe': aboutMe.trim(),
     };
 
     final resp = await http.post(
@@ -116,5 +118,57 @@ class BackendAuthService {
       final msg = (data['message'] ?? 'Failed to save location').toString();
       throw Exception(msg);
     }
+  }
+
+  // Convenience method: profile only (worker)
+  Future<Map<String, dynamic>> getWorkerProfile() async {
+    final data = await loginInfo(expectedRole: 'worker');
+    final profile =
+        (data['profile'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+    return profile;
+  }
+
+  // Update worker profile through backend
+  Future<Map<String, dynamic>> updateWorkerProfile({
+    required String fullName,
+    String? email,
+    String? phoneNumber9Digits,
+    String? locationText,
+    String? profession,
+    String? aboutMe,
+  }) async {
+    final token = await _requireToken();
+
+    final payload = <String, dynamic>{
+      'fullName': fullName.trim(),
+      if (email != null) 'email': email.trim(),
+      if (phoneNumber9Digits != null) 'phoneNumber': phoneNumber9Digits.trim(),
+      if (locationText != null) 'locationText': locationText.trim(),
+      if (profession != null) 'profession': profession.trim(),
+      if (aboutMe != null) 'aboutMe': aboutMe.trim(),
+    };
+
+    final resp = await http.post(
+      Uri.parse('$_baseUrl/worker/profile/update'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(payload),
+    );
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+
+    if (resp.statusCode != 200 || data['ok'] != true) {
+      final msg = (data['message'] ?? 'Update failed').toString();
+      throw Exception(msg);
+    }
+
+    final profile =
+        (data['profile'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+
+    return profile;
   }
 }

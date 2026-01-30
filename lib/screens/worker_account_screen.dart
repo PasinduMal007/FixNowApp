@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'worker_personal_info_settings_screen.dart';
 
 class WorkerAccountScreen extends StatefulWidget {
   final ValueChanged<String>? onNameChanged;
@@ -324,7 +325,19 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                               _buildMenuItem(
                                 Icons.person_outline,
                                 'Personal Information',
-                                onTap: () {},
+                                onTap: () async {
+                                  final result = await Navigator.push<bool>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const WorkerPersonalInfoSettingsScreen(),
+                                    ),
+                                  );
+                                  // If changes were saved, reload worker data
+                                  if (result == true) {
+                                    _loadWorkerData();
+                                  }
+                                },
                               ),
                               _buildDivider(),
                               _buildMenuItem(
@@ -338,12 +351,6 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                   activeColor: const Color(0xFF4A7FFF),
                                 ),
                                 onTap: null,
-                              ),
-                              _buildDivider(),
-                              _buildMenuItem(
-                                Icons.lock_outline,
-                                'Privacy & Security',
-                                onTap: () {},
                               ),
                               _buildDivider(),
                               _buildMenuItem(
@@ -382,45 +389,6 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                               _buildMenuItem(
                                 Icons.history,
                                 'Booking History',
-                                onTap: () {},
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Support Section
-                        const Text(
-                          'Support',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1F2937),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            children: [
-                              _buildMenuItem(
-                                Icons.help_outline,
-                                'Help Center',
-                                onTap: () {},
-                              ),
-                              _buildDivider(),
-                              _buildMenuItem(
-                                Icons.description_outlined,
-                                'Terms & Conditions',
-                                onTap: () {},
-                              ),
-                              _buildDivider(),
-                              _buildMenuItem(
-                                Icons.privacy_tip_outlined,
-                                'Privacy Policy',
                                 onTap: () {},
                               ),
                             ],
