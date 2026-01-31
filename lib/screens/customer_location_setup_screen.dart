@@ -49,6 +49,7 @@ class _CustomerLocationSetupScreenState
           content: Text('Welcome to FixNow! Let\'s find you a professional.'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
+
         ),
       );
 
@@ -309,7 +310,7 @@ class _CustomerLocationSetupScreenState
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _canProceed() ? () => _handleComplete : null,
+                  onPressed: _canProceed() ? () => _handleComplete() : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5B8CFF),
                     disabledBackgroundColor: const Color(0xFFE5E7EB),

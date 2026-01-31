@@ -38,8 +38,9 @@ dependencies:
   http: ^1.6.0
   cloud_functions: ^6.0.5 # For calling your TS backend
   cupertino_icons: ^1.0.8
+  firebase_storage: ^13.0.6 
   flutter_animate: ^4.5.0
-  image_picker: ^1.0.7
+  image_picker: ^1.2.1
   google_maps_flutter: ^2.5.0
   geolocator: ^10.1.0
   flutter_polyline_points: ^2.0.0

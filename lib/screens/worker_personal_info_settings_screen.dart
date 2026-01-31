@@ -1,6 +1,9 @@
 import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:fix_now_app/Services/worker_photo_service.dart';
 
 class WorkerPersonalInfoSettingsScreen extends StatefulWidget {
   const WorkerPersonalInfoSettingsScreen({super.key});
@@ -18,7 +21,9 @@ class _WorkerPersonalInfoSettingsScreenState
   final _addressController = TextEditingController();
   final _professionController = TextEditingController();
   final _aboutMeController = TextEditingController();
-
+  final ImagePicker _picker = ImagePicker();
+  bool _uploadingPhoto = false;
+  String _photoUrl = '';
   bool _isEditing = false;
   String _workerName = '';
   String _userInitial = 'W';
@@ -34,8 +39,7 @@ class _WorkerPersonalInfoSettingsScreenState
     if (user == null) return;
 
     try {
-      final data = await BackendAuthService().loginInfo(expectedRole: 'worker');
-      final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? {};
+      final profile = await BackendAuthService().getWorkerProfile();
 
       final fullName = (profile['fullName'] ?? user.displayName ?? 'Worker')
           .toString();
@@ -44,6 +48,7 @@ class _WorkerPersonalInfoSettingsScreenState
       final locationText = (profile['locationText'] ?? '').toString();
       final profession = (profile['profession'] ?? '').toString();
       final aboutMe = (profile['aboutMe'] ?? '').toString();
+      final photoUrl = (profile['photoUrl'] ?? '').toString().trim();
 
       setState(() {
         _workerName = fullName;
@@ -57,6 +62,7 @@ class _WorkerPersonalInfoSettingsScreenState
         _addressController.text = locationText;
         _professionController.text = profession;
         _aboutMeController.text = aboutMe;
+        _photoUrl = photoUrl;
       });
     } catch (_) {
       setState(() {
@@ -70,6 +76,7 @@ class _WorkerPersonalInfoSettingsScreenState
         _addressController.text = '';
         _professionController.text = '';
         _aboutMeController.text = '';
+        _photoUrl = '';
       });
     }
   }
@@ -115,6 +122,36 @@ class _WorkerPersonalInfoSettingsScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
+    }
+  }
+
+  Future<void> _changePhoto() async {
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
+    setState(() => _uploadingPhoto = true);
+
+    try {
+      final url = await WorkerPhotoService().uploadWorkerProfilePhoto(
+        File(picked.path),
+      );
+
+      if (!mounted) return;
+      setState(() => _photoUrl = url);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo updated successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
     }
   }
 
@@ -228,16 +265,34 @@ class _WorkerPersonalInfoSettingsScreenState
                                 ),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Center(
-                                child: Text(
-                                  _userInitial,
-                                  style: const TextStyle(
-                                    fontSize: 40,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: _photoUrl.isNotEmpty
+                                  ? Image.network(
+                                      _photoUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) {
+                                        return Center(
+                                          child: Text(
+                                            _userInitial,
+                                            style: const TextStyle(
+                                              fontSize: 40,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        _userInitial,
+                                        style: const TextStyle(
+                                          fontSize: 40,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
                             ),
                           ],
                         ),
@@ -260,13 +315,7 @@ class _WorkerPersonalInfoSettingsScreenState
                         ),
                         const SizedBox(height: 8),
                         TextButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Change photo functionality'),
-                              ),
-                            );
-                          },
+                          onPressed: _uploadingPhoto ? null : _changePhoto,
                           child: const Text(
                             'Change Photo',
                             style: TextStyle(

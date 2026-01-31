@@ -261,4 +261,108 @@ app.post(
   },
 );
 
+app.post(
+  "/worker/profile/update",
+  verifyFirebaseToken,
+  async (req: AuthedRequest, res: Response) => {
+    const uid = req.uid;
+    if (!uid) {
+      res.status(401).json({ok: false, message: "Unauthenticated"});
+      return;
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    const fullName =
+      typeof body.fullName === "string" ? body.fullName.trim() : "";
+
+    const email = typeof body.email === "string" ? body.email.trim() : "";
+    const phoneNumber =
+      typeof body.phoneNumber === "string" ? body.phoneNumber.trim() : "";
+    const locationText =
+      typeof body.locationText === "string" ? body.locationText.trim() : "";
+    const profession =
+      typeof body.profession === "string" ? body.profession.trim() : "";
+    const aboutMe = typeof body.aboutMe === "string" ? body.aboutMe.trim() : "";
+
+    if (fullName.length < 2 || fullName.length > 100) {
+      res
+        .status(400)
+        .json({ok: false, message: "fullName must be 2 to 100 characters."});
+      return;
+    }
+
+    if (email && !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+      res.status(400).json({ok: false, message: "Invalid email format."});
+      return;
+    }
+
+    if (phoneNumber && !/^[0-9]{9}$/.test(phoneNumber)) {
+      res
+        .status(400)
+        .json({ok: false, message: "phoneNumber must be exactly 9 digits."});
+      return;
+    }
+
+    if (
+      locationText &&
+      (locationText.length < 2 || locationText.length > 120)
+    ) {
+      res
+        .status(400)
+        .json({
+          ok: false,
+          message: "locationText must be 2 to 120 characters.",
+        });
+      return;
+    }
+
+    // Optional: add your own worker rule validations
+    if (profession && (profession.length < 2 || profession.length > 80)) {
+      res
+        .status(400)
+        .json({ok: false, message: "profession must be 2 to 80 characters."});
+      return;
+    }
+
+    if (aboutMe && aboutMe.length > 500) {
+      res
+        .status(400)
+        .json({ok: false, message: "aboutMe must be <= 500 characters."});
+      return;
+    }
+
+    const db = admin.database();
+    const ref = db.ref(`users/workers/${uid}`);
+
+    const snap = await ref.get();
+    if (!snap.exists()) {
+      res.status(404).json({ok: false, message: "Worker profile not found."});
+      return;
+    }
+
+    const current = snap.val() as Record<string, unknown>;
+    if (current.role !== "worker" || current.uid !== uid) {
+      res.status(403).json({ok: false, message: "Not a worker profile."});
+      return;
+    }
+
+    const updates: Record<string, unknown> = {
+      fullName,
+    };
+
+    if (email) updates.email = email;
+    if (phoneNumber) updates.phoneNumber = phoneNumber;
+    if (locationText) updates.locationText = locationText;
+    if (profession) updates.profession = profession;
+    if (aboutMe) updates.aboutMe = aboutMe;
+
+    await ref.update(updates);
+
+    const updatedSnap = await ref.get();
+
+    res.json({ok: true, profile: updatedSnap.val()});
+  },
+);
+
 export const api = onRequest({region: "asia-southeast1"}, app);

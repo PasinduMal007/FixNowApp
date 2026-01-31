@@ -200,6 +200,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       TextFormField(
                         controller: _passwordController,
                         obscureText: !_showPassword,
+                        validator: (value) {
+                          final v = (value ?? '').trim();
+                          if (v.isEmpty) return 'Password is required';
+                          if (v.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
                         decoration: InputDecoration(
                           hintText: 'Create a strong password',
                           hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),
@@ -252,6 +260,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       TextFormField(
                         controller: _confirmPasswordController,
                         obscureText: !_showConfirmPassword,
+                        validator: (value) {
+                          final confirm = (value ?? '').trim();
+                          final password = _passwordController.text.trim();
+
+                          if (confirm.isEmpty) {
+                            return 'Please confirm your password';
+                          }
+                          if (confirm != password) {
+                            return 'Passwords do not match';
+                          }
+                          return null;
+                        },
                         decoration: InputDecoration(
                           hintText: 'Re-enter your password',
                           hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),

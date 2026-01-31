@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:fix_now_app/Services/worker_onboarding_service.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:fix_now_app/Services/worker_photo_service.dart';
 
 class WorkerVerificationScreen extends StatefulWidget {
   final Function(Map<String, dynamic> verificationData)? onNext;
@@ -19,6 +20,8 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
   File? _idBackPhoto;
   String _idType = 'nic';
   final ImagePicker _picker = ImagePicker();
+  bool _uploading = false;
+  String? _errorText;
 
   Future<void> _pickProfilePhoto() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
@@ -54,13 +57,51 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
   }
 
   Future<void> _handleNext() async {
+    if (_uploading) return;
     if (!_canProceed()) return;
 
-    try {
-      final service = WorkerOnboardingService();
+    setState(() {
+      _uploading = true;
+      _errorText = null;
+    });
 
-      // Backend only stores flags + idType
-      await service.saveVerification(
+    try {
+      final onboardingService = WorkerOnboardingService();
+      final photoService = WorkerPhotoService();
+
+      // 1) Upload files (only if picked)
+      String? profileUrl;
+      if (_profilePhoto != null) {
+        profileUrl = await photoService.uploadWorkerProfilePhoto(
+          _profilePhoto!,
+        );
+      }
+
+      String? idFrontUrl;
+      if (_idFrontPhoto != null) {
+        idFrontUrl = await photoService.uploadWorkerIdImage(
+          file: _idFrontPhoto!,
+          side: 'front',
+        );
+      }
+
+      String? idBackUrl;
+      if (_idBackPhoto != null) {
+        idBackUrl = await photoService.uploadWorkerIdImage(
+          file: _idBackPhoto!,
+          side: 'back',
+        );
+      }
+
+      // 2) Save URLs + idType
+      await photoService.saveVerificationUrls(
+        idType: _idType,
+        idFrontUrl: idFrontUrl,
+        idBackUrl: idBackUrl,
+      );
+
+      // 3) Save onboarding flags (optional)
+      await onboardingService.saveVerification(
         idType: _idType,
         hasProfilePhoto: _profilePhoto != null,
         hasIdFront: _idFrontPhoto != null,
@@ -68,21 +109,29 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
       );
 
       if (!mounted) return;
+
+      // Navigate only after everything succeeds
       Navigator.pushNamed(context, '/worker-rates');
 
-      if (widget.onNext != null) {
-        widget.onNext!({
-          'profilePhoto': _profilePhoto,
-          'idFrontPhoto': _idFrontPhoto,
-          'idBackPhoto': _idBackPhoto,
-          'idType': _idType,
-        });
-      }
+      widget.onNext?.call({
+        'profilePhotoUrl': profileUrl,
+        'idFrontUrl': idFrontUrl,
+        'idBackUrl': idBackUrl,
+        'idType': _idType,
+      });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to save verification: $e")),
-      );
+      final msg = e.toString().replaceFirst('Exception: ', '');
+
+      setState(() => _errorText = msg);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed: $msg")));
+    } finally {
+      if (mounted) {
+        setState(() => _uploading = false);
+      }
     }
   }
 
@@ -512,7 +561,9 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _canProceed() ? () => _handleNext() : null,
+                  onPressed: (_uploading || !_canProceed())
+                      ? null
+                      : _handleNext,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5B8CFF),
                     disabledBackgroundColor: const Color(0xFFE5E7EB),
@@ -521,16 +572,22 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
                     ),
                     elevation: 4,
                   ),
-                  child: Text(
-                    'Next',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: _canProceed()
-                          ? Colors.white
-                          : const Color(0xFF9CA3AF),
-                    ),
-                  ),
+                  child: _uploading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          'Next',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: _canProceed()
+                                ? Colors.white
+                                : const Color(0xFF9CA3AF),
+                          ),
+                        ),
                 ),
               ),
             ),

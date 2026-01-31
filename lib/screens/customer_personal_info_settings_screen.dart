@@ -1,7 +1,9 @@
 import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:fix_now_app/Services/customer_photo_service.dart';
 
 class CustomerPersonalInfoSettingsScreen extends StatefulWidget {
   const CustomerPersonalInfoSettingsScreen({super.key});
@@ -19,10 +21,12 @@ class _CustomerPersonalInfoSettingsScreenState
   final _addressController = TextEditingController();
   final _dobController = TextEditingController();
   final _aboutMeController = TextEditingController();
-
+  final ImagePicker _picker = ImagePicker();
+  bool _uploadingPhoto = false;
   bool _isEditing = false;
   String _userName = '';
   String _userInitial = 'C';
+  String _photoUrl = '';
 
   @override
   void initState() {
@@ -44,6 +48,7 @@ class _CustomerPersonalInfoSettingsScreenState
       final locationText = (profile['locationText'] ?? '').toString();
       final dob = (profile['dob'] ?? '').toString();
       final aboutMe = (profile['aboutMe'] ?? '').toString();
+      final photoUrl = (profile['photoUrl'] ?? '').toString();
 
       setState(() {
         _userName = fullName;
@@ -55,6 +60,7 @@ class _CustomerPersonalInfoSettingsScreenState
         _addressController.text = locationText;
         _dobController.text = dob;
         _aboutMeController.text = aboutMe;
+        _photoUrl = photoUrl;
       });
     } catch (_) {
       setState(() {
@@ -66,6 +72,7 @@ class _CustomerPersonalInfoSettingsScreenState
         _addressController.text = '';
         _dobController.text = '';
         _aboutMeController.text = '';
+        _photoUrl = '';
       });
     }
   }
@@ -109,6 +116,38 @@ class _CustomerPersonalInfoSettingsScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
+    }
+  }
+
+  Future<void> _changePhoto() async {
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
+    setState(() => _uploadingPhoto = true);
+
+    try {
+      final url = await CustomerPhotoService().uploadCustomerProfilePhoto(
+        File(picked.path),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _photoUrl = url; // refresh UI
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo updated successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
     }
   }
 
@@ -222,16 +261,40 @@ class _CustomerPersonalInfoSettingsScreenState
                                 ),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Center(
-                                child: Text(
-                                  _userInitial,
-                                  style: const TextStyle(
-                                    fontSize: 40,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: _uploadingPhoto
+                                  ? const Center(
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : (_photoUrl.isNotEmpty
+                                        ? Image.network(
+                                            _photoUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) {
+                                              return Center(
+                                                child: Text(
+                                                  _userInitial,
+                                                  style: const TextStyle(
+                                                    fontSize: 40,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              _userInitial,
+                                              style: const TextStyle(
+                                                fontSize: 40,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          )),
                             ),
                           ],
                         ),
@@ -254,16 +317,10 @@ class _CustomerPersonalInfoSettingsScreenState
                         ),
                         const SizedBox(height: 8),
                         TextButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Change photo functionality'),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Change Photo',
-                            style: TextStyle(
+                          onPressed: _uploadingPhoto ? null : _changePhoto,
+                          child: Text(
+                            _uploadingPhoto ? 'Uploading...' : 'Change Photo',
+                            style: const TextStyle(
                               fontSize: 14,
                               color: Color(0xFF4A7FFF),
                               fontWeight: FontWeight.w600,

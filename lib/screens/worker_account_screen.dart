@@ -20,6 +20,7 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
   String _workerEmail = '';
   String _workerPhone = '';
   String _workerLocation = '';
+  String _photoUrl = '';
   double _rating = 4.8;
   int _reviewCount = 0;
 
@@ -53,6 +54,8 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
       final locationText = (profile['locationText'] ?? 'Colombo, Sri Lanka')
           .toString();
 
+      final photoUrl = (profile['photoUrl'] ?? '').toString().trim();
+
       // Optional: if you later store these:
       final rating = (profile['rating'] is num)
           ? (profile['rating'] as num).toDouble()
@@ -67,11 +70,15 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
         _workerEmail = email;
         _workerPhone = displayPhone;
         _workerLocation = locationText;
+        _photoUrl = photoUrl;
         _rating = rating;
         _reviewCount = reviewCount;
         _loading = false;
       });
-      widget.onNameChanged?.call(_workerName);
+      final name = _workerName.trim();
+      if (name.isNotEmpty) {
+        widget.onNameChanged?.call(name);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -79,6 +86,7 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
         _workerEmail = user.email ?? 'email@example.com';
         _workerPhone = '+94 77 123 4567';
         _workerLocation = 'Colombo, Sri Lanka';
+        _photoUrl = '';
         _loading = false;
       });
     }
@@ -178,20 +186,52 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                       Container(
                                         width: 64,
                                         height: 64,
-                                        decoration: BoxDecoration(
-                                          gradient: const LinearGradient(
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: LinearGradient(
                                             colors: [
                                               Color(0xFFE8F0FF),
                                               Color(0xFFD0E2FF),
                                             ],
                                           ),
-                                          shape: BoxShape.circle,
                                         ),
-                                        child: const Icon(
-                                          Icons.person,
-                                          color: Color(0xFF4A7FFF),
-                                          size: 32,
-                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: (_photoUrl.isNotEmpty)
+                                            ? Image.network(
+                                                _photoUrl,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) {
+                                                  return Center(
+                                                    child: Text(
+                                                      _workerName.isNotEmpty
+                                                          ? _workerName[0]
+                                                                .toUpperCase()
+                                                          : 'W',
+                                                      style: const TextStyle(
+                                                        fontSize: 26,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Color(
+                                                          0xFF4A7FFF,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              )
+                                            : Center(
+                                                child: Text(
+                                                  _workerName.isNotEmpty
+                                                      ? _workerName[0]
+                                                            .toUpperCase()
+                                                      : 'W',
+                                                  style: const TextStyle(
+                                                    fontSize: 26,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF4A7FFF),
+                                                  ),
+                                                ),
+                                              ),
                                       ),
                                       Positioned(
                                         bottom: 0,
@@ -326,16 +366,19 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                 Icons.person_outline,
                                 'Personal Information',
                                 onTap: () async {
-                                  final result = await Navigator.push<bool>(
+                                  final changed = await Navigator.push<bool>(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) =>
+                                      builder: (_) =>
                                           const WorkerPersonalInfoSettingsScreen(),
                                     ),
                                   );
-                                  // If changes were saved, reload worker data
-                                  if (result == true) {
-                                    _loadWorkerData();
+
+                                  if (changed == true) {
+                                    await _loadWorkerData(); // reload worker data from backend/RTDB
+                                    widget.onNameChanged?.call(
+                                      _workerName.trim(),
+                                    );
                                   }
                                 },
                               ),

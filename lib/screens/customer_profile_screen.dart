@@ -22,6 +22,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
   String _userEmail = '';
   String _userPhone = '';
   String _userLocation = '';
+  String _photoUrl = '';
 
   @override
   void initState() {
@@ -46,6 +47,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
           ?.toString()
           .trim(); // expected 9 digits
       final locationText = profile['locationText']?.toString().trim();
+      final photoUrl = profile['photoUrl']?.toString().trim();
 
       // display-friendly phone
       final displayPhone =
@@ -67,6 +69,8 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         _userLocation = (locationText != null && locationText.isNotEmpty)
             ? locationText
             : 'Colombo, Sri Lanka';
+
+        _photoUrl = (photoUrl != null && photoUrl.isNotEmpty) ? photoUrl : '';
       });
       widget.onNameChanged?.call(_userName);
     } catch (_) {
@@ -75,6 +79,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
         _userEmail = user.email ?? 'email@example.com';
         _userPhone = '+94 77 123 4567';
         _userLocation = 'Colombo, Sri Lanka';
+        _photoUrl = '';
       });
     }
   }
@@ -163,11 +168,24 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                             16,
                                           ),
                                         ),
-                                        child: const Icon(
-                                          Icons.person,
-                                          color: Color(0xFF4A7FFF),
-                                          size: 36,
-                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: _photoUrl.isNotEmpty
+                                            ? Image.network(
+                                                _photoUrl,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) {
+                                                  return const Icon(
+                                                    Icons.person,
+                                                    color: Color(0xFF4A7FFF),
+                                                    size: 36,
+                                                  );
+                                                },
+                                              )
+                                            : const Icon(
+                                                Icons.person,
+                                                color: Color(0xFF4A7FFF),
+                                                size: 36,
+                                              ),
                                       ),
                                       Positioned(
                                         bottom: 0,
