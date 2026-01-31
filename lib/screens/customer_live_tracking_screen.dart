@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:async';
 import 'dart:math' as math;
-import 'customer_chat_screen.dart';
+import 'customer_chat_conversation_screen.dart';
 
 class CustomerLiveTrackingScreen extends StatefulWidget {
   final Map<String, dynamic> booking;
@@ -530,22 +530,12 @@ class _CustomerLiveTrackingScreenState
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => CustomerChatScreen(
-                              conversation: {
-                                'workerId': widget.booking['workerId'] ?? '1',
-                                'workerName':
-                                    widget.booking['worker'] ?? 'Worker',
-                                'workerType':
-                                    widget.booking['workerType'] ??
-                                    'Service Professional',
-                                'service':
-                                    widget.booking['service'] ?? 'Service',
-                                'lastMessage':
-                                    'Chat with ${widget.booking['worker'] ?? 'Worker'}',
-                                'timestamp': 'Now',
-                                'isOnline': true,
-                              },
-                            ),
+                            builder: (context) =>
+                                CustomerChatConversationScreen(
+                                  threadId: '',
+                                  otherUid: '',
+                                  otherName: '',
+                                ),
                           ),
                         );
                       },

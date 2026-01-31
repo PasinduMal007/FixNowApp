@@ -1,62 +1,107 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/chat_service.dart';
 
 class WorkerChatConversationScreen extends StatefulWidget {
-  final String customerName;
+  final String customerName; // keep for UI fallback
   final String service;
   final bool isOnline;
+
+  final String threadId;
+  final String otherUid;
+  final String otherName;
 
   const WorkerChatConversationScreen({
     super.key,
     required this.customerName,
     required this.service,
     this.isOnline = false,
+    required this.threadId,
+    required this.otherUid,
+    required this.otherName,
   });
 
   @override
-  State<WorkerChatConversationScreen> createState() => _WorkerChatConversationScreenState();
+  State<WorkerChatConversationScreen> createState() =>
+      _WorkerChatConversationScreenState();
 }
 
-class _WorkerChatConversationScreenState extends State<WorkerChatConversationScreen> {
-  final TextEditingController _messageController = TextEditingController();
-  final List<Map<String, dynamic>> _messages = [
-    {
-      'text': 'Hello! I received your booking request.',
-      'isSent': false,
-      'timestamp': '10:30 AM',
-    },
-    {
-      'text': 'Hi! Can you confirm the time?',
-      'isSent': true,
-      'timestamp': '10:32 AM',
-    },
-    {
-      'text': 'I will arrive at 2 PM tomorrow',
-      'isSent': false,
-      'timestamp': '10:35 AM',
-    },
-  ];
+class _WorkerChatConversationScreenState
+    extends State<WorkerChatConversationScreen> {
+  final _messageController = TextEditingController();
+  final _scrollController = ScrollController();
+
+  final _chat = ChatService();
+  late final String threadId;
+  late final String otherUid;
+
+  @override
+  void initState() {
+    super.initState();
+
+    threadId = widget.threadId;
+    otherUid = widget.otherUid;
+
+    // Mark as read when opening
+    _chat.markThreadRead(threadId: threadId);
+
+    // Small delay so build finishes, then scroll if needed later
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom(animated: false);
+    });
+  }
 
   @override
   void dispose() {
     _messageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  void _sendMessage() {
-    if (_messageController.text.trim().isNotEmpty) {
-      setState(() {
-        _messages.add({
-          'text': _messageController.text.trim(),
-          'isSent': true,
-          'timestamp': TimeOfDay.now().format(context),
-        });
-      });
-      _messageController.clear();
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    _messageController.clear();
+
+    await _chat.sendTextMessage(
+      threadId: threadId,
+      text: text,
+      otherUid: otherUid,
+    );
+
+    if (!mounted) return;
+    _scrollToBottom(animated: true);
+  }
+
+  void _scrollToBottom({required bool animated}) {
+    if (!_scrollController.hasClients) return;
+
+    final target = _scrollController.position.maxScrollExtent + 200;
+    if (animated) {
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     }
+  }
+
+  int _toInt(dynamic v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v?.toString() ?? '') ?? 0;
   }
 
   @override
   Widget build(BuildContext context) {
+    final titleName = widget.otherName.isNotEmpty
+        ? widget.otherName
+        : widget.customerName;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -71,7 +116,10 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     GestureDetector(
@@ -83,21 +131,28 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Avatar
                     Stack(
                       children: [
                         Container(
                           width: 44,
                           height: 44,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 24),
+                          child: const Icon(
+                            Icons.person,
+                            color: Color(0xFF4A7FFF),
+                            size: 24,
+                          ),
                         ),
                         if (widget.isOnline)
                           Positioned(
@@ -109,20 +164,22 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                               decoration: BoxDecoration(
                                 color: const Color(0xFF10B981),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
                               ),
                             ),
                           ),
                       ],
                     ),
                     const SizedBox(width: 12),
-                    // Name and status
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.customerName,
+                            titleName,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -139,7 +196,6 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                         ],
                       ),
                     ),
-                    // Actions
                     Container(
                       width: 40,
                       height: 40,
@@ -147,7 +203,11 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.phone, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.phone,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Container(
@@ -157,7 +217,11 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.more_vert, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.more_vert,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
@@ -173,11 +237,52 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                       topRight: Radius.circular(24),
                     ),
                   ),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      return _buildMessageBubble(_messages[index]);
+                  child: StreamBuilder<DatabaseEvent>(
+                    stream: _chat.messagesQuery(threadId).onValue,
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final val = snapshot.data!.snapshot.value;
+                      if (val == null) {
+                        return const Center(child: Text('No messages yet'));
+                      }
+
+                      final raw = Map<dynamic, dynamic>.from(val as Map);
+                      final list = raw.entries.map((e) {
+                        final m = Map<String, dynamic>.from(e.value as Map);
+                        return {'id': e.key.toString(), ...m};
+                      }).toList();
+
+                      list.sort((a, b) {
+                        final aa = _toInt(a['createdAt']);
+                        final bb = _toInt(b['createdAt']);
+                        return aa.compareTo(bb);
+                      });
+
+                      // After rebuild, scroll to bottom if user is already near bottom
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _scrollToBottom(animated: false);
+                      });
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: list.length,
+                        itemBuilder: (context, index) {
+                          final message = list[index];
+                          final isMine =
+                              message['senderId'] ==
+                              FirebaseAuth.instance.currentUser?.uid;
+
+                          return _buildMessageBubble(
+                            text: (message['text'] ?? '').toString(),
+                            isSent: isMine,
+                            timestamp: '', // format createdAt later if you want
+                          );
+                        },
+                      );
                     },
                   ),
                 ),
@@ -207,7 +312,11 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                           color: const Color(0xFFF3F4F6),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.attach_file, color: Color(0xFF6B7280), size: 20),
+                        child: const Icon(
+                          Icons.attach_file,
+                          color: Color(0xFF6B7280),
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Container(
@@ -217,7 +326,11 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                           color: const Color(0xFFF3F4F6),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.image_outlined, color: Color(0xFF6B7280), size: 20),
+                        child: const Icon(
+                          Icons.image_outlined,
+                          color: Color(0xFF6B7280),
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -236,20 +349,14 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                                 color: Color(0xFF9CA3AF),
                               ),
                               border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 12),
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
                             ),
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _sendMessage(),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.sentiment_satisfied_alt_outlined, color: Color(0xFF6B7280), size: 20),
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
@@ -263,7 +370,11 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.send, color: Colors.white, size: 20),
+                          child: const Icon(
+                            Icons.send,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ],
@@ -277,13 +388,17 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
     );
   }
 
-  Widget _buildMessageBubble(Map<String, dynamic> message) {
-    final isSent = message['isSent'];
-
+  Widget _buildMessageBubble({
+    required String text,
+    required bool isSent,
+    required String timestamp,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment: isSent ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isSent
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isSent)
@@ -291,20 +406,29 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
               width: 32,
               height: 32,
               margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
                   colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
                 ),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 18),
+              child: const Icon(
+                Icons.person,
+                color: Color(0xFF4A7FFF),
+                size: 18,
+              ),
             ),
           Flexible(
             child: Column(
-              crossAxisAlignment: isSent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isSent
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: isSent ? const Color(0xFF4A7FFF) : Colors.white,
                     borderRadius: BorderRadius.only(
@@ -315,7 +439,7 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                     ),
                   ),
                   child: Text(
-                    message['text'],
+                    text,
                     style: TextStyle(
                       fontSize: 14,
                       color: isSent ? Colors.white : const Color(0xFF1F2937),
@@ -324,7 +448,7 @@ class _WorkerChatConversationScreenState extends State<WorkerChatConversationScr
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  message['timestamp'],
+                  timestamp,
                   style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF9CA3AF),

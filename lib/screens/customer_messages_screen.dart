@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'customer_chat_screen.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/chat_service.dart';
+import 'customer_chat_conversation_screen.dart';
 
 class CustomerMessagesScreen extends StatefulWidget {
   const CustomerMessagesScreen({super.key});
@@ -9,40 +11,7 @@ class CustomerMessagesScreen extends StatefulWidget {
 }
 
 class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
-  final List<Map<String, dynamic>> _conversations = [
-    {
-      'id': 1,
-      'workerName': 'Kasun Perera',
-      'workerType': 'Expert Electrician',
-      'rating': 4.9,
-      'lastMessage': 'I will arrive at 2 PM tomorrow',
-      'time': '2 mins ago',
-      'unreadCount': 2,
-      'isOnline': true,
-    },
-    {
-      'id': 2,
-      'workerName': 'Nimal Silva',
-      'workerType': 'Master Plumber',
-      'rating': 4.7,
-      'lastMessage': 'Thank you for the booking!',
-      'time': '1 hour ago',
-      'unreadCount': 1,
-      'isOnline': false,
-    },
-    {
-      'id': 3,
-      'workerName': 'Saman Fernando',
-      'workerType': 'Professional Carpenter',
-      'rating': 4.7,
-      'lastMessage': 'Job completed successfully!',
-      'time': '3 hours ago',
-      'unreadCount': 0,
-      'isOnline': false,
-    },
-  ];
-
-  int get _unreadCount => _conversations.fold(0, (sum, conv) => sum + (conv['unreadCount'] as int));
+  final _chat = ChatService();
 
   @override
   Widget build(BuildContext context) {
@@ -58,19 +27,35 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header
+              // Header + unread (dynamic)
               Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                child: StreamBuilder(
+                  stream: _chat.inboxQuery().onValue,
+                  builder: (context, snapshot) {
+                    int unreadTotal = 0;
+
+                    if (snapshot.hasData) {
+                      final event = snapshot.data as DatabaseEvent;
+                      final data = event.snapshot.value;
+
+                      if (data != null) {
+                        final map = Map<String, dynamic>.from(data as Map);
+                        for (final e in map.entries) {
+                          final t = Map<String, dynamic>.from(e.value as Map);
+                          final u = t['unreadCount'];
+                          if (u is int) unreadTotal += u;
+                        }
+                      }
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
+                        Row(
+                          children: const [
+                            Expanded(
+                              child: Text(
                                 'Messages',
                                 style: TextStyle(
                                   fontSize: 20,
@@ -78,48 +63,55 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                                   color: Colors.white,
                                 ),
                               ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '$unreadTotal unread',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.white70,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Search Bar (still UI only for now)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.search,
+                                color: Color(0xFF9CA3AF),
+                                size: 20,
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Search conversations...',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF9CA3AF),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '$_unreadCount unread',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Search Bar
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.search, color: Color(0xFF9CA3AF), size: 20),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Search conversations...',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF9CA3AF),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
 
-              // Conversations List
+              // Conversations List (THIS is where your StreamBuilder goes)
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -129,11 +121,56 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                       topRight: Radius.circular(24),
                     ),
                   ),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: _conversations.length,
-                    itemBuilder: (context, index) {
-                      return _buildConversationCard(_conversations[index]);
+                  child: StreamBuilder(
+                    stream: _chat.inboxQuery().onValue,
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final event = snapshot.data as DatabaseEvent;
+                      final data = event.snapshot.value;
+
+                      if (data == null) {
+                        return const Center(
+                          child: Text('No conversations yet'),
+                        );
+                      }
+
+                      final map = Map<String, dynamic>.from(data as Map);
+
+                      final threads = map.entries.map((e) {
+                        final t = Map<String, dynamic>.from(e.value as Map);
+
+                        return {
+                          'threadId': e.key,
+                          'otherUid': (t['otherUid'] ?? '').toString(),
+                          'otherName': (t['otherName'] ?? 'User').toString(),
+                          'otherPhotoUrl': (t['otherPhotoUrl'] ?? '')
+                              .toString(),
+                          'lastMessageText': (t['lastMessageText'] ?? '')
+                              .toString(),
+                          'unreadCount': (t['unreadCount'] is int)
+                              ? t['unreadCount'] as int
+                              : 0,
+                          'lastMessageAt': t['lastMessageAt'],
+                        };
+                      }).toList();
+
+                      // newest first
+                      threads.sort((a, b) {
+                        final aa = (a['lastMessageAt'] as int?) ?? 0;
+                        final bb = (b['lastMessageAt'] as int?) ?? 0;
+                        return bb.compareTo(aa);
+                      });
+
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(20),
+                        itemCount: threads.length,
+                        itemBuilder: (context, index) {
+                          return _buildConversationCard(threads[index]);
+                        },
+                      );
                     },
                   ),
                 ),
@@ -146,14 +183,26 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
   }
 
   Widget _buildConversationCard(Map<String, dynamic> conversation) {
-    final hasUnread = conversation['unreadCount'] > 0;
-    
+    final unread = (conversation['unreadCount'] as int?) ?? 0;
+    final hasUnread = unread > 0;
+
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
+        final threadId = conversation['threadId'] as String;
+        final otherUid = conversation['otherUid'] as String;
+        final otherName = conversation['otherName'] as String;
+
+        await _chat.markThreadRead(threadId: threadId);
+
+        if (!context.mounted) return;
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => CustomerChatScreen(conversation: conversation),
+            builder: (_) => CustomerChatConversationScreen(
+              threadId: threadId,
+              otherUid: otherUid,
+              otherName: otherName,
+            ),
           ),
         );
       },
@@ -164,13 +213,15 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: hasUnread ? const Color(0xFF4A7FFF).withOpacity(0.3) : const Color(0xFFE5E7EB),
+            color: hasUnread
+                ? const Color(0xFF4A7FFF).withOpacity(0.3)
+                : const Color(0xFFE5E7EB),
             width: hasUnread ? 2 : 1,
           ),
         ),
         child: Row(
           children: [
-            // Avatar with online indicator
+            // Avatar
             Stack(
               children: [
                 Container(
@@ -182,25 +233,27 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 28),
+                  clipBehavior: Clip.antiAlias,
+                  child: (conversation['otherPhotoUrl'] as String).isNotEmpty
+                      ? Image.network(
+                          conversation['otherPhotoUrl'] as String,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.person,
+                            color: Color(0xFF4A7FFF),
+                            size: 28,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.person,
+                          color: Color(0xFF4A7FFF),
+                          size: 28,
+                        ),
                 ),
-                if (conversation['isOnline'])
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                    ),
-                  ),
               ],
             ),
             const SizedBox(width: 12),
+
             // Content
             Expanded(
               child: Column(
@@ -210,44 +263,18 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          conversation['workerName'],
+                          conversation['otherName'] as String,
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
+                            fontWeight: hasUnread
+                                ? FontWeight.bold
+                                : FontWeight.w600,
                             color: const Color(0xFF1F2937),
                           ),
                         ),
                       ),
-                      Text(
-                        conversation['time'],
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: hasUnread ? const Color(0xFF4A7FFF) : const Color(0xFF9CA3AF),
-                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        conversation['workerType'],
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.star, size: 14, color: Color(0xFFFBBF24)),
-                      const SizedBox(width: 2),
-                      Text(
-                        '${conversation['rating']}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
+                      // You can format lastMessageAt later
+                      const SizedBox(),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -255,11 +282,17 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          conversation['lastMessage'],
+                          (conversation['lastMessageText'] as String).isNotEmpty
+                              ? conversation['lastMessageText'] as String
+                              : 'Tap to start chatting',
                           style: TextStyle(
                             fontSize: 13,
-                            color: hasUnread ? const Color(0xFF1F2937) : const Color(0xFF9CA3AF),
-                            fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+                            color: hasUnread
+                                ? const Color(0xFF1F2937)
+                                : const Color(0xFF9CA3AF),
+                            fontWeight: hasUnread
+                                ? FontWeight.w500
+                                : FontWeight.normal,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -268,13 +301,16 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                       if (hasUnread)
                         Container(
                           margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: const BoxDecoration(
                             color: Color(0xFFEF4444),
                             shape: BoxShape.circle,
                           ),
                           child: Text(
-                            '${conversation['unreadCount']}',
+                            '$unread',
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,

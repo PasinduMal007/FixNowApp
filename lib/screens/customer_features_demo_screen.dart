@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'customer_service_category_screen.dart';
 import 'customer_worker_profile_detail_screen.dart';
 import 'customer_search_results_screen.dart';
-import 'customer_chat_screen.dart';
+import 'customer_chat_conversation_screen.dart';
 import 'customer_notifications_screen.dart';
 import 'customer_live_tracking_screen.dart';
 import 'customer_review_rating_screen.dart';
@@ -156,11 +156,8 @@ class CustomerFeaturesDemoScreen extends StatelessWidget {
                         () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => CustomerChatScreen(
-                              conversation: {
-                                'workerName': 'Kasun Perera',
-                                'workerType': 'Expert Electrician',
-                              },
+                            builder: (context) => CustomerChatConversationScreen(
+                               threadId: '', otherUid: '', otherName: '',
                             ),
                           ),
                         ),

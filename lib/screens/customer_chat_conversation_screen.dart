@@ -1,61 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/chat_service.dart';
 
-class CustomerChatScreen extends StatefulWidget {
-  final Map<String, dynamic> conversation;
+class CustomerChatConversationScreen extends StatefulWidget {
+  final String threadId;
+  final String otherUid;
+  final String otherName;
 
-  const CustomerChatScreen({
+  const CustomerChatConversationScreen({
     super.key,
-    required this.conversation,
+    required this.threadId,
+    required this.otherUid,
+    required this.otherName,
   });
 
   @override
-  State<CustomerChatScreen> createState() => _CustomerChatScreenState();
+  State<CustomerChatConversationScreen> createState() =>
+      _CustomerChatConversationScreenState();
 }
 
-class _CustomerChatScreenState extends State<CustomerChatScreen> {
+class _CustomerChatConversationScreenState
+    extends State<CustomerChatConversationScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
 
-  final List<Map<String, dynamic>> _messages = [
-    {
-      'id': 1,
-      'text': 'Hi! I\'m interested in your electrical service.',
-      'isMine': true,
-      'timestamp': '10:30 AM',
-      'isRead': true,
-    },
-    {
-      'id': 2,
-      'text': 'Hello! I\'d be happy to help. What kind of electrical work do you need?',
-      'isMine': false,
-      'timestamp': '10:32 AM',
-      'isRead': true,
-    },
-    {
-      'id': 3,
-      'text': 'I need to install a new circuit for my home office.',
-      'isMine': true,
-      'timestamp': '10:33 AM',
-      'isRead': true,
-    },
-    {
-      'id': 4,
-      'text': 'Sure, I can help with that. When would you like me to come over?',
-      'isMine': false,
-      'timestamp': '10:35 AM',
-      'isRead': true,
-    },
-    {
-      'id': 5,
-      'text': 'How about tomorrow at 2 PM?',
-      'isMine': true,
-      'timestamp': '10:36 AM',
-      'isRead': true,
-    },
-  ];
+  final _chat = ChatService();
+  late final String threadId;
+  late final String otherUid;
+
+  @override
+  void initState() {
+    super.initState();
+
+    threadId = widget.threadId;
+    otherUid = widget.otherUid;
+
+    _chat.markThreadRead(threadId: threadId);
+  }
+
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent + 200,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF4A7FFF),
@@ -75,7 +74,11 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                 ),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 20),
+              child: const Icon(
+                Icons.person,
+                color: Color(0xFF4A7FFF),
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -83,7 +86,7 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.conversation['workerName'],
+                    widget.otherName,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -103,10 +106,7 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                       const SizedBox(width: 6),
                       const Text(
                         'Online',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white70,
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -128,16 +128,49 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
       ),
       body: Column(
         children: [
-          // Messages
           Expanded(
             child: Container(
               color: const Color(0xFFF8FAFC),
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(16),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  return _buildMessageBubble(_messages[index]);
+              child: StreamBuilder<DatabaseEvent>(
+                stream: _chat.messagesQuery(threadId).onValue,
+                builder: (context, snapshot) {
+                  final val = snapshot.data?.snapshot.value;
+
+                  if (val == null) {
+                    return const Center(child: Text('No messages yet'));
+                  }
+
+                  final raw = Map<dynamic, dynamic>.from(val as Map);
+
+                  final list =
+                      raw.entries.map((e) {
+                        final m = Map<String, dynamic>.from(e.value as Map);
+                        return {'id': e.key.toString(), ...m};
+                      }).toList()..sort((a, b) {
+                        final aa = (a['createdAt'] ?? 0) as int;
+                        final bb = (b['createdAt'] ?? 0) as int;
+                        return aa.compareTo(bb);
+                      });
+
+                  // Auto-scroll whenever messages change
+                  _scrollToBottom();
+
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: list.length,
+                    itemBuilder: (context, index) {
+                      final message = list[index];
+                      final isMine = (message['senderId']?.toString() == myUid);
+
+                      return _buildMessageBubble({
+                        'text': (message['text'] ?? '').toString(),
+                        'isMine': isMine,
+                        'timestamp': '',
+                        'isRead': true,
+                      });
+                    },
+                  );
                 },
               ),
             ),
@@ -160,12 +193,18 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.attach_file, color: Color(0xFF9CA3AF)),
+                    icon: const Icon(
+                      Icons.attach_file,
+                      color: Color(0xFF9CA3AF),
+                    ),
                     onPressed: () {},
                   ),
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(24),
@@ -189,25 +228,24 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white, size: 20),
-                      onPressed: () {
-                        if (_messageController.text.isNotEmpty) {
-                          setState(() {
-                            _messages.add({
-                              'id': _messages.length + 1,
-                              'text': _messageController.text,
-                              'isMine': true,
-                              'timestamp': 'Now',
-                              'isRead': false,
-                            });
-                            _messageController.clear();
-                          });
-                          _scrollController.animateTo(
-                            _scrollController.position.maxScrollExtent + 100,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          );
-                        }
+                      icon: const Icon(
+                        Icons.send,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () async {
+                        final text = _messageController.text.trim();
+                        if (text.isEmpty) return;
+
+                        _messageController.clear();
+
+                        await _chat.sendTextMessage(
+                          threadId: threadId,
+                          text: text,
+                          otherUid: otherUid,
+                        );
+
+                        _scrollToBottom();
                       },
                     ),
                   ),
@@ -221,12 +259,14 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
   }
 
   Widget _buildMessageBubble(Map<String, dynamic> message) {
-    final isMine = message['isMine'];
-    
+    final isMine = message['isMine'] as bool;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMine) ...[
@@ -239,16 +279,25 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                 ),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 16),
+              child: const Icon(
+                Icons.person,
+                color: Color(0xFF4A7FFF),
+                size: 16,
+              ),
             ),
             const SizedBox(width: 8),
           ],
           Flexible(
             child: Column(
-              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMine
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: isMine ? const Color(0xFF4A7FFF) : Colors.white,
                     borderRadius: BorderRadius.only(
@@ -266,7 +315,7 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                     ],
                   ),
                   child: Text(
-                    message['text'],
+                    message['text'].toString(),
                     style: TextStyle(
                       fontSize: 14,
                       color: isMine ? Colors.white : const Color(0xFF1F2937),
@@ -275,26 +324,7 @@ class _CustomerChatScreenState extends State<CustomerChatScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      message['timestamp'],
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF9CA3AF),
-                      ),
-                    ),
-                    if (isMine) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        message['isRead'] ? Icons.done_all : Icons.done,
-                        size: 14,
-                        color: message['isRead'] ? const Color(0xFF4A7FFF) : const Color(0xFF9CA3AF),
-                      ),
-                    ],
-                  ],
-                ),
+                // timestamp optional
               ],
             ),
           ),
