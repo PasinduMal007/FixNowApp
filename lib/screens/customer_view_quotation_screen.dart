@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'customer_payment_screen.dart';
 
 class CustomerViewQuotationScreen extends StatelessWidget {
   final Map<String, dynamic> booking;
@@ -286,15 +287,16 @@ class CustomerViewQuotationScreen extends StatelessWidget {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
-                            // TODO: Accept quote
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Quote accepted!'),
-                                backgroundColor: Colors.green,
-                                duration: Duration(seconds: 2),
+                            // Navigate to payment screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CustomerPaymentScreen(
+                                  booking: booking,
+                                  totalAmount: subtotal.toDouble(),
+                                ),
                               ),
                             );
-                            Navigator.pop(context);
                           },
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -305,7 +307,7 @@ class CustomerViewQuotationScreen extends StatelessWidget {
                             ),
                           ),
                           child: const Text(
-                            'Accept Quote',
+                            'Accept and Book',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,

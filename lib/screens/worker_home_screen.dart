@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'worker_notifications_screen.dart';
 import 'worker_job_details_screen.dart';
+import 'worker_payment_details_screen.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -253,6 +254,25 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
         ],
       ),
     );
+  }
+
+  // Fetch confirmed booking for the card
+  Future<Map<String, dynamic>> _fetchConfirmedBooking() async {
+    // For now, return demo data. Later, fetch from Firebase bookings with status 'confirmed'
+    // TODO: Query Firebase for bookings where status == 'confirmed' for this worker
+
+    // Simulate delay
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    return {
+      'bookingId': 'BK001',
+      'customerId': 'CUST12345',
+      'customerName': 'Chethiya Fernando',
+      'serviceType': 'Electrical Repair',
+      'location': 'Colombo 03, Sri Lanka',
+      'quotedAmount': 3500.0,
+      'advanceAmount': 700.0, // 20% of 3500
+    };
   }
 
   @override
@@ -545,6 +565,239 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Booking Confirmed Section (Dynamic)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Booking Confirmed',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1F2937),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDCFCE7),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                '1 active',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF10B981),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Dynamic Confirmed Booking Card
+                        FutureBuilder<Map<String, dynamic>>(
+                          future: _fetchConfirmedBooking(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return Container(
+                                padding: const EdgeInsets.all(40),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+
+                            final booking = snapshot.data!;
+                            final customerName =
+                                booking['customerName'] ?? 'Unknown';
+                            final advance = (booking['advanceAmount'] ?? 700.0)
+                                .toStringAsFixed(0);
+                            final serviceType =
+                                booking['serviceType'] ?? 'Service';
+                            final location = booking['location'] ?? 'Location';
+                            final quotedAmount =
+                                booking['quotedAmount'] ?? 3500.0;
+                            final customerId = booking['customerId'] ?? '';
+                            final bookingId = booking['bookingId'] ?? '';
+
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: const Color(0xFF10B981),
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF4A7FFF,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.person_outline,
+                                          color: Color(0xFF4A7FFF),
+                                          size: 22,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              customerName,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF1F2937),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Paid LKR $advance advance',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF10B981),
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF10B981),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'CONFIRMED',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.build_outlined,
+                                        size: 18,
+                                        color: Color(0xFF6B7280),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        serviceType,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Color(0xFF1F2937),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.location_on_outlined,
+                                        size: 18,
+                                        color: Color(0xFF6B7280),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          location,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Color(0xFF6B7280),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                WorkerPaymentDetailsScreen(
+                                                  bookingId: bookingId,
+                                                  customerId: customerId,
+                                                  serviceType: serviceType,
+                                                  quotedAmount: quotedAmount,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.payment, size: 16),
+                                      label: const Text('View Payment'),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        side: const BorderSide(
+                                          color: Color(0xFF4A7FFF),
+                                          width: 1.5,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 32),
+
                         // New Job Requests (from RTDB)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -678,6 +931,44 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                               },
                             );
                           },
+                        ),
+                        const SizedBox(height: 32),
+
+                        // Quick Actions
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Quick Actions',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1F2937),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildQuickActionCard(
+                                Icons.trending_up,
+                                'My Earnings',
+                                const Color(0xFFE8F0FF),
+                                const Color(0xFF4A7FFF),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildQuickActionCard(
+                                Icons.emoji_events_outlined,
+                                'My Reviews',
+                                const Color(0xFFFEF3C7),
+                                const Color(0xFFFFB800),
+                              ),
+                            ),
+                          ],
                         ),
 
                         // Quick Actions
