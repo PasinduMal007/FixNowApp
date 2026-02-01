@@ -5,6 +5,7 @@ import 'customer_search_results_screen.dart';
 import 'customer_service_category_screen.dart';
 import 'customer_live_tracking_screen.dart';
 import 'customer_chat_conversation_screen.dart';
+import 'customer_view_quotation_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   final String customerName;
@@ -81,7 +82,17 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     'workerRating': 4.8,
     'arrivingIn': '15 min',
     'distance': '1.3 km away',
-    'status': 'in-progress',
+    'status': 'invoice_sent', // Changed to test quotation button
+    'id': 'test123',
+    'invoice': {
+      'workerName': 'Kasun Perera',
+      'inspectionFee': 500,
+      'laborHours': 2,
+      'laborPrice': 2000,
+      'materials': 1000,
+      'subtotal': 3500,
+      'notes': 'Price may vary based on actual materials needed',
+    },
   };
 
   String _selectedFilter = 'Top Rated';
@@ -416,113 +427,121 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.schedule,
-                                        color: Colors.white70,
-                                        size: 16,
+                                  // Show different buttons based on status
+                                  if (_activeService['status'] ==
+                                      'invoice_sent')
+                                    // Show View Quotation button
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                CustomerViewQuotationScreen(
+                                                  booking: _activeService,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(
+                                        Icons.receipt_long,
+                                        size: 18,
                                       ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Arriving in $_arrivingMinutes min',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.white70,
+                                      label: const Text('View Quotation'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white,
+                                        foregroundColor: const Color(
+                                          0xFF4A7FFF,
                                         ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      const Icon(
-                                        Icons.near_me_outlined,
-                                        color: Colors.white70,
-                                        size: 16,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        '${_distanceKm.toStringAsFixed(1)} km away',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.white70,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
                                         ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        elevation: 0,
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: ElevatedButton.icon(
-                                          onPressed: () {
-                                            // Navigate to chat with specific worker
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    CustomerChatConversationScreen(
-                                                      threadId: '',
-                                                      otherUid: '',
-                                                      otherName: '',
-                                                    ),
+                                    )
+                                  else
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            onPressed: () {
+                                              // Navigate to chat with specific worker
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      CustomerChatConversationScreen(
+                                                        threadId: '',
+                                                        otherUid: '',
+                                                        otherName: '',
+                                                      ),
+                                                ),
+                                              );
+                                            },
+                                            icon: const Icon(
+                                              Icons.chat_bubble_outline,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Message'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.white,
+                                              foregroundColor: const Color(
+                                                0xFF4A7FFF,
                                               ),
-                                            );
-                                          },
-                                          icon: const Icon(
-                                            Icons.chat_bubble_outline,
-                                            size: 18,
-                                          ),
-                                          label: const Text('Message'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.white,
-                                            foregroundColor: const Color(
-                                              0xFF4A7FFF,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 12,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            elevation: 0,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: ElevatedButton.icon(
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    CustomerLiveTrackingScreen(
-                                                      booking: _activeService,
-                                                    ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
                                               ),
-                                            );
-                                          },
-                                          icon: const Icon(
-                                            Icons.location_on,
-                                            size: 18,
-                                          ),
-                                          label: const Text('Track'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.white
-                                                .withOpacity(0.2),
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 12,
+                                              elevation: 0,
                                             ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            elevation: 0,
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            onPressed: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      CustomerLiveTrackingScreen(
+                                                        booking: _activeService,
+                                                      ),
+                                                ),
+                                              );
+                                            },
+                                            icon: const Icon(
+                                              Icons.location_on,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Track'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.white
+                                                  .withOpacity(0.2),
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              elevation: 0,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                 ],
                               ),
                             ),
