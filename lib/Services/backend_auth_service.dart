@@ -1,8 +1,12 @@
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import 'package:firebase_database/firebase_database.dart';
+import 'db.dart';
 
 class BackendAuthService {
+  final DatabaseReference _db = DB.ref();
+
   static const String _baseUrl =
       'https://asia-southeast1-fixnow-app-75722.cloudfunctions.net/api';
 
@@ -171,4 +175,20 @@ class BackendAuthService {
 
     return profile;
   }
+<<<<<<< Updated upstream
+=======
+
+  Future<void> createCustomerProfile({
+    required String fullName,
+    required String email,
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    await _db.child('users/customers/$uid').set({
+      'fullName': fullName,
+      'email': email,
+      'createdAt': ServerValue.timestamp,
+    }); 
+  }
+>>>>>>> Stashed changes
 }

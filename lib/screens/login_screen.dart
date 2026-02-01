@@ -30,7 +30,22 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    _loadRememberMe();
     _loadPrefError();
+  }
+
+  Future<void> _loadRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    final remember = prefs.getBool('rememberMe') ?? false;
+    final savedEmail = prefs.getString('savedEmail') ?? '';
+
+    if (!mounted) return;
+    setState(() {
+      _rememberMe = remember;
+      if (remember && savedEmail.isNotEmpty) {
+        _emailController.text = savedEmail;
+      }
+    });
   }
 
   Future<void> _loadPrefError() async {
@@ -106,6 +121,15 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       final prefs = await SharedPreferences.getInstance();
+
+      // ✅ Remember Me (save or clear email)
+      await prefs.setBool('rememberMe', _rememberMe);
+      if (_rememberMe) {
+        await prefs.setString('savedEmail', _emailController.text.trim());
+      } else {
+        await prefs.remove('savedEmail');
+      }
+
       await prefs.setString('selectedRole', result.role);
 
       if (!mounted) return;
