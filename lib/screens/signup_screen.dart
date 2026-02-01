@@ -329,22 +329,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     password: _passwordController.text.trim(),
                                   );
 
-<<<<<<< Updated upstream
                               // 2. Get current user and prepare data
-=======
-                              // 2. Store user profile in Realtime Database
->>>>>>> Stashed changes
                               final user = FirebaseAuth.instance.currentUser!;
                               final uid = user.uid;
                               final fullName = _fullNameController.text.trim();
 
-<<<<<<< Updated upstream
                               // 3. Store user profile in Realtime Database
-=======
-                              final fullName = _fullNameController.text.trim();
-                              await user.updateDisplayName(fullName);
-
->>>>>>> Stashed changes
                               final DatabaseReference ref = DB.ref();
 
                               if (widget.role == 'customer') {
@@ -376,13 +366,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 });
                               }
 
-<<<<<<< Updated upstream
                               // 4. Navigate based on role
-=======
-                              if (!mounted) return;
-
-                              // 3. Navigate based on role
->>>>>>> Stashed changes
                               if (widget.role == 'customer') {
                                 Navigator.pushReplacementNamed(
                                   context,

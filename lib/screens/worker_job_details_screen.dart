@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fix_now_app/Services/db.dart';
+import 'package:fix_now_app/screens/worker_create_invoice_screen.dart';
 
 class WorkerJobDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> job;
@@ -418,21 +419,15 @@ class WorkerJobDetailsScreen extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () async {
-                    // Accept job
-                    await DB.ref().child('bookings/${job['id']}').update({
-                      'status': 'confirmed',
-                      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-                    });
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Job accepted!'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
+                  onPressed: () {
+                    // Navigate to invoice creation screen
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            WorkerCreateInvoiceScreen(job: job),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
