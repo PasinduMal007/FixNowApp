@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'worker_notifications_screen.dart';
 import 'worker_job_details_screen.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
@@ -64,21 +65,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
     return list;
   }
 
-  Future<void> _handleAcceptJob(String bookingId) async {
-    await DB.ref().child('bookings/$bookingId').update({
-      'status': 'confirmed',
-      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-    });
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Job accepted!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
   Future<void> _handleDeclineJob(String bookingId) async {
     await DB.ref().child('bookings/$bookingId').update({
       'status': 'declined_by_worker',
@@ -103,10 +89,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   };
 
   Widget _buildBookingRequestCard(Map<String, dynamic> job) {
-    // booking status
-    final status = (job['status'] ?? 'requested').toString();
-    final isPending = status == 'requested';
-
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -118,19 +100,30 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Customer name and status
           Row(
             children: [
-              const Icon(
-                Icons.build_outlined,
-                size: 18,
-                color: Color(0xFF4A7FFF),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person,
+                  color: Color(0xFF4A7FFF),
+                  size: 20,
+                ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  (job['service'] ?? 'Service').toString(),
+                  job['customerName'] ?? 'Customer',
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF1F2937),
                   ),
@@ -142,26 +135,44 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: isPending
-                      ? const Color(0xFFFEE2E2)
-                      : const Color(0xFFD1FAE5),
+                  color: const Color(0xFFD1FAE5),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
-                  status,
+                child: const Text(
+                  'confirmed',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: isPending
-                        ? const Color(0xFFEF4444)
-                        : const Color(0xFF059669),
+                    color: Color(0xFF059669),
                   ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Service type
+          Row(
+            children: [
+              const Icon(
+                Icons.build_outlined,
+                size: 18,
+                color: Color(0xFF4A7FFF),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                (job['service'] ?? 'Service').toString(),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1F2937),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
 
+          // Location
           Row(
             children: [
               const Icon(
@@ -181,36 +192,15 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(
-                Icons.calendar_today,
-                size: 14,
-                color: Color(0xFF9CA3AF),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  (job['scheduledDate'] ?? '').toString(),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-              ),
-            ],
-          ),
 
           const SizedBox(height: 14),
 
+          // Action buttons
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: isPending
-                      ? () => _handleDeclineJob(job['id'])
-                      : null,
+                  onPressed: () => _handleDeclineJob(job['id']),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     backgroundColor: const Color(0xFFF3F4F6),
@@ -232,9 +222,14 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: isPending
-                      ? () => _handleAcceptJob(job['id'])
-                      : null,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => WorkerJobDetailsScreen(job: job),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     backgroundColor: const Color(0xFF4A7FFF),
@@ -244,7 +239,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                     elevation: 2,
                   ),
                   child: const Text(
-                    'Accept Job',
+                    'View Request',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.white,
@@ -466,11 +461,51 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                         // Today's Stats
                         Row(
                           children: [
-                            _buildStatCard(
-                              Icons.attach_money,
-                              _todayStats['earnings'],
-                              'Today',
-                              const Color(0xFF10B981),
+                            // Earnings Card (Custom styling)
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.95),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.5),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.attach_money,
+                                      size: 20,
+                                      color: Color(0xFF10B981),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        _todayStats['earnings'],
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1F2937),
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Text(
+                                      'Today',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Color(0xFF6B7280),
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                             const SizedBox(width: 8),
                             _buildStatCard(
@@ -510,7 +545,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
                         // New Job Requests (from RTDB)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -613,6 +647,8 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                   return <String, dynamic>{
                                     'id': b['bookingId'] ?? '',
                                     'customerId': b['customerId'] ?? '',
+                                    'customerName':
+                                        b['customerName'] ?? 'Customer',
                                     'workerId': b['workerId'] ?? '',
                                     'service': (b['serviceName'] ?? '')
                                         .toString(),
@@ -702,8 +738,9 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
           border: Border.all(color: Colors.white.withOpacity(0.5), width: 1),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: color),
+            Icon(icon, size: 20, color: color),
             const SizedBox(height: 8),
             Text(
               value,
@@ -712,11 +749,13 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1F2937),
               ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 2),
             Text(
               label,
               style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280)),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -824,13 +863,14 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                WorkerJobDetailsScreen(job: {...job, 'status': 'pending'}),
-          ),
-        );
+        // TODO: Implement new job details screen
+        // Navigator.push(
+        //   context,
+        //   MaterialPageRoute(
+        //     builder: (context) =>
+        //         WorkerJobDetailsScreen(job: {...job, 'status': 'pending'}),
+        //   ),
+        // );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -892,44 +932,31 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            job['customerName'],
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1F2937),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.star,
-                            size: 12,
-                            color: Color(0xFFFFB800),
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            '${job['rating']}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${job['completedJobs']} jobs completed',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF9CA3AF),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    job['customerName'] ?? 'Customer',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD1FAE5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'confirmed',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF10B981),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -974,47 +1001,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                         color: Color(0xFF6B7280),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_today,
-                              size: 14,
-                              color: Color(0xFF9CA3AF),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${job['scheduledDate']}, ${job['scheduledTime']}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF6B7280),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.attach_money,
-                            size: 14,
-                            color: Color(0xFF10B981),
-                          ),
-                          Text(
-                            job['budget'],
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF10B981),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -1068,7 +1054,17 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => _handleAcceptJob(job['id']),
+                    onPressed: () {
+                      // TODO: Implement new job details screen
+                      // Navigator.push(
+                      //   context,
+                      //   MaterialPageRoute(
+                      //     builder: (context) => WorkerJobDetailsScreen(
+                      //       job: {...job, 'status': 'pending'},
+                      //     ),
+                      //   ),
+                      // );
+                    },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       backgroundColor: const Color(0xFF4A7FFF),
@@ -1078,7 +1074,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                       elevation: 2,
                     ),
                     child: const Text(
-                      'Accept Job',
+                      'View Request',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.white,
