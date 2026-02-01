@@ -111,127 +111,123 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                       topRight: Radius.circular(24),
                     ),
                   ),
-                  child: StreamBuilder<DatabaseEvent>(
-                    stream: _chat.inboxQuery().onValue,
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
+                  child: FutureBuilder<DataSnapshot>(
+                    future: _chat.inboxOnce(),
+                    builder: (context, firstSnap) {
+                      if (firstSnap.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
 
-                      final data = snapshot.data!.snapshot.value;
-                      if (data == null) {
+                      if (firstSnap.hasError) {
+                        return Center(child: Text('Inbox error: ${firstSnap.error}'));
+                      }
+
+                      final firstData = firstSnap.data?.value;
+
+                      // If no conversations node exists yet
+                      if (firstData == null) {
                         return _emptyState();
                       }
 
-                      final map = Map<String, dynamic>.from(data as Map);
+                      // After first load, keep it live
+                      return StreamBuilder<DatabaseEvent>(
+                        stream: _chat.inboxQuery().onValue,
+                        builder: (context, snap) {
+                          if (snap.hasError) {
+                            return Center(child: Text('Live error: ${snap.error}'));
+                          }
 
-                      final threads = map.entries.map((e) {
-                        final t = Map<String, dynamic>.from(e.value as Map);
+                          final data = snap.data?.snapshot.value;
 
-                        final unread = (t['unreadCount'] is int)
-                            ? t['unreadCount'] as int
-                            : int.tryParse('${t['unreadCount'] ?? 0}') ?? 0;
+                          // IMPORTANT: no spinner here
+                          if (data == null) return _emptyState();
 
-                        final lastAt = (t['lastMessageAt'] is int)
-                            ? t['lastMessageAt'] as int
-                            : int.tryParse('${t['lastMessageAt'] ?? 0}') ?? 0;
+                          final map = Map<String, dynamic>.from(data as Map);
 
-                        return {
-                          'threadId': e.key,
-                          'otherUid': (t['otherUid'] ?? '').toString(),
-                          'otherName': (t['otherName'] ?? 'Customer')
-                              .toString(),
-                          'otherPhotoUrl': (t['otherPhotoUrl'] ?? '')
-                              .toString(),
-                          'lastMessageText': (t['lastMessageText'] ?? '')
-                              .toString(),
-                          'unreadCount': unread,
-                          'lastMessageAt': lastAt,
+                          final threads = map.entries.map((e) {
+                            final t = Map<String, dynamic>.from(e.value as Map);
 
-                          // You can store these in inbox later if you want:
-                          'service': (t['service'] ?? '').toString(),
-                          'rating': (t['rating'] is num)
-                              ? (t['rating'] as num).toDouble()
-                              : double.tryParse('${t['rating'] ?? ''}') ?? 0.0,
-                          'isOnline': (t['isOnline'] == true),
-                        };
-                      }).toList();
+                            final unread = (t['unreadCount'] is int)
+                                ? t['unreadCount'] as int
+                                : int.tryParse('${t['unreadCount'] ?? 0}') ?? 0;
 
-                      // newest first
-                      threads.sort((a, b) {
-                        final aa = (a['lastMessageAt'] as int?) ?? 0;
-                        final bb = (b['lastMessageAt'] as int?) ?? 0;
-                        return bb.compareTo(aa);
-                      });
+                            final lastAt = (t['lastMessageAt'] is int)
+                                ? t['lastMessageAt'] as int
+                                : int.tryParse('${t['lastMessageAt'] ?? 0}') ?? 0;
 
-                      // unread count (for subtitle)
-                      final unreadThreads = threads
-                          .where((t) => ((t['unreadCount'] as int?) ?? 0) > 0)
-                          .length;
+                            return {
+                              'threadId': e.key,
+                              'otherUid': (t['otherUid'] ?? '').toString(),
+                              'otherName': (t['otherName'] ?? 'Customer').toString(),
+                              'otherPhotoUrl': (t['otherPhotoUrl'] ?? '').toString(),
+                              'lastMessageText': (t['lastMessageText'] ?? '').toString(),
+                              'unreadCount': unread,
+                              'lastMessageAt': lastAt,
+                              'service': (t['service'] ?? '').toString(),
+                              'rating': (t['rating'] is num)
+                                  ? (t['rating'] as num).toDouble()
+                                  : double.tryParse('${t['rating'] ?? ''}') ?? 0.0,
+                              'isOnline': (t['isOnline'] == true),
+                            };
+                          }).toList();
 
-                      return Column(
-                        children: [
-                          // Small unread label (same idea as your old UI)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                '$unreadThreads unread messages',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF6B7280),
+                          threads.sort((a, b) {
+                            final aa = (a['lastMessageAt'] as int?) ?? 0;
+                            final bb = (b['lastMessageAt'] as int?) ?? 0;
+                            return bb.compareTo(aa);
+                          });
+
+                          if (threads.isEmpty) return _emptyState();
+
+                          final unreadThreads =
+                              threads.where((t) => ((t['unreadCount'] as int?) ?? 0) > 0).length;
+
+                          return Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    '$unreadThreads unread messages',
+                                    style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          Expanded(
-                            child: ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(
-                                24,
-                                10,
-                                24,
-                                100,
-                              ),
-                              itemCount: threads.length,
-                              itemBuilder: (context, index) {
-                                final conv = threads[index];
-                                return GestureDetector(
-                                  onTap: () async {
-                                    final tid = conv['threadId'] as String;
-                                    await _chat.markThreadRead(threadId: tid);
+                              Expanded(
+                                child: ListView.builder(
+                                  padding: const EdgeInsets.fromLTRB(24, 10, 24, 100),
+                                  itemCount: threads.length,
+                                  itemBuilder: (context, index) {
+                                    final conv = threads[index];
+                                    return GestureDetector(
+                                      onTap: () async {
+                                        final tid = conv['threadId'] as String;
+                                        await _chat.markThreadRead(threadId: tid);
 
-                                    if (!context.mounted) return;
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            WorkerChatConversationScreen(
+                                        if (!context.mounted) return;
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => WorkerChatConversationScreen(
                                               threadId: tid,
-                                              otherUid:
-                                                  conv['otherUid'] as String,
-                                              otherName:
-                                                  conv['otherName'] as String,
-                                              // keep these if your WorkerChatConversationScreen still expects them:
-                                              customerName:
-                                                  conv['otherName'] as String,
-                                              service:
-                                                  (conv['service']
-                                                      as String?) ??
-                                                  '',
-                                              isOnline:
-                                                  (conv['isOnline'] as bool?) ??
-                                                  false,
+                                              otherUid: conv['otherUid'] as String,
+                                              otherName: conv['otherName'] as String,
+                                              customerName: conv['otherName'] as String,
+                                              service: (conv['service'] as String?) ?? '',
+                                              isOnline: (conv['isOnline'] as bool?) ?? false,
                                             ),
-                                      ),
+                                          ),
+                                        );
+                                      },
+                                      child: _buildConversationCard(conv),
                                     );
                                   },
-                                  child: _buildConversationCard(conv),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
                   ),

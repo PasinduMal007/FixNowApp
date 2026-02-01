@@ -121,54 +121,76 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                       topRight: Radius.circular(24),
                     ),
                   ),
-                  child: StreamBuilder(
-                    stream: _chat.inboxQuery().onValue,
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
+                  child: FutureBuilder<DataSnapshot>(
+                    future: _chat.inboxOnce(),
+                    builder: (context, firstSnap) {
+                      // 1) First load: always ends (success or error)
+                      if (firstSnap.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
 
-                      final event = snapshot.data as DatabaseEvent;
-                      final data = event.snapshot.value;
-
-                      if (data == null) {
-                        return const Center(
-                          child: Text('No conversations yet'),
-                        );
+                      if (firstSnap.hasError) {
+                        return Center(child: Text('Inbox error: ${firstSnap.error}'));
                       }
 
-                      final map = Map<String, dynamic>.from(data as Map);
+                      final firstData = firstSnap.data?.value;
 
-                      final threads = map.entries.map((e) {
-                        final t = Map<String, dynamic>.from(e.value as Map);
+                      // Empty inbox
+                      if (firstData == null) {
+                        return const Center(child: Text('No conversations yet'));
+                      }
 
-                        return {
-                          'threadId': e.key,
-                          'otherUid': (t['otherUid'] ?? '').toString(),
-                          'otherName': (t['otherName'] ?? 'User').toString(),
-                          'otherPhotoUrl': (t['otherPhotoUrl'] ?? '')
-                              .toString(),
-                          'lastMessageText': (t['lastMessageText'] ?? '')
-                              .toString(),
-                          'unreadCount': (t['unreadCount'] is int)
-                              ? t['unreadCount'] as int
-                              : 0,
-                          'lastMessageAt': t['lastMessageAt'],
-                        };
-                      }).toList();
+                      // 2) After first load, keep it live
+                      return StreamBuilder<DatabaseEvent>(
+                        stream: _chat.inboxQuery().onValue,
+                        builder: (context, snap) {
+                          final data = snap.data?.snapshot.value;
 
-                      // newest first
-                      threads.sort((a, b) {
-                        final aa = (a['lastMessageAt'] as int?) ?? 0;
-                        final bb = (b['lastMessageAt'] as int?) ?? 0;
-                        return bb.compareTo(aa);
-                      });
+                          if (snap.hasError) {
+                            return Center(child: Text('Live error: ${snap.error}'));
+                          }
 
-                      return ListView.builder(
-                        padding: const EdgeInsets.all(20),
-                        itemCount: threads.length,
-                        itemBuilder: (context, index) {
-                          return _buildConversationCard(threads[index]);
+                          if (data == null) {
+                            return const Center(child: Text('No conversations yet'));
+                          }
+
+                          final map = Map<String, dynamic>.from(data as Map);
+
+                          final threads = map.entries.map((e) {
+                            final t = Map<String, dynamic>.from(e.value as Map);
+
+                            final unread = (t['unreadCount'] is int)
+                                ? t['unreadCount'] as int
+                                : int.tryParse('${t['unreadCount'] ?? 0}') ?? 0;
+
+                            final lastAt = (t['lastMessageAt'] is int)
+                                ? t['lastMessageAt'] as int
+                                : int.tryParse('${t['lastMessageAt'] ?? 0}') ?? 0;
+
+                            return {
+                              'threadId': e.key,
+                              'otherUid': (t['otherUid'] ?? '').toString(),
+                              'otherName': (t['otherName'] ?? 'User').toString(),
+                              'otherPhotoUrl': (t['otherPhotoUrl'] ?? '').toString(),
+                              'lastMessageText': (t['lastMessageText'] ?? '').toString(),
+                              'unreadCount': unread,
+                              'lastMessageAt': lastAt,
+                            };
+                          }).toList();
+
+                          threads.sort((a, b) {
+                            final aa = (a['lastMessageAt'] as int?) ?? 0;
+                            final bb = (b['lastMessageAt'] as int?) ?? 0;
+                            return bb.compareTo(aa);
+                          });
+
+                          return ListView.builder(
+                            padding: const EdgeInsets.all(20),
+                            itemCount: threads.length,
+                            itemBuilder: (context, index) {
+                              return _buildConversationCard(threads[index]);
+                            },
+                          );
                         },
                       );
                     },

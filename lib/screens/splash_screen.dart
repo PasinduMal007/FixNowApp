@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -46,10 +47,15 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     });
 
     // Auto-navigate to app entry (will show login if not authenticated)
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/onboarding');
-      }
+    Future.delayed(const Duration(seconds: 3), () async {
+      final prefs = await SharedPreferences.getInstance();
+      final hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacementNamed(
+        hasSeenOnboarding ? '/app-entry' : '/onboarding',
+      );
     });
   }
 
