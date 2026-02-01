@@ -175,8 +175,6 @@ class BackendAuthService {
 
     return profile;
   }
-<<<<<<< Updated upstream
-=======
   
   Future<void> createCustomerProfile({
     required String fullName,
@@ -190,5 +188,4 @@ class BackendAuthService {
       'createdAt': ServerValue.timestamp,
     }); 
   }
->>>>>>> Stashed changes
 }
