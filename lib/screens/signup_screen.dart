@@ -1,4 +1,5 @@
 import 'package:fix_now_app/Services/db.dart';
+import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -328,25 +329,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     password: _passwordController.text.trim(),
                                   );
 
-                                final fullName = _fullNameController.text.trim();
-
-                                await BackendAuthService().createCustomerProfile(
-                                  fullName: fullName,
-                                  email: user.email!,
-                                );
-
-                              // 2. Store user profile in Realtime Database
+                              // 2. Get current user and prepare data
                               final user = FirebaseAuth.instance.currentUser!;
                               final uid = user.uid;
+                              final fullName = _fullNameController.text.trim();
 
+                              // 3. Store user profile in Realtime Database
                               final DatabaseReference ref = DB.ref();
 
                               if (widget.role == 'customer') {
                                 await ref.child('users/customers/$uid').set({
                                   'uid': uid,
-                                  'fullName': _fullNameController.text.trim(),
-                                  'email':
-                                      FirebaseAuth.instance.currentUser!.email,
+                                  'fullName': fullName,
+                                  'email': user.email,
                                   'role': 'customer',
                                   'createdAt': ServerValue.timestamp,
                                   'onboarding': {
@@ -358,7 +353,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               } else {
                                 await ref.child('users/workers/$uid').set({
                                   'uid': uid,
-                                  'fullName': _fullNameController.text.trim(),
+                                  'fullName': fullName,
                                   'email': user.email,
                                   'role': 'worker',
                                   'status': 'pending_verification',
@@ -371,7 +366,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 });
                               }
 
-                              // 3. Navigate based on role
+                              // 4. Navigate based on role
                               if (widget.role == 'customer') {
                                 Navigator.pushReplacementNamed(
                                   context,

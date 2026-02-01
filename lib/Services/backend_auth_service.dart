@@ -171,17 +171,4 @@ class BackendAuthService {
 
     return profile;
   }
-
-  Future<void> createCustomerProfile({
-    required String fullName,
-    required String email,
-  }) async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-
-    await _db.ref('users/customers/$uid').set({
-      'fullName': fullName,
-      'email': email,
-      'createdAt': ServerValue.timestamp,
-    });
-  }
 }
