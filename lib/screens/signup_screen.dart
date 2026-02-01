@@ -328,6 +328,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     password: _passwordController.text.trim(),
                                   );
 
+                                final fullName = _fullNameController.text.trim();
+
+                                await BackendAuthService().createCustomerProfile(
+                                  fullName: fullName,
+                                  email: user.email!,
+                                );
+
                               // 2. Store user profile in Realtime Database
                               final user = FirebaseAuth.instance.currentUser!;
                               final uid = user.uid;

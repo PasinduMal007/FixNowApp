@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingData {
   final String title;
@@ -106,7 +107,10 @@ class _OnboardingScreensState extends State<OnboardingScreens>
         _isCompleted = true;
       });
       // Navigate to next screen after delay
-      Future.delayed(const Duration(seconds: 2), () {
+      Future.delayed(const Duration(seconds: 2), () async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('hasSeenOnboarding', true);
+
         if (mounted && widget.onComplete != null) {
           widget.onComplete!();
         }

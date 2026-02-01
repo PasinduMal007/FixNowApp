@@ -137,4 +137,12 @@ class ChatService {
     final me = _uid;
     await _userThreadsRef.child(me).child(threadId).update({'unreadCount': 0});
   }
+
+  Future<DataSnapshot> inboxOnce() {
+    return _userThreadsRef.child(_uid).get();
+  }
+
+  DatabaseReference connectedRef() {
+    return _db.ref('.info/connected');
+  }
 }

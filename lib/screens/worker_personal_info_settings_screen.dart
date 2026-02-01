@@ -27,6 +27,7 @@ class _WorkerPersonalInfoSettingsScreenState
   bool _isEditing = false;
   String _workerName = '';
   String _userInitial = 'W';
+  bool _changed = false;
 
   @override
   void initState() {
@@ -116,6 +117,7 @@ class _WorkerPersonalInfoSettingsScreenState
           backgroundColor: Color(0xFF10B981),
         ),
       );
+      _changed = true;
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -141,6 +143,7 @@ class _WorkerPersonalInfoSettingsScreenState
 
       if (!mounted) return;
       setState(() => _photoUrl = url);
+      _changed = true;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Photo updated successfully')),
@@ -157,271 +160,269 @@ class _WorkerPersonalInfoSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.topRight,
-            colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, _changed);
+        return false;
+      },
+      child: Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.topRight,
+              colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Personal Information',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            'Manage your details',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() => _isEditing = !_isEditing);
-                      },
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          _isEditing ? Icons.close : Icons.edit_outlined,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Content
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                  ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Profile Photo
-                        Stack(
-                          children: [
-                            Container(
-                              width: 100,
-                              height: 100,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF4A7FFF),
-                                    Color(0xFF6B9FFF),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              clipBehavior: Clip.antiAlias,
-                              child: _photoUrl.isNotEmpty
-                                  ? Image.network(
-                                      _photoUrl,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) {
-                                        return Center(
-                                          child: Text(
-                                            _userInitial,
-                                            style: const TextStyle(
-                                              fontSize: 40,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    )
-                                  : Center(
-                                      child: Text(
-                                        _userInitial,
-                                        style: const TextStyle(
-                                          fontSize: 40,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _workerName,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1F2937),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Worker Account',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF6B7280),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: _uploadingPhoto ? null : _changePhoto,
-                          child: const Text(
-                            'Change Photo',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF4A7FFF),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-
-                        // Full Name
-                        _buildInfoField(
-                          label: 'Full Name',
-                          controller: _nameController,
-                          icon: Icons.person_outline,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Email Address
-                        _buildInfoField(
-                          label: 'Email Address',
-                          controller: _emailController,
-                          icon: Icons.email_outlined,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Phone Number
-                        _buildInfoField(
-                          label: 'Phone Number',
-                          controller: _phoneController,
-                          icon: Icons.phone_outlined,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Work Location
-                        _buildInfoField(
-                          label: 'Work Location',
-                          controller: _addressController,
-                          icon: Icons.location_on_outlined,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Profession
-                        _buildInfoField(
-                          label: 'Profession',
-                          controller: _professionController,
-                          icon: Icons.work_outline,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // About Me
-                        _buildInfoField(
-                          label: 'About Me',
-                          controller: _aboutMeController,
-                          icon: Icons.info_outline,
-                          maxLines: 4,
-                        ),
-                        const SizedBox(height: 32),
-
-                        // Privacy Notice
-                        Container(
-                          padding: const EdgeInsets.all(16),
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context, _changed),
+                        child: Container(
+                          width: 40,
+                          height: 40,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE8F0FF),
+                            color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Text(
-                            'Your personal information is kept secure and private. We only share necessary details with customers.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF1F2937),
-                              height: 1.5,
-                            ),
-                            textAlign: TextAlign.center,
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                            size: 20,
                           ),
                         ),
-                        const SizedBox(height: 24),
-
-                        // Save Button (only visible when editing)
-                        if (_isEditing)
-                          ElevatedButton(
-                            onPressed: _saveChanges,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4A7FFF),
-                              minimumSize: const Size(double.infinity, 52),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: const Text(
-                              'Save Changes',
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Personal Information',
                               style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                             ),
+                            Text(
+                              'Manage your details',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _isEditing = !_isEditing);
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                      ],
+                          child: Icon(
+                            _isEditing ? Icons.close : Icons.edit_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Content
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(24),
+                        topRight: Radius.circular(24),
+                      ),
+                    ),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Profile Photo
+                          Stack(
+                            children: [
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF4A7FFF),
+                                      Color(0xFF6B9FFF),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: _photoUrl.isNotEmpty
+                                    ? Image.network(
+                                        _photoUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) {
+                                          return Center(
+                                            child: Text(
+                                              _userInitial,
+                                              style: const TextStyle(
+                                                fontSize: 40,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      )
+                                    : Center(
+                                        child: Text(
+                                          _userInitial,
+                                          style: const TextStyle(
+                                            fontSize: 40,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _workerName,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Worker Account',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: _uploadingPhoto ? null : _changePhoto,
+                            child: const Text(
+                              'Change Photo',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF4A7FFF),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+
+                          _buildInfoField(
+                            label: 'Full Name',
+                            controller: _nameController,
+                            icon: Icons.person_outline,
+                          ),
+                          const SizedBox(height: 20),
+
+                          _buildInfoField(
+                            label: 'Email Address',
+                            controller: _emailController,
+                            icon: Icons.email_outlined,
+                          ),
+                          const SizedBox(height: 20),
+
+                          _buildInfoField(
+                            label: 'Phone Number',
+                            controller: _phoneController,
+                            icon: Icons.phone_outlined,
+                          ),
+                          const SizedBox(height: 20),
+
+                          _buildInfoField(
+                            label: 'Work Location',
+                            controller: _addressController,
+                            icon: Icons.location_on_outlined,
+                          ),
+                          const SizedBox(height: 20),
+
+                          _buildInfoField(
+                            label: 'Profession',
+                            controller: _professionController,
+                            icon: Icons.work_outline,
+                          ),
+                          const SizedBox(height: 20),
+
+                          _buildInfoField(
+                            label: 'About Me',
+                            controller: _aboutMeController,
+                            icon: Icons.info_outline,
+                            maxLines: 4,
+                          ),
+                          const SizedBox(height: 32),
+
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F0FF),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Your personal information is kept secure and private. We only share necessary details with customers.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF1F2937),
+                                height: 1.5,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          if (_isEditing)
+                            ElevatedButton(
+                              onPressed: _saveChanges,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4A7FFF),
+                                minimumSize: const Size(double.infinity, 52),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: const Text(
+                                'Save Changes',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

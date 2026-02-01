@@ -6,6 +6,7 @@ import express, {
 } from "express";
 import cors from "cors";
 import {onRequest} from "firebase-functions/v2/https";
+import {onValueCreated} from "firebase-functions/v2/database";
 
 admin.initializeApp();
 
@@ -308,12 +309,10 @@ app.post(
       locationText &&
       (locationText.length < 2 || locationText.length > 120)
     ) {
-      res
-        .status(400)
-        .json({
-          ok: false,
-          message: "locationText must be 2 to 120 characters.",
-        });
+      res.status(400).json({
+        ok: false,
+        message: "locationText must be 2 to 120 characters.",
+      });
       return;
     }
 
@@ -366,3 +365,65 @@ app.post(
 );
 
 export const api = onRequest({region: "asia-southeast1"}, app);
+
+export const onChatMessageCreate = onValueCreated(
+  {region: "asia-southeast1", ref: "/chatMessages/{threadId}/{msgId}"},
+  async (event) => {
+    const {threadId} = event.params as { threadId: string; msgId: string };
+
+    const msg = event.data.val() as {
+      senderId: string;
+      text: string;
+      createdAt: number;
+      type?: string;
+    } | null;
+
+    if (!msg || !msg.senderId || !msg.text) return;
+
+    const db = admin.database();
+
+    const threadRef = db.ref(`/chatThreads/${threadId}`);
+    const threadSnap = await threadRef.get();
+    if (!threadSnap.exists()) return;
+
+    const thread = threadSnap.val() as {
+      participants?: Record<string, boolean>;
+    };
+
+    const participants = thread.participants || {};
+    const senderUid = String(msg.senderId);
+
+    const uids = Object.keys(participants).filter(
+      (u) => participants[u] === true,
+    );
+    if (uids.length < 2) return;
+
+    const receiverUid = uids.find((u) => u !== senderUid);
+    if (!receiverUid) return;
+
+    const text = String(msg.text).trim();
+    const createdAt = Number(msg.createdAt) || Date.now();
+
+    const updates: Record<string, any> = {};
+    updates[`/chatThreads/${threadId}/lastMessageText`] = text;
+    updates[`/chatThreads/${threadId}/lastMessageAt`] = createdAt;
+
+    updates[`/userThreads/${senderUid}/${threadId}/lastMessageText`] = text;
+    updates[`/userThreads/${senderUid}/${threadId}/lastMessageAt`] = createdAt;
+    updates[`/userThreads/${senderUid}/${threadId}/unreadCount`] = 0;
+
+    updates[`/userThreads/${receiverUid}/${threadId}/lastMessageText`] = text;
+    updates[`/userThreads/${receiverUid}/${threadId}/lastMessageAt`] =
+      createdAt;
+
+    await db.ref().update(updates);
+
+    const unreadRef = db.ref(
+      `/userThreads/${receiverUid}/${threadId}/unreadCount`,
+    );
+    await unreadRef.transaction((cur) => {
+      const n = typeof cur === "number" ? cur : 0;
+      return n + 1;
+    });
+  },
+);

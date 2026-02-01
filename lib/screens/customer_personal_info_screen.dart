@@ -86,6 +86,35 @@ class _CustomerPersonalInfoScreenState
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadCustomerData();
+  }
+
+  Future<void> _loadCustomerData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final snap = await DB.ref().child('users/customers/${user.uid}').get();
+      if (!snap.exists) return;
+
+      final data = Map<String, dynamic>.from(snap.value as Map);
+
+      final fullName = (data['fullName'] ?? '').toString().trim();
+
+      if (!mounted) return;
+      setState(() {
+        if (_fullNameController.text.trim().isEmpty && fullName.isNotEmpty) {
+          _fullNameController.text = fullName;
+        }
+      });
+    } catch (_) {
+      // keep empty if fetch fails
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
