@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fix_now_app/Services/db.dart';
 
 class WorkerCreateInvoiceScreen extends StatefulWidget {
   final Map<String, dynamic> job;
@@ -309,15 +310,83 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () {
-                        // TODO: Send invoice
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Invoice sent to customer'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                        Navigator.pop(context);
+                      onPressed: () async {
+                        // Save invoice to Firebase
+                        final bookingId = widget.job['id'];
+                        if (bookingId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Error: Booking ID not found'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        try {
+                          // Save invoice data
+                          await DB
+                              .ref()
+                              .child('bookings/$bookingId/invoice')
+                              .set({
+                                'inspectionFee':
+                                    double.tryParse(
+                                      _inspectionController.text,
+                                    ) ??
+                                    0,
+                                'laborHours':
+                                    double.tryParse(
+                                      _laborHoursController.text,
+                                    ) ??
+                                    0,
+                                'laborPrice':
+                                    double.tryParse(
+                                      _laborPriceController.text,
+                                    ) ??
+                                    0,
+                                'materials':
+                                    double.tryParse(
+                                      _materialsController.text,
+                                    ) ??
+                                    0,
+                                'subtotal': subtotal,
+                                'notes': _notesController.text,
+                                'validUntil': DateTime.now()
+                                    .add(const Duration(days: 3))
+                                    .millisecondsSinceEpoch,
+                                'sentAt': DateTime.now().millisecondsSinceEpoch,
+                                'workerName':
+                                    widget.job['workerName'] ?? 'Worker',
+                              });
+
+                          // Update booking status
+                          await DB.ref().child('bookings/$bookingId').update({
+                            'status': 'invoice_sent',
+                            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                          });
+
+                          // TODO: Add notification for customer
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Invoice sent to customer'),
+                                backgroundColor: Colors.green,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                            Navigator.pop(context);
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error sending invoice: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
