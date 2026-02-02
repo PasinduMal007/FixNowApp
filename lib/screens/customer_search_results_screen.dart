@@ -5,60 +5,196 @@ import 'customer_service_category_screen.dart';
 class CustomerSearchResultsScreen extends StatefulWidget {
   final String searchQuery;
 
-  const CustomerSearchResultsScreen({
-    super.key,
-    required this.searchQuery,
-  });
+  const CustomerSearchResultsScreen({super.key, required this.searchQuery});
 
   @override
-  State<CustomerSearchResultsScreen> createState() => _CustomerSearchResultsScreenState();
+  State<CustomerSearchResultsScreen> createState() =>
+      _CustomerSearchResultsScreenState();
 }
 
-class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScreen> {
-  String _selectedFilter = 'All';
+class _CustomerSearchResultsScreenState
+    extends State<CustomerSearchResultsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _filteredResults = [];
 
-  final List<Map<String, dynamic>> _searchResults = [
-    {
-      'type': 'service',
-      'name': 'Electrical Wiring Repair',
-      'category': 'Electrical',
-      'icon': Icons.flash_on,
-      'providersCount': 15,
-    },
+  // Comprehensive worker database
+  final List<Map<String, dynamic>> _allWorkers = [
+    // Nearby Workers
     {
       'type': 'worker',
       'id': 1,
       'name': 'Kasun Perera',
       'workerType': 'Expert Electrician',
-      'rating': 4.9,
-      'reviews': 450,
+      'profession': 'Electrician',
+      'rating': 4.8,
+      'reviews': 420,
       'hourlyRate': 2500,
-      'distance': 2.5,
+      'distance': 1.2,
       'experience': 8,
       'description': 'Specialized in residential and commercial wiring',
       'isAvailable': true,
     },
     {
-      'type': 'service',
-      'name': 'Electrical Panel Upgrade',
-      'category': 'Electrical',
-      'icon': Icons.electric_bolt,
-      'providersCount': 8,
-    },
-    {
       'type': 'worker',
       'id': 2,
       'name': 'Nimal Silva',
-      'workerType': 'Master Electrician',
-      'rating': 4.7,
-      'reviews': 320,
+      'workerType': 'Master Plumber',
+      'profession': 'Plumber',
+      'rating': 4.6,
+      'reviews': 350,
       'hourlyRate': 2200,
-      'distance': 4.2,
-      'experience': 6,
-      'description': 'Expert in electrical installations',
+      'distance': 2.4,
+      'experience': 7,
+      'description': 'Expert in pipe installations and repairs',
+      'isAvailable': true,
+    },
+    {
+      'type': 'worker',
+      'id': 3,
+      'name': 'Amal Fernando',
+      'workerType': 'Professional Carpenter',
+      'profession': 'Carpenter',
+      'rating': 4.9,
+      'reviews': 480,
+      'hourlyRate': 2800,
+      'distance': 1.8,
+      'experience': 10,
+      'description': 'Furniture making and woodwork specialist',
+      'isAvailable': true,
+    },
+    {
+      'type': 'worker',
+      'id': 4,
+      'name': 'Sunil Dias',
+      'workerType': 'Senior Electrician',
+      'profession': 'Electrician',
+      'rating': 4.7,
+      'reviews': 390,
+      'hourlyRate': 2400,
+      'distance': 2.1,
+      'experience': 9,
+      'description': 'Electrical installations and maintenance',
       'isAvailable': false,
     },
+    {
+      'type': 'worker',
+      'id': 5,
+      'name': 'Chamara Wickrama',
+      'workerType': 'Expert Mason',
+      'profession': 'Mason',
+      'rating': 4.5,
+      'reviews': 310,
+      'hourlyRate': 2100,
+      'distance': 3.0,
+      'experience': 6,
+      'description': 'Building and construction masonry',
+      'isAvailable': true,
+    },
+    // Available Workers
+    {
+      'type': 'worker',
+      'id': 6,
+      'name': 'Ravi Kumara',
+      'workerType': 'Professional Electrician',
+      'profession': 'Electrician',
+      'rating': 4.9,
+      'reviews': 510,
+      'hourlyRate': 2600,
+      'distance': 1.5,
+      'experience': 11,
+      'description': 'Advanced electrical systems installation',
+      'isAvailable': true,
+    },
+    {
+      'type': 'worker',
+      'id': 7,
+      'name': 'Saman Jayasinghe',
+      'workerType': 'Expert Plumber',
+      'profession': 'Plumber',
+      'rating': 4.7,
+      'reviews': 400,
+      'hourlyRate': 2300,
+      'distance': 2.0,
+      'experience': 8,
+      'description': 'Plumbing repairs and installations',
+      'isAvailable': true,
+    },
+    {
+      'type': 'worker',
+      'id': 8,
+      'name': 'Tharindu Bandara',
+      'workerType': 'Master Carpenter',
+      'profession': 'Carpenter',
+      'rating': 4.8,
+      'reviews': 440,
+      'hourlyRate': 2700,
+      'distance': 1.9,
+      'experience': 9,
+      'description': 'Custom furniture and woodwork',
+      'isAvailable': true,
+    },
+    {
+      'type': 'worker',
+      'id': 9,
+      'name': 'Indunil Perera',
+      'workerType': 'Professional Painter',
+      'profession': 'Painter',
+      'rating': 4.6,
+      'reviews': 360,
+      'hourlyRate': 2000,
+      'distance': 2.3,
+      'experience': 7,
+      'description': 'Interior and exterior painting',
+      'isAvailable': true,
+    },
+    {
+      'type': 'worker',
+      'id': 10,
+      'name': 'Lakmal Rodrigo',
+      'workerType': 'Expert Mason',
+      'profession': 'Mason',
+      'rating': 4.5,
+      'reviews': 330,
+      'hourlyRate': 2200,
+      'distance': 2.7,
+      'experience': 6,
+      'description': 'Concrete and brickwork specialist',
+      'isAvailable': true,
+    },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.text = widget.searchQuery;
+    _performSearch(widget.searchQuery);
+  }
+
+  void _performSearch(String query) {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _filteredResults = _allWorkers;
+      });
+      return;
+    }
+
+    final lowerQuery = query.toLowerCase();
+    setState(() {
+      _filteredResults = _allWorkers.where((worker) {
+        final name = worker['name'].toString().toLowerCase();
+        final profession = worker['profession'].toString().toLowerCase();
+        final workerType = worker['workerType'].toString().toLowerCase();
+
+        return name.contains(lowerQuery) ||
+            profession.contains(lowerQuery) ||
+            workerType.contains(lowerQuery);
+      }).toList();
+    });
+  }
+
+  List<Map<String, dynamic>> _getDisplayResults() {
+    return _filteredResults;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,31 +227,64 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
                               color: Colors.white.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                            child: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.search, color: Color(0xFF9CA3AF), size: 20),
+                                const Icon(
+                                  Icons.search,
+                                  color: Color(0xFF9CA3AF),
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Text(
-                                    widget.searchQuery,
+                                  child: TextField(
+                                    controller: _searchController,
+                                    onChanged: _performSearch,
+                                    autofocus: true,
                                     style: const TextStyle(
                                       fontSize: 14,
                                       color: Color(0xFF1F2937),
                                     ),
+                                    decoration: const InputDecoration(
+                                      hintText:
+                                          'Search for services or pros...',
+                                      hintStyle: TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF9CA3AF),
+                                      ),
+                                      border: InputBorder.none,
+                                      isDense: true,
+                                    ),
                                   ),
                                 ),
-                                const Icon(Icons.close, color: Color(0xFF9CA3AF), size: 20),
+                                GestureDetector(
+                                  onTap: () {
+                                    _searchController.clear();
+                                    _performSearch('');
+                                  },
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Color(0xFF9CA3AF),
+                                    size: 20,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -124,26 +293,10 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '${_searchResults.length} results found',
+                      '${_getDisplayResults().length} results found',
                       style: const TextStyle(
                         fontSize: 13,
                         color: Colors.white70,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Filter Chips
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildFilterChip('All'),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('Services'),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('Workers'),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('Top Rated'),
-                        ],
                       ),
                     ),
                   ],
@@ -162,9 +315,9 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
                   ),
                   child: ListView.builder(
                     padding: const EdgeInsets.all(20),
-                    itemCount: _searchResults.length,
+                    itemCount: _getDisplayResults().length,
                     itemBuilder: (context, index) {
-                      final result = _searchResults[index];
+                      final result = _getDisplayResults()[index];
                       if (result['type'] == 'service') {
                         return _buildServiceCard(result);
                       } else {
@@ -175,28 +328,6 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label) {
-    final isSelected = _selectedFilter == label;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? const Color(0xFF4A7FFF) : Colors.white,
           ),
         ),
       ),
@@ -232,7 +363,11 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
                 color: const Color(0xFFE8F0FF),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(service['icon'], color: const Color(0xFF4A7FFF), size: 28),
+              child: Icon(
+                service['icon'],
+                color: const Color(0xFF4A7FFF),
+                size: 28,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -281,7 +416,8 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => CustomerWorkerProfileDetailScreen(worker: worker),
+            builder: (context) =>
+                CustomerWorkerProfileDetailScreen(worker: worker),
           ),
         );
       },
@@ -316,7 +452,11 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 28),
+                  child: const Icon(
+                    Icons.person,
+                    color: Color(0xFF4A7FFF),
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -337,7 +477,10 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
                           ),
                           if (worker['isAvailable'])
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFD1FAE5),
                                 borderRadius: BorderRadius.circular(6),
@@ -355,7 +498,7 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        worker['workerType'],
+                        worker['profession'],
                         style: const TextStyle(
                           fontSize: 13,
                           color: Color(0xFF9CA3AF),
@@ -364,22 +507,17 @@ class _CustomerSearchResultsScreenState extends State<CustomerSearchResultsScree
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.star, size: 13, color: Color(0xFFFBBF24)),
+                          const Icon(
+                            Icons.star,
+                            size: 13,
+                            color: Color(0xFFFBBF24),
+                          ),
                           const SizedBox(width: 2),
                           Text(
                             '${worker['rating']} (${worker['reviews']})',
                             style: const TextStyle(
                               fontSize: 12,
                               color: Color(0xFF6B7280),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'LKR ${worker['hourlyRate']}/hr',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF4A7FFF),
                             ),
                           ),
                         ],

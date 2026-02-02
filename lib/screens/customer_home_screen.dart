@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'customer_notifications_screen.dart';
 import 'customer_search_results_screen.dart';
 import 'customer_service_category_screen.dart';
 import 'customer_live_tracking_screen.dart';
 import 'customer_chat_conversation_screen.dart';
 import 'customer_view_quotation_screen.dart';
+import 'customer_worker_profile_detail_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   final String customerName;
@@ -101,6 +103,87 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   Timer? _updateTimer;
   int _arrivingMinutes = 15;
   double _distanceKm = 1.3;
+
+  // Google Maps variables
+  GoogleMapController? _mapController;
+  final Set<Marker> _markers = {};
+  final LatLng _initialPosition = const LatLng(
+    6.9271,
+    79.8612,
+  ); // Colombo, Sri Lanka
+
+  // Nearby workers data
+  final List<Map<String, dynamic>> _nearbyWorkers = [
+    {
+      'name': 'Kasun Perera',
+      'profession': 'Electrician',
+      'lat': 6.9271,
+      'lng': 79.8612,
+      'rating': 4.8,
+    },
+    {
+      'name': 'Nimal Silva',
+      'profession': 'Plumber',
+      'lat': 6.9300,
+      'lng': 79.8650,
+      'rating': 4.6,
+    },
+    {
+      'name': 'Amal Fernando',
+      'profession': 'Carpenter',
+      'lat': 6.9250,
+      'lng': 79.8580,
+      'rating': 4.9,
+    },
+    {
+      'name': 'Sunil Dias',
+      'profession': 'Electrician',
+      'lat': 6.9320,
+      'lng': 79.8620,
+      'rating': 4.7,
+    },
+    {
+      'name': 'Chamara Wickrama',
+      'profession': 'Mason',
+      'lat': 6.9240,
+      'lng': 79.8640,
+      'rating': 4.5,
+    },
+  ];
+
+  // Available workers data
+  final List<Map<String, dynamic>> _availableWorkers = [
+    {
+      'name': 'Ravi Kumara',
+      'profession': 'Electrician',
+      'rating': 4.9,
+      'isAvailable': true,
+    },
+    {
+      'name': 'Saman Jayasinghe',
+      'profession': 'Plumber',
+      'rating': 4.7,
+      'isAvailable': true,
+    },
+    {
+      'name': 'Tharindu Bandara',
+      'profession': 'Carpenter',
+      'rating': 4.8,
+      'isAvailable': true,
+    },
+    {
+      'name': 'Indunil Perera',
+      'profession': 'Painter',
+      'rating': 4.6,
+      'isAvailable': true,
+    },
+    {
+      'name': 'Lakmal Rodrigo',
+      'profession': 'Mason',
+      'rating': 4.5,
+      'isAvailable': true,
+    },
+  ];
 
   @override
   void initState() {
@@ -621,136 +704,385 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                         ),
                         const SizedBox(height: 28),
 
-                        // Top Rated Pros
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 24,
-                                    height: 24,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFFBBF24),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.star,
-                                      color: Colors.white,
-                                      size: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Top Rated Pros',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1F2937),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              TextButton(
-                                onPressed: () {},
-                                child: const Row(
-                                  children: [
-                                    Text(
-                                      'View All',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Color(0xFF4A7FFF),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    SizedBox(width: 4),
-                                    Icon(
-                                      Icons.arrow_forward,
-                                      size: 16,
-                                      color: Color(0xFF4A7FFF),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        // Top Rated Pros List (Placeholder)
-                        SizedBox(
-                          height: 120,
-                          child: ListView.builder(
+                        // Conditional display: Map for Nearby, Pros List for others
+                        if (_selectedFilter == 'Nearby') ...[
+                          // Nearby Workers Map
+                          Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
-                            scrollDirection: Axis.horizontal,
-                            itemCount: 5,
-                            itemBuilder: (context, index) {
-                              return Container(
-                                width: 100,
-                                margin: const EdgeInsets.only(right: 12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: const Color(0xFFE5E7EB),
-                                  ),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
                                   children: [
                                     Container(
-                                      width: 48,
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0xFFE8F0FF),
-                                            Color(0xFFD0E2FF),
-                                          ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(12),
+                                      width: 24,
+                                      height: 24,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF4A7FFF),
+                                        shape: BoxShape.circle,
                                       ),
                                       child: const Icon(
-                                        Icons.person,
-                                        color: Color(0xFF4A7FFF),
+                                        Icons.location_on,
+                                        color: Colors.white,
+                                        size: 14,
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(width: 8),
                                     const Text(
-                                      'Pro Name',
+                                      'Nearby Workers',
                                       style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
                                         color: Color(0xFF1F2937),
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        const Icon(
-                                          Icons.star,
-                                          size: 12,
-                                          color: Color(0xFFFBBF24),
-                                        ),
-                                        const SizedBox(width: 2),
-                                        const Text(
-                                          '4.9',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Color(0xFF9CA3AF),
-                                          ),
-                                        ),
-                                      ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // Map Widget
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 24),
+                            height: 400,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: GoogleMap(
+                                initialCameraPosition: CameraPosition(
+                                  target: _initialPosition,
+                                  zoom: 13.5,
+                                ),
+                                markers: _markers,
+                                onMapCreated: (GoogleMapController controller) {
+                                  _mapController = controller;
+                                  _createMarkers();
+                                  setState(() {});
+                                },
+                                myLocationButtonEnabled: true,
+                                myLocationEnabled: true,
+                                zoomControlsEnabled: true,
+                                mapToolbarEnabled: false,
+                              ),
+                            ),
+                          ),
+                        ] else if (_selectedFilter == 'Available Now') ...[
+                          // Available Workers
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF10B981),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check_circle,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Available Workers',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1F2937),
+                                      ),
                                     ),
                                   ],
                                 ),
-                              );
-                            },
+                              ],
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                          // Available Workers Grid
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 12,
+                                    childAspectRatio: 0.85,
+                                  ),
+                              itemCount: _availableWorkers.length,
+                              itemBuilder: (context, index) {
+                                final worker = _availableWorkers[index];
+                                return GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            CustomerWorkerProfileDetailScreen(
+                                              worker: worker,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: const Color(0xFFE5E7EB),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.05),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        // Worker Avatar
+                                        Container(
+                                          width: 60,
+                                          height: 60,
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFFE8F0FF),
+                                                Color(0xFFD0E2FF),
+                                              ],
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.person,
+                                            color: Color(0xFF4A7FFF),
+                                            size: 32,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        // Green Available Badge
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF10B981),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.circle,
+                                                size: 8,
+                                                color: Colors.white,
+                                              ),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                'Available',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        // Worker Name
+                                        Text(
+                                          worker['name'],
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1F2937),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        // Profession
+                                        Text(
+                                          worker['profession'],
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF6B7280),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        // Rating
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(
+                                              Icons.star,
+                                              size: 14,
+                                              color: Color(0xFFFBBF24),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              worker['rating'].toString(),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF1F2937),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ] else ...[
+                          // Top Rated Pros (Original)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFFBBF24),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.star,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Top Rated Pros',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1F2937),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // Top Rated Pros List
+                          SizedBox(
+                            height: 120,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              scrollDirection: Axis.horizontal,
+                              itemCount: 5,
+                              itemBuilder: (context, index) {
+                                return Container(
+                                  width: 100,
+                                  margin: const EdgeInsets.only(right: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFE5E7EB),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 48,
+                                        height: 48,
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFFE8F0FF),
+                                              Color(0xFFD0E2FF),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.person,
+                                          color: Color(0xFF4A7FFF),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        'Pro Name',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF1F2937),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.star,
+                                            size: 12,
+                                            color: Color(0xFFFBBF24),
+                                          ),
+                                          const SizedBox(width: 2),
+                                          const Text(
+                                            '4.9',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Color(0xFF9CA3AF),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+
                         const SizedBox(height: 100),
                       ],
                     ),
@@ -764,11 +1096,32 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
+  // Create markers for nearby workers
+  void _createMarkers() {
+    _markers.clear();
+    for (var worker in _nearbyWorkers) {
+      _markers.add(
+        Marker(
+          markerId: MarkerId(worker['name']),
+          position: LatLng(worker['lat'], worker['lng']),
+          infoWindow: InfoWindow(
+            title: worker['name'],
+            snippet: '${worker['profession']} ⭐ ${worker['rating']}',
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        ),
+      );
+    }
+  }
+
   Widget _buildFilterChip(String label, IconData icon, bool isSelected) {
     return GestureDetector(
       onTap: () {
         setState(() {
           _selectedFilter = label;
+          if (label == 'Nearby') {
+            _createMarkers();
+          }
         });
       },
       child: Container(
