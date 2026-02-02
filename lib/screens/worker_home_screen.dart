@@ -24,6 +24,8 @@ class WorkerHomeScreen extends StatefulWidget {
 class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   bool _isAvailable = true;
 
+  static const Set<String> _newRequestStatuses = {'pending', 'quote_requested'};
+
   String get _workerId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   Stream<DatabaseEvent> get _workerBookingIdsStream {
@@ -36,16 +38,31 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   }
 
   Future<Map<String, dynamic>?> _fetchBooking(String bookingId) async {
-    final snap = await DB.ref().child('bookings/$bookingId').get();
-    if (!snap.exists || snap.value == null) return null;
+    try {
+      final snap = await DB.ref().child('bookings/$bookingId').get();
+      if (!snap.exists || snap.value == null) return null;
 
-    final data = Map<String, dynamic>.from(snap.value as Map);
-    data['bookingId'] = data['bookingId'] ?? bookingId;
+      final raw = snap.value;
 
-    // Extra safety: only accept bookings assigned to this worker
-    if ((data['workerId'] ?? '').toString() != _workerId) return null;
+      // If booking node is not an object, ignore it safely
+      if (raw is! Map) return null;
 
-    return data;
+      // Convert keys to String safely (prevents weird key-type crashes)
+      final map = Map<String, dynamic>.fromEntries(
+        (raw as Map).entries.map((e) => MapEntry(e.key.toString(), e.value)),
+      );
+
+      map['bookingKey'] = bookingId;
+      map['bookingId'] = (map['bookingId'] ?? bookingId).toString();
+
+      // Only accept bookings assigned to this worker
+      if ((map['workerId'] ?? '').toString() != _workerId) return null;
+
+      return map;
+    } catch (_) {
+      // ✅ Never let one bad record break the whole list
+      return null;
+    }
   }
 
   Future<List<Map<String, dynamic>>> _fetchBookingsForIds(
@@ -54,7 +71,10 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
     final futures = ids.map(_fetchBooking).toList();
     final results = await Future.wait(futures);
 
-    final list = results.whereType<Map<String, dynamic>>().toList();
+    final list = results
+        .whereType<Map<String, dynamic>>()
+        .where((b) => (b['status'] ?? '').toString() != 'declined_by_worker')
+        .toList();
 
     // show newest first
     list.sort((a, b) {
@@ -66,11 +86,34 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
     return list;
   }
 
-  Future<void> _handleDeclineJob(String bookingId) async {
-    await DB.ref().child('bookings/$bookingId').update({
-      'status': 'declined_by_worker',
-      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-    });
+  Future<void> _handleDeclineJob(dynamic bookingId) async {
+    final uid = _workerId;
+    final id = (bookingId ?? '').toString().trim();
+
+    if (uid.isEmpty) return;
+
+    if (id.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Decline failed: missing booking key'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    final updates = <String, dynamic>{
+      'bookings/$id/status': 'quote_declined',
+      'bookings/$id/updatedAt': now,
+
+      // remove from worker index so it disappears
+      'userBookings/workers/$uid/$id': null,
+    };
+
+    await DB.ref().update(updates);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -90,6 +133,41 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   };
 
   Widget _buildBookingRequestCard(Map<String, dynamic> job) {
+    final status = (job['status'] ?? '').toString();
+    final isPending = status == 'pending';
+
+    Color badgeBg;
+    Color badgeText;
+    String badgeLabel;
+
+    switch (status) {
+      case 'pending':
+        badgeBg = const Color(0xFFFEF3C7);
+        badgeText = const Color(0xFFD97706);
+        badgeLabel = 'PENDING';
+        break;
+      case 'confirmed':
+        badgeBg = const Color(0xFFD1FAE5);
+        badgeText = const Color(0xFF059669);
+        badgeLabel = 'CONFIRMED';
+        break;
+      case 'invoice_sent':
+        badgeBg = const Color(0xFFE0E7FF);
+        badgeText = const Color(0xFF4338CA);
+        badgeLabel = 'INVOICE SENT';
+        break;
+      case 'quote_declined':
+      case 'declined_by_worker':
+        badgeBg = const Color(0xFFFEE2E2);
+        badgeText = const Color(0xFFDC2626);
+        badgeLabel = 'DECLINED';
+        break;
+      default:
+        badgeBg = const Color(0xFFE5E7EB);
+        badgeText = const Color(0xFF374151);
+        badgeLabel = status.isEmpty ? 'UNKNOWN' : status.toUpperCase();
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -136,15 +214,15 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD1FAE5),
+                  color: badgeBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Text(
-                  'confirmed',
+                child: Text(
+                  badgeLabel,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF059669),
+                    color: badgeText,
                   ),
                 ),
               ),
@@ -199,35 +277,39 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
           // Action buttons
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _handleDeclineJob(job['id']),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: const Color(0xFFF3F4F6),
-                    side: BorderSide.none,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              if (isPending) ...[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _handleDeclineJob(job['id']),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      backgroundColor: const Color(0xFFF3F4F6),
+                      side: BorderSide.none,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    'Decline',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF6B7280),
-                      fontWeight: FontWeight.w500,
+                    child: const Text(
+                      'Decline',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
+                const SizedBox(width: 12),
+              ],
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => WorkerJobDetailsScreen(job: job),
+                        builder: (_) => WorkerJobDetailsScreen(
+                          bookingKey: job['id'].toString(),
+                        ),
                       ),
                     );
                   },
@@ -814,25 +896,88 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                               stream: _workerBookingIdsStream,
                               builder: (context, snap) {
                                 final v = snap.data?.snapshot.value;
-                                final count = (v is Map) ? v.length : 0;
 
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFEE2E2),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    '$count pending',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFFEF4444),
-                                      fontWeight: FontWeight.w500,
+                                if (_workerId.isEmpty) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
                                     ),
-                                  ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFEE2E2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text(
+                                      '0 pending',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFFEF4444),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                if (v == null || v is! Map) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFEE2E2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text(
+                                      '0 pending',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFFEF4444),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                final rawMap = v as Map;
+
+                                final bookingIds = rawMap.entries
+                                    .where((e) => e.value == true)
+                                    .map((e) => e.key.toString())
+                                    .toList();
+
+                                return FutureBuilder<
+                                  List<Map<String, dynamic>>
+                                >(
+                                  future: _fetchBookingsForIds(bookingIds),
+                                  builder: (context, bookingsSnap) {
+                                    final bookings =
+                                        bookingsSnap.data ?? const [];
+
+                                    final pendingCount = bookings.where((b) {
+                                      final s = (b['status'] ?? '').toString();
+                                      return _newRequestStatuses.contains(s);
+                                    }).length;
+
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEE2E2),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '$pendingCount pending',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFFEF4444),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 );
                               },
                             ),
@@ -869,9 +1014,13 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                               return const Text('No job requests yet.');
                             }
 
-                            // bookingIds are the keys under userBookings/workers/{uid}
-                            final bookingIds = raw.keys
-                                .map((k) => k.toString())
+                            final rawMap = raw as Map;
+
+                            final bookingIds = rawMap.entries
+                                .where(
+                                  (e) => e.value == true,
+                                ) // ✅ only real index items
+                                .map((e) => e.key.toString())
                                 .toList();
 
                             return FutureBuilder<List<Map<String, dynamic>>>(
@@ -890,34 +1039,93 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                   );
                                 }
 
-                                final bookings = bookingsSnap.data ?? [];
+                                final bookings = (bookingsSnap.data ?? [])
+                                    .where((b) {
+                                      final s = (b['status'] ?? '').toString();
+                                      return _newRequestStatuses.contains(
+                                        s,
+                                      ); // only pending / quote_requested
+                                    })
+                                    .toList();
+
                                 if (bookings.isEmpty) {
                                   return const Text('No job requests yet.');
                                 }
 
                                 // Convert booking -> card model your UI expects
                                 final jobRequests = bookings.map((b) {
+                                  final bookingId =
+                                      (b['bookingId'] ?? b['bookingKey'] ?? '')
+                                          .toString();
+
+                                  // Support both shapes: quotationRequest (new) and quoteRequest (old)
+                                  final qr = (b['quotationRequest'] is Map)
+                                      ? Map<String, dynamic>.from(
+                                          b['quotationRequest'] as Map,
+                                        )
+                                      : <String, dynamic>{};
+
+                                  final oldQr = (b['quoteRequest'] is Map)
+                                      ? Map<String, dynamic>.from(
+                                          b['quoteRequest'] as Map,
+                                        )
+                                      : <String, dynamic>{};
+
+                                  final requestNote = (qr['requestNote'] ?? '')
+                                      .toString()
+                                      .trim();
+                                  final oldTitle = (oldQr['title'] ?? '')
+                                      .toString()
+                                      .trim();
+                                  final oldDesc = (oldQr['description'] ?? '')
+                                      .toString()
+                                      .trim();
+
+                                  final serviceName =
+                                      (b['serviceName'] ??
+                                              b['serviceType'] ??
+                                              'Service')
+                                          .toString()
+                                          .trim();
+
+                                  final locationText =
+                                      (b['locationText'] ?? b['location'] ?? '')
+                                          .toString()
+                                          .trim();
+
+                                  final problemDescription =
+                                      (b['problemDescription'] ?? '')
+                                          .toString()
+                                          .trim();
+
+                                  final issueText =
+                                      [
+                                        if (oldTitle.isNotEmpty) oldTitle,
+                                        if (requestNote.isNotEmpty) requestNote,
+                                        if (problemDescription.isNotEmpty)
+                                          problemDescription,
+                                        if (oldDesc.isNotEmpty) oldDesc,
+                                      ].firstWhere(
+                                        (s) => s.isNotEmpty,
+                                        orElse: () => 'Service request',
+                                      );
+
+                                  final bookingKey = (b['bookingKey'] ?? '')
+                                      .toString();
+
                                   return <String, dynamic>{
-                                    'id': b['bookingId'] ?? '',
-                                    'customerId': b['customerId'] ?? '',
+                                    'id': bookingKey,
+                                    'customerId': (b['customerId'] ?? '')
+                                        .toString(),
                                     'customerName':
-                                        b['customerName'] ?? 'Customer',
-                                    'workerId': b['workerId'] ?? '',
-                                    'service': (b['serviceName'] ?? '')
-                                        .toString(),
-                                    'issue':
-                                        (b['serviceName'] ?? 'Service request')
+                                        (b['customerName'] ?? 'Customer')
                                             .toString(),
-                                    'location': (b['locationText'] ?? '')
+                                    'workerId': (b['workerId'] ?? '')
                                         .toString(),
-                                    'scheduledDate': (b['scheduledAt'] ?? '')
-                                        .toString(),
-                                    'scheduledTime': '',
-                                    'budget':
-                                        'Rs${(b['serviceCharge'] ?? b['amount'] ?? b['price'] ?? '')}',
-                                    'urgency': 'normal',
-                                    'status': (b['status'] ?? 'requested')
-                                        .toString(),
+                                    'service': serviceName,
+                                    'issue': issueText,
+                                    'location': locationText,
+                                    'status': (b['status'] ?? '').toString(),
                                   };
                                 }).toList();
 
@@ -947,38 +1155,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildQuickActionCard(
-                                Icons.trending_up,
-                                'My Earnings',
-                                const Color(0xFFE8F0FF),
-                                const Color(0xFF4A7FFF),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildQuickActionCard(
-                                Icons.emoji_events_outlined,
-                                'My Reviews',
-                                const Color(0xFFFEF3C7),
-                                const Color(0xFFFFB800),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        // Quick Actions
-                        const Text(
-                          'Quick Actions',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1F2937),
-                          ),
                         ),
                         const SizedBox(height: 12),
                         Row(

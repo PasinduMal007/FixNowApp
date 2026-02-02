@@ -70,11 +70,6 @@ class MyApp extends StatelessWidget {
         '/customer-photo': (context) => const CustomerPhotoScreen(),
         '/customer-location-setup': (context) =>
             const CustomerLocationSetupScreen(),
-        '/customer-view-quotation': (context) {
-          final bookingId =
-              ModalRoute.of(context)!.settings.arguments as String;
-          return CustomerViewQuotationScreen(bookingId: bookingId);
-        },
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/login') {

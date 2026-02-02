@@ -5,7 +5,7 @@ import express, {
   type Response,
 } from "express";
 import cors from "cors";
-import {onRequest} from "firebase-functions/v2/https";
+import {onRequest, onCall, HttpsError} from "firebase-functions/v2/https";
 import {onValueCreated} from "firebase-functions/v2/database";
 
 admin.initializeApp();
@@ -411,6 +411,203 @@ app.post(
     const updatedSnap = await ref.get();
 
     res.json({ok: true, profile: updatedSnap.val()});
+  },
+);
+
+type CreateBookingRequestInput = {
+  workerId: string;
+  serviceName: string;
+  locationText: string;
+  problemDescription: string;
+  requestNote?: string;
+};
+
+function asCleanString(v: unknown, maxLen: number): string {
+  if (typeof v !== "string") return "";
+  const s = v.trim();
+  if (!s) return "";
+  return s.length > maxLen ? s.slice(0, maxLen) : s;
+}
+
+export const createBookingRequest = onCall(
+  {region: "asia-southeast1"}, // keep region consistent with your other exports
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Sign in required.");
+    }
+
+    const uid = request.auth.uid;
+    const data = request.data as CreateBookingRequestInput;
+
+    const workerId = asCleanString(data.workerId, 128);
+    const serviceName = asCleanString(data.serviceName, 120);
+    const locationText = asCleanString(data.locationText, 200);
+    const problemDescription = asCleanString(data.problemDescription, 5000);
+    const requestNote = asCleanString(data.requestNote ?? "", 5000);
+
+    if (!workerId) {
+      throw new HttpsError("invalid-argument", "workerId is required.");
+    }
+    if (!serviceName) {
+      throw new HttpsError("invalid-argument", "serviceName is required.");
+    }
+    if (!locationText) {
+      throw new HttpsError("invalid-argument", "locationText is required.");
+    }
+    if (!problemDescription) {
+      throw new HttpsError(
+        "invalid-argument",
+        "problemDescription is required.",
+      );
+    }
+
+    const db = admin.database();
+
+    const customerSnap = await db.ref(`users/customers/${uid}`).get();
+    const customer = customerSnap.val() ?? {};
+    const customerName = String(customer.fullName ?? "Customer");
+
+    // Optional safety: verify worker exists (prevents bad IDs)
+    const workerSnap = await db.ref(`users/workers/${workerId}`).get();
+    if (!workerSnap.exists()) {
+      throw new HttpsError("not-found", "Worker not found.");
+    }
+
+    const bookingRef = db.ref("bookings").push();
+    const bookingId = bookingRef.key;
+    if (!bookingId) {
+      throw new HttpsError("internal", "Failed to generate bookingId.");
+    }
+
+    // Use numeric timestamps to satisfy your rules (isNumber())
+    const now = Date.now();
+
+    const booking = {
+      bookingId,
+      customerId: uid,
+      customerName,
+      workerId,
+      serviceName,
+      locationText,
+      problemDescription,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+      quotationRequest: {
+        requestedAt: now,
+        ...(requestNote ? {requestNote} : {}),
+      },
+    };
+
+    // Create notification id and write in same update
+    const notificationRef = db.ref(`notifications/${workerId}`).push();
+    const notificationId = notificationRef.key;
+
+    const updates: Record<string, unknown> = {
+      [`bookings/${bookingId}`]: booking,
+
+      // You can keep these even if your onBookingCreateIndexUsers also does it.
+      // It won't hurt, and it makes indexing immediate.
+      [`userBookings/customers/${uid}/${bookingId}`]: true,
+      [`userBookings/workers/${workerId}/${bookingId}`]: true,
+    };
+
+    if (notificationId) {
+      updates[`notifications/${workerId}/${notificationId}`] = {
+        id: notificationId, // matches your RTDB rule field name
+        timestamp: now, // number
+        isRead: false, // boolean
+        type: "booking_request", // string
+        title: "New booking request", // string
+        message: `You have a new request for ${serviceName}.`,
+        bookingId, // string
+      };
+    }
+
+    await db.ref().update(updates);
+
+    return {bookingId};
+  },
+);
+
+export const attachBookingPhotos = onCall(
+  {region: "asia-southeast1"},
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Sign in required.");
+    }
+
+    const uid = request.auth.uid;
+
+    const bookingId = String(request.data?.bookingId ?? "").trim();
+    const urlsRaw = request.data?.photoUrls;
+
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "bookingId is required.");
+    }
+
+    if (!Array.isArray(urlsRaw)) {
+      throw new HttpsError("invalid-argument", "photoUrls must be an array.");
+    }
+
+    const cleaned = urlsRaw
+      .map((u) => (typeof u === "string" ? u.trim() : ""))
+      .filter((u) => u.length > 0);
+
+    if (cleaned.length === 0) {
+      throw new HttpsError("invalid-argument", "photoUrls is empty.");
+    }
+
+    if (cleaned.length > 3) {
+      throw new HttpsError("invalid-argument", "Maximum 3 photos allowed.");
+    }
+
+    for (const u of cleaned) {
+      if (u.length > 1200) {
+        throw new HttpsError("invalid-argument", "A photo URL is too long.");
+      }
+      if (!/^https?:\/\//i.test(u)) {
+        throw new HttpsError("invalid-argument", "Invalid photo URL.");
+      }
+    }
+
+    const db = admin.database();
+    const bookingRef = db.ref(`bookings/${bookingId}`);
+    const snap = await bookingRef.get();
+
+    if (!snap.exists()) {
+      throw new HttpsError("not-found", "Booking not found.");
+    }
+
+    const booking = (snap.val() ?? {}) as Record<string, any>;
+
+    if (String(booking.customerId ?? "") !== uid) {
+      throw new HttpsError("permission-denied", "Not your booking.");
+    }
+
+    // If you want to allow uploads only while pending
+    if (String(booking.status ?? "") !== "pending") {
+      throw new HttpsError("failed-precondition", "Booking is not pending.");
+    }
+
+    const now = Date.now();
+
+    // ✅ Indexed map format that matches your RTDB rules: "0","1","2"
+    const photosMap: Record<string, string> = {};
+    cleaned.forEach((url, idx) => {
+      photosMap[String(idx)] = url;
+    });
+
+    const photosUpdate: Record<string, any> = {
+      "photos/0": cleaned[0] ?? null,
+      "photos/1": cleaned[1] ?? null,
+      "photos/2": cleaned[2] ?? null,
+      "updatedAt": now,
+    };
+
+    await bookingRef.update(photosUpdate);
+
+    return {ok: true, count: cleaned.length};
   },
 );
 

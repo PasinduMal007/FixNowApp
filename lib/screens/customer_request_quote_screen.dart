@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class CustomerRequestQuoteScreen extends StatefulWidget {
   final Map<String, dynamic> worker;
@@ -29,6 +32,7 @@ class _CustomerRequestQuoteScreenState
   final int _maxDescriptionLength = 250;
   final List<File> _selectedImages = [];
   final ImagePicker _picker = ImagePicker();
+  bool _sending = false;
 
   @override
   void initState() {
@@ -213,6 +217,149 @@ class _CustomerRequestQuoteScreenState
         ),
       ),
     );
+  }
+
+  Future<void> _sendRequest() async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      if (_needController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please describe what you need'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+        return;
+      }
+
+      if (_descriptionController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please describe the issue'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+        return;
+      }
+
+      if (_locationController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please provide a location'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+        return;
+      }
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please sign in again.'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+        return;
+      }
+
+      final workerId = (widget.worker['uid'] ?? widget.worker['id'] ?? '')
+          .toString()
+          .trim();
+
+      if (workerId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Worker ID is missing.'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+        return;
+      }
+
+      try {
+        final functions = FirebaseFunctions.instanceFor(
+          region: 'asia-southeast1',
+        );
+        final createCallable = functions.httpsCallable('createBookingRequest');
+
+        final createRes = await createCallable.call({
+          'workerId': workerId,
+          'serviceName': widget.categoryName,
+          'locationText': _locationController.text.trim(),
+          'problemDescription': _descriptionController.text.trim(),
+          'requestNote': _needController.text.trim(),
+        });
+
+        final bookingId = (createRes.data['bookingId'] ?? '').toString().trim();
+
+        if (bookingId.isEmpty) {
+          throw Exception('Booking ID missing from server response.');
+        }
+
+        // Upload photos (if any)
+        final List<String> photoUrls = [];
+        if (_selectedImages.isNotEmpty) {
+          final storage = FirebaseStorage.instance;
+
+          for (int i = 0; i < _selectedImages.length; i++) {
+            final file = _selectedImages[i];
+
+            final fileName = 'photo_${i + 1}.jpg';
+            final ref = storage.ref(
+              'bookingPhotos/${user.uid}/$bookingId/$fileName',
+            );
+
+            final metadata = SettableMetadata(
+              contentType: 'image/jpeg',
+              customMetadata: {'bookingId': bookingId, 'uploaderUid': user.uid},
+            );
+
+            final task = await ref.putFile(file, metadata);
+            final url = await task.ref.getDownloadURL();
+            photoUrls.add(url);
+          }
+        }
+
+        // Save URLs into RTDB via callable
+        if (photoUrls.isNotEmpty) {
+          final attachCallable = functions.httpsCallable('attachBookingPhotos');
+
+          await attachCallable.call({
+            'bookingId': bookingId,
+            'photoUrls': photoUrls,
+          });
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Request sent! ${_selectedImages.length} photo(s) attached',
+            ),
+            backgroundColor: const Color(0xFF10B981),
+          ),
+        );
+
+        Navigator.pop(context, bookingId);
+      } on FirebaseFunctionsException catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message ?? 'Failed to send request.'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      } catch (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to send request.'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
@@ -723,50 +870,6 @@ class _CustomerRequestQuoteScreenState
         ),
       ),
     );
-  }
-
-  void _sendRequest() {
-    if (_needController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please describe what you need'),
-          backgroundColor: Color(0xFFEF4444),
-        ),
-      );
-      return;
-    }
-
-    if (_descriptionController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please describe the issue'),
-          backgroundColor: Color(0xFFEF4444),
-        ),
-      );
-      return;
-    }
-
-    if (_locationController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please provide a location'),
-          backgroundColor: Color(0xFFEF4444),
-        ),
-      );
-      return;
-    }
-
-    // TODO: Submit the request to backend with images
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Request sent! ${_selectedImages.length} photo(s) attached',
-        ),
-        backgroundColor: const Color(0xFF10B981),
-      ),
-    );
-
-    Navigator.pop(context);
   }
 
   @override
