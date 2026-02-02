@@ -16,12 +16,6 @@ class _CustomerWorkerProfileDetailScreenState
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final List<Map<String, dynamic>> _services = [
-    {'name': 'Basic Wiring', 'price': 2000, 'duration': '1 hour'},
-    {'name': 'Circuit Installation', 'price': 3500, 'duration': '2 hours'},
-    {'name': 'Panel Upgrade', 'price': 5000, 'duration': '3 hours'},
-  ];
-
   final List<Map<String, dynamic>> _reviews = [
     {
       'customerName': 'Sarah Johnson',
@@ -37,17 +31,10 @@ class _CustomerWorkerProfileDetailScreenState
     },
   ];
 
-  final List<String> _portfolioImages = [
-    'assets/portfolio1.jpg',
-    'assets/portfolio2.jpg',
-    'assets/portfolio3.jpg',
-    'assets/portfolio4.jpg',
-  ];
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -192,7 +179,6 @@ class _CustomerWorkerProfileDetailScreenState
                     ),
                     tabs: const [
                       Tab(text: 'About'),
-                      Tab(text: 'Services'),
                       Tab(text: 'Reviews'),
                     ],
                   ),
@@ -203,11 +189,7 @@ class _CustomerWorkerProfileDetailScreenState
               SliverFillRemaining(
                 child: TabBarView(
                   controller: _tabController,
-                  children: [
-                    _buildAboutTab(),
-                    _buildServicesTab(),
-                    _buildReviewsTab(),
-                  ],
+                  children: [_buildAboutTab(), _buildReviewsTab()],
                 ),
               ),
             ],
@@ -277,14 +259,6 @@ class _CustomerWorkerProfileDetailScreenState
                   Icons.check_circle_outline,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Rate',
-                  'LKR ${widget.worker['hourlyRate']}/hr',
-                  Icons.account_balance_wallet,
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -315,143 +289,9 @@ class _CustomerWorkerProfileDetailScreenState
               ),
             ),
           ),
-          const SizedBox(height: 24),
-
-          // Skills
-          const Text(
-            'Skills & Expertise',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildSkillChip('Electrical Wiring'),
-              _buildSkillChip('Circuit Installation'),
-              _buildSkillChip('Panel Upgrades'),
-              _buildSkillChip('Troubleshooting'),
-              _buildSkillChip('Emergency Service'),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Portfolio
-          const Text(
-            'Portfolio',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937),
-            ),
-          ),
-          const SizedBox(height: 12),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1,
-            ),
-            itemCount: 4,
-            itemBuilder: (context, index) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F0FF),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Center(
-                  child: Icon(Icons.image, size: 48, color: Color(0xFF4A7FFF)),
-                ),
-              );
-            },
-          ),
           const SizedBox(height: 100),
         ],
       ),
-    );
-  }
-
-  Widget _buildServicesTab() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: _services.length,
-      itemBuilder: (context, index) {
-        final service = _services[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F0FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.build,
-                  color: Color(0xFF4A7FFF),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      service['name'],
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.schedule,
-                          size: 14,
-                          color: Color(0xFF9CA3AF),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          service['duration'],
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF9CA3AF),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                'LKR ${service['price']}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF4A7FFF),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -571,24 +411,6 @@ class _CustomerWorkerProfileDetailScreenState
             style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSkillChip(String skill) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8F0FF),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        skill,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: Color(0xFF4A7FFF),
-        ),
       ),
     );
   }
