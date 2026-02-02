@@ -7,7 +7,8 @@ class WorkerBookingsScreen extends StatefulWidget {
   State<WorkerBookingsScreen> createState() => _WorkerBookingsScreenState();
 }
 
-class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with SingleTickerProviderStateMixin {
+class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _selectedTabIndex = 0;
 
@@ -139,7 +140,11 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.search, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.search,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Container(
@@ -149,7 +154,11 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.filter_list, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.filter_list,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
@@ -157,7 +166,7 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
 
               // Tabs
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Container(
                   height: 44,
                   decoration: BoxDecoration(
@@ -174,7 +183,10 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                     dividerColor: Colors.transparent,
                     labelColor: const Color(0xFF4A7FFF),
                     unselectedLabelColor: Colors.white,
-                    labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    labelStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                     tabs: [
                       Tab(
                         child: Row(
@@ -182,9 +194,12 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                           children: [
                             const Text('Upcoming'),
                             if (_upcomingBookings.isNotEmpty) ...[
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: _selectedTabIndex == 0
                                       ? const Color(0xFF4A7FFF)
@@ -195,7 +210,9 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                                   '${_upcomingBookings.length}',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: _selectedTabIndex == 0 ? Colors.white : Colors.white,
+                                    color: _selectedTabIndex == 0
+                                        ? Colors.white
+                                        : Colors.white,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -210,9 +227,12 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                           children: [
                             const Text('In Progress'),
                             if (_inProgressBookings.isNotEmpty) ...[
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: _selectedTabIndex == 1
                                       ? const Color(0xFF4A7FFF)
@@ -223,7 +243,9 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                                   '${_inProgressBookings.length}',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: _selectedTabIndex == 1 ? Colors.white : Colors.white,
+                                    color: _selectedTabIndex == 1
+                                        ? Colors.white
+                                        : Colors.white,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -279,8 +301,8 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
               type == 'upcoming'
                   ? Icons.event_available
                   : type == 'inProgress'
-                      ? Icons.pending_actions
-                      : Icons.history,
+                  ? Icons.pending_actions
+                  : Icons.history,
               size: 64,
               color: const Color(0xFFD1D5DB),
             ),
@@ -289,12 +311,9 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
               type == 'upcoming'
                   ? 'No upcoming bookings'
                   : type == 'inProgress'
-                      ? 'No jobs in progress'
-                      : 'No past bookings',
-              style: const TextStyle(
-                fontSize: 16,
-                color: Color(0xFF9CA3AF),
-              ),
+                  ? 'No jobs in progress'
+                  : 'No past bookings',
+              style: const TextStyle(fontSize: 16, color: Color(0xFF9CA3AF)),
             ),
           ],
         ),
@@ -322,7 +341,9 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isInProgress ? const Color(0xFFFBBF24) : const Color(0xFFE5E7EB),
+          color: isInProgress
+              ? const Color(0xFFFBBF24)
+              : const Color(0xFFE5E7EB),
           width: isInProgress ? 2 : 1,
         ),
       ),
@@ -341,7 +362,11 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                   ),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 24),
+                child: const Icon(
+                  Icons.person,
+                  color: Color(0xFF4A7FFF),
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -369,7 +394,10 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
               ),
               if (isInProgress)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFBBF24),
                     borderRadius: BorderRadius.circular(8),
@@ -385,7 +413,10 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                 ),
               if (isPast)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF10B981),
                     borderRadius: BorderRadius.circular(8),
@@ -406,17 +437,18 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
           // Description
           Text(
             booking['description'],
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 12),
 
           // Date and Time
           Row(
             children: [
-              const Icon(Icons.calendar_today, size: 14, color: Color(0xFF9CA3AF)),
+              const Icon(
+                Icons.calendar_today,
+                size: 14,
+                color: Color(0xFF9CA3AF),
+              ),
               const SizedBox(width: 6),
               Text(
                 'Date',
@@ -458,7 +490,11 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
           // Location
           Row(
             children: [
-              const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFFFF6B6B)),
+              const Icon(
+                Icons.location_on_outlined,
+                size: 14,
+                color: Color(0xFFFF6B6B),
+              ),
               const SizedBox(width: 6),
               Text(
                 'Location',
@@ -479,10 +515,7 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
             const SizedBox(height: 2),
             Text(
               booking['address'],
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF9CA3AF),
-              ),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
             ),
           ],
           const SizedBox(height: 12),
@@ -490,7 +523,11 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
           // Payment
           Row(
             children: [
-              const Icon(Icons.attach_money, size: 14, color: Color(0xFF10B981)),
+              const Icon(
+                Icons.attach_money,
+                size: 14,
+                color: Color(0xFF10B981),
+              ),
               const SizedBox(width: 6),
               const Text(
                 'Payment',
@@ -585,7 +622,11 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                       ),
                     ),
                     SizedBox(width: 4),
-                    Icon(Icons.chevron_right, size: 18, color: Color(0xFF4A7FFF)),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: Color(0xFF4A7FFF),
+                    ),
                   ],
                 ),
               ),
@@ -593,22 +634,6 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
           else
             Row(
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.phone, size: 18),
-                    label: const Text('Call'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      foregroundColor: const Color(0xFF4A7FFF),
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {},
@@ -624,48 +649,36 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen> with Single
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: isInProgress
-                      ? ElevatedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Job marked as complete!'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            backgroundColor: const Color(0xFF10B981),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                if (isInProgress) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Job marked as complete!'),
+                            backgroundColor: Colors.green,
                           ),
-                          child: const Text(
-                            'Complete',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: () {},
-                          icon: const Icon(Icons.navigation, size: 18),
-                          label: const Text('Navigate'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            foregroundColor: const Color(0xFF4A7FFF),
-                            side: const BorderSide(color: Color(0xFFE5E7EB)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: const Color(0xFF10B981),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                ),
+                      ),
+                      child: const Text(
+                        'Complete',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
         ],
