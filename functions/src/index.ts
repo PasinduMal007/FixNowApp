@@ -75,6 +75,56 @@ async function getRoleAndProfile(uid: string): Promise<{
   return {role: null, profile: null};
 }
 
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+async function createNotification(params: {
+  toUid: string;
+  type: string;
+  title: string;
+  message: string;
+  bookingId: string;
+}) {
+  const db = admin.database();
+  const nRef = db.ref(`notifications/${params.toUid}`).push();
+  const id = nRef.key;
+  if (!id) throw new Error("Failed to create notification id");
+
+  await nRef.set({
+    notificationId: id,
+    type: params.type,
+    title: params.title,
+    message: params.message,
+    bookingId: params.bookingId,
+    isRead: false,
+    timestamp: admin.database.ServerValue.TIMESTAMP,
+    createdAtIso: nowIso(),
+  });
+
+  return id;
+}
+
+async function requireBooking(bookingId: string) {
+  const db = admin.database();
+  const snap = await db.ref(`bookings/${bookingId}`).get();
+  if (!snap.exists()) throw new Error("Booking not found");
+  const booking = (snap.val() ?? {}) as Record<string, any>;
+  return {db, booking};
+}
+
+function requireString(v: any, field: string): string {
+  const s = (v ?? "").toString().trim();
+  if (!s) throw new Error(`${field} is required`);
+  return s;
+}
+
+function requireNumber(v: any, field: string): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw new Error(`${field} must be a number`);
+  return n;
+}
+
 app.post(
   "/auth/login-info",
   verifyFirebaseToken,
@@ -366,6 +416,52 @@ app.post(
 
 export const api = onRequest({region: "asia-southeast1"}, app);
 
+export const onBookingCreateIndexUsers = onValueCreated(
+  {region: "asia-southeast1", ref: "/bookings/{bookingId}"},
+  async (event) => {
+    const bookingId = (event.params as { bookingId: string }).bookingId;
+
+    const booking = event.data.val() as Record<string, any> | null;
+    if (!booking) return;
+
+    const workerId = String(booking.workerId ?? "").trim();
+    const customerId = String(booking.customerId ?? "").trim();
+
+    if (!workerId || !customerId) {
+      console.error("Booking missing workerId/customerId", {
+        bookingId,
+        workerId,
+        customerId,
+      });
+      return;
+    }
+
+    const db = admin.database();
+
+    // If indexes already exist, do nothing.
+    // (Prevents unnecessary writes if you also write indexes in your HTTP endpoint.)
+    const [workerIndexSnap, customerIndexSnap] = await Promise.all([
+      db.ref(`userBookings/workers/${workerId}/${bookingId}`).get(),
+      db.ref(`userBookings/customers/${customerId}/${bookingId}`).get(),
+    ]);
+
+    if (workerIndexSnap.exists() && customerIndexSnap.exists()) {
+      return;
+    }
+
+    const updates: Record<string, any> = {};
+
+    if (!workerIndexSnap.exists()) {
+      updates[`userBookings/workers/${workerId}/${bookingId}`] = true;
+    }
+    if (!customerIndexSnap.exists()) {
+      updates[`userBookings/customers/${customerId}/${bookingId}`] = true;
+    }
+
+    await db.ref().update(updates);
+  },
+);
+
 export const onChatMessageCreate = onValueCreated(
   {region: "asia-southeast1", ref: "/chatMessages/{threadId}/{msgId}"},
   async (event) => {
@@ -425,5 +521,312 @@ export const onChatMessageCreate = onValueCreated(
       const n = typeof cur === "number" ? cur : 0;
       return n + 1;
     });
+  },
+);
+
+// --------------------
+// QUOTATION WORKFLOW
+// --------------------
+
+app.post(
+  "/booking/quote/request",
+  verifyFirebaseToken,
+  async (req: AuthedRequest, res: Response) => {
+    try {
+      const uid = req.uid!;
+      const {role} = await getRoleAndProfile(uid);
+      if (role !== "customer") {
+        res
+          .status(403)
+          .json({ok: false, message: "Only customers can request quotes"});
+        return;
+      }
+
+      const workerId = requireString(req.body.workerId, "workerId");
+      const serviceId = requireString(req.body.serviceId, "serviceId");
+      const serviceName = requireString(req.body.serviceName, "serviceName");
+      const locationText = requireString(req.body.locationText, "locationText");
+
+      const title = requireString(req.body.title, "title");
+      const description = (req.body.description ?? "").toString();
+
+      const db = admin.database();
+      const bookingRef = db.ref("bookings").push();
+      const bookingId = bookingRef.key;
+      if (!bookingId) throw new Error("Failed to generate booking id");
+
+      const updates: Record<string, any> = {};
+      const now = admin.database.ServerValue.TIMESTAMP;
+
+      const bookingData = {
+        bookingId,
+        customerId: uid,
+        workerId,
+        serviceId,
+        serviceName,
+        locationText,
+        status: "quote_requested",
+        createdAt: now,
+        updatedAt: now,
+        quoteRequest: {
+          title,
+          description,
+          requestedAt: now,
+        },
+      };
+
+      updates[`bookings/${bookingId}`] = bookingData;
+      updates[`userBookings/customers/${uid}/${bookingId}`] = true;
+      updates[`userBookings/workers/${workerId}/${bookingId}`] = true;
+
+      await db.ref().update(updates);
+
+      await createNotification({
+        toUid: workerId,
+        type: "quote_requested",
+        title: "New Quotation Request",
+        message: `You received a new quotation request for ${serviceName}`,
+        bookingId,
+      });
+
+      res.json({ok: true, bookingId});
+    } catch (e: any) {
+      res
+        .status(400)
+        .json({ok: false, message: e?.message ?? "Failed to request quote"});
+    }
+  },
+);
+
+app.post(
+  "/booking/quote/worker-decision",
+  verifyFirebaseToken,
+  async (req: AuthedRequest, res: Response) => {
+    try {
+      const uid = req.uid!;
+      const {role} = await getRoleAndProfile(uid);
+      if (role !== "worker") {
+        res.status(403).json({
+          ok: false,
+          message: "Only workers can respond to quote requests",
+        });
+        return;
+      }
+
+      const bookingId = requireString(req.body.bookingId, "bookingId");
+      const decision = requireString(req.body.decision, "decision"); // accepted | declined
+      const note = (req.body.note ?? "").toString();
+
+      if (decision !== "accepted" && decision !== "declined") {
+        throw new Error("decision must be accepted or declined");
+      }
+
+      const {db, booking} = await requireBooking(bookingId);
+
+      if (booking.workerId !== uid) throw new Error("Not your booking");
+      if (booking.status !== "quote_requested") {
+        throw new Error("Booking is not in quote_requested status");
+      }
+
+      const now = admin.database.ServerValue.TIMESTAMP;
+
+      if (decision === "declined") {
+        await db.ref(`bookings/${bookingId}`).update({
+          status: "quote_declined_by_worker",
+          updatedAt: now,
+          workerDecision: {decision: "declined", note, decidedAt: now},
+        });
+
+        await createNotification({
+          toUid: booking.customerId,
+          type: "quote_declined_by_worker",
+          title: "Quotation Request Declined",
+          message: "The worker declined your quotation request.",
+          bookingId,
+        });
+
+        res.json({ok: true});
+        return;
+      }
+
+      // accepted
+      await db.ref(`bookings/${bookingId}`).update({
+        status: "quote_accepted_by_worker",
+        updatedAt: now,
+        workerDecision: {decision: "accepted", note, decidedAt: now},
+      });
+
+      await createNotification({
+        toUid: booking.customerId,
+        type: "quote_accepted_by_worker",
+        title: "Quotation Request Accepted",
+        message: "The worker accepted your request and will send a quotation.",
+        bookingId,
+      });
+
+      res.json({ok: true});
+    } catch (e: any) {
+      res.status(400).json({
+        ok: false,
+        message: e?.message ?? "Failed to update decision",
+      });
+    }
+  },
+);
+
+app.post(
+  "/booking/invoice/send",
+  verifyFirebaseToken,
+  async (req: AuthedRequest, res: Response) => {
+    try {
+      const uid = req.uid!;
+      const {role, profile} = await getRoleAndProfile(uid);
+      if (role !== "worker") {
+        res
+          .status(403)
+          .json({ok: false, message: "Only workers can send invoices"});
+        return;
+      }
+
+      const bookingId = requireString(req.body.bookingId, "bookingId");
+
+      const inspectionFee = requireNumber(
+        req.body.inspectionFee,
+        "inspectionFee",
+      );
+      const laborHours = requireNumber(req.body.laborHours, "laborHours");
+      const laborPrice = requireNumber(req.body.laborPrice, "laborPrice");
+      const materials = requireNumber(req.body.materials, "materials");
+      const notes = (req.body.notes ?? "").toString();
+
+      const subtotal = inspectionFee + laborHours * laborPrice + materials;
+      const validDays = Number(req.body.validDays ?? 3);
+      const validUntil = Date.now() + validDays * 24 * 60 * 60 * 1000;
+
+      const {db, booking} = await requireBooking(bookingId);
+      if (booking.workerId !== uid) throw new Error("Not your booking");
+      if (booking.status !== "quote_accepted_by_worker") {
+        throw new Error(
+          "Booking must be quote_accepted_by_worker before sending invoice",
+        );
+      }
+
+      const workerName = (profile?.["fullName"] ?? "Worker").toString();
+      const now = admin.database.ServerValue.TIMESTAMP;
+
+      await db.ref(`bookings/${bookingId}`).update({
+        status: "invoice_sent",
+        updatedAt: now,
+        invoice: {
+          inspectionFee,
+          laborHours,
+          laborPrice,
+          materials,
+          notes,
+          subtotal,
+          validUntil,
+          sentAt: now,
+          workerName,
+        },
+      });
+
+      // Notification payload matches your report style :contentReference[oaicite:5]{index=5}
+      await createNotification({
+        toUid: booking.customerId,
+        type: "invoice_sent",
+        title: "New Quotation Received",
+        message: `${workerName} sent you a quotation for LKR ${subtotal}`,
+        bookingId,
+      });
+
+      res.json({ok: true, subtotal, validUntil});
+    } catch (e: any) {
+      res
+        .status(400)
+        .json({ok: false, message: e?.message ?? "Failed to send invoice"});
+    }
+  },
+);
+
+app.post(
+  "/booking/quote/customer-decision",
+  verifyFirebaseToken,
+  async (req: AuthedRequest, res: Response) => {
+    try {
+      const uid = req.uid!;
+      const {role} = await getRoleAndProfile(uid);
+      if (role !== "customer") {
+        res.status(403).json({
+          ok: false,
+          message: "Only customers can accept/decline quotes",
+        });
+        return;
+      }
+
+      const bookingId = requireString(req.body.bookingId, "bookingId");
+      const decision = requireString(req.body.decision, "decision"); // accepted | declined
+      const reason = (req.body.reason ?? "").toString();
+
+      if (decision !== "accepted" && decision !== "declined") {
+        throw new Error("decision must be accepted or declined");
+      }
+
+      const {db, booking} = await requireBooking(bookingId);
+      if (booking.customerId !== uid) throw new Error("Not your booking");
+      if (booking.status !== "invoice_sent") {
+        throw new Error(
+          "Booking must be invoice_sent before customer decision",
+        );
+      }
+
+      const now = admin.database.ServerValue.TIMESTAMP;
+
+      if (decision === "declined") {
+        await db.ref(`bookings/${bookingId}`).update({
+          status: "quote_declined",
+          updatedAt: now,
+          quoteResponse: {
+            customerDecision: "declined",
+            reason,
+            decidedAt: now,
+          },
+        });
+
+        // Matches report :contentReference[oaicite:6]{index=6}
+        await createNotification({
+          toUid: booking.workerId,
+          type: "quote_declined",
+          title: "Quote Declined",
+          message: "Customer declined your quotation",
+          bookingId,
+        });
+
+        res.json({ok: true});
+        return;
+      }
+
+      // accepted
+      await db.ref(`bookings/${bookingId}`).update({
+        status: "quote_accepted",
+        updatedAt: now,
+        quoteResponse: {customerDecision: "accepted", decidedAt: now},
+      });
+
+      // Matches report :contentReference[oaicite:7]{index=7}
+      await createNotification({
+        toUid: booking.workerId,
+        type: "quote_accepted",
+        title: "Quote Accepted!",
+        message: "Customer accepted your quotation",
+        bookingId,
+      });
+
+      res.json({ok: true});
+    } catch (e: any) {
+      res.status(400).json({
+        ok: false,
+        message: e?.message ?? "Failed to update quote decision",
+      });
+    }
   },
 );

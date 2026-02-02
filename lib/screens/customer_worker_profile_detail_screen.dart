@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
+import 'customer_request_quote_screen.dart';
 
 class CustomerWorkerProfileDetailScreen extends StatefulWidget {
   final Map<String, dynamic> worker;
 
-  const CustomerWorkerProfileDetailScreen({
-    super.key,
-    required this.worker,
-  });
+  const CustomerWorkerProfileDetailScreen({super.key, required this.worker});
 
   @override
-  State<CustomerWorkerProfileDetailScreen> createState() => _CustomerWorkerProfileDetailScreenState();
+  State<CustomerWorkerProfileDetailScreen> createState() =>
+      _CustomerWorkerProfileDetailScreenState();
 }
 
-class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfileDetailScreen> with SingleTickerProviderStateMixin {
+class _CustomerWorkerProfileDetailScreenState
+    extends State<CustomerWorkerProfileDetailScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   final List<Map<String, dynamic>> _services = [
@@ -70,7 +71,11 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
                 actions: [
@@ -81,7 +86,11 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.favorite_border, color: Colors.white, size: 20),
+                      icon: const Icon(
+                        Icons.favorite_border,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       onPressed: () {},
                     ),
                   ),
@@ -110,7 +119,11 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(color: Colors.white, width: 4),
                             ),
-                            child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 48),
+                            child: const Icon(
+                              Icons.person,
+                              color: Color(0xFF4A7FFF),
+                              size: 48,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -133,7 +146,11 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.star, size: 18, color: Color(0xFFFBBF24)),
+                              const Icon(
+                                Icons.star,
+                                size: 18,
+                                color: Color(0xFFFBBF24),
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 '${widget.worker['rating']}',
@@ -169,7 +186,10 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
                     labelColor: const Color(0xFF4A7FFF),
                     unselectedLabelColor: const Color(0xFF9CA3AF),
                     indicatorColor: const Color(0xFF4A7FFF),
-                    labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                     tabs: const [
                       Tab(text: 'About'),
                       Tab(text: 'Services'),
@@ -200,8 +220,14 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
             right: 20,
             child: ElevatedButton(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Opening booking screen...')),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CustomerRequestQuoteScreen(
+                      worker: widget.worker,
+                      categoryName: widget.worker['type'] ?? 'Service',
+                    ),
+                  ),
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -237,15 +263,27 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
           Row(
             children: [
               Expanded(
-                child: _buildStatCard('Experience', '${widget.worker['experience']} years', Icons.work_outline),
+                child: _buildStatCard(
+                  'Experience',
+                  '${widget.worker['experience']} years',
+                  Icons.work_outline,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatCard('Jobs', '${widget.worker['reviews']}+', Icons.check_circle_outline),
+                child: _buildStatCard(
+                  'Jobs',
+                  '${widget.worker['reviews']}+',
+                  Icons.check_circle_outline,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatCard('Rate', 'LKR ${widget.worker['hourlyRate']}/hr', Icons.account_balance_wallet),
+                child: _buildStatCard(
+                  'Rate',
+                  'LKR ${widget.worker['hourlyRate']}/hr',
+                  Icons.account_balance_wallet,
+                ),
               ),
             ],
           ),
@@ -268,7 +306,8 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
               borderRadius: BorderRadius.circular(16),
             ),
             child: Text(
-              widget.worker['description'] + '\n\nSpecializing in residential and commercial electrical work with over ${widget.worker['experience']} years of experience. Licensed and insured professional committed to quality service and customer satisfaction.',
+              widget.worker['description'] +
+                  '\n\nSpecializing in residential and commercial electrical work with over ${widget.worker['experience']} years of experience. Licensed and insured professional committed to quality service and customer satisfaction.',
               style: const TextStyle(
                 fontSize: 14,
                 color: Color(0xFF6B7280),
@@ -361,7 +400,11 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
                   color: const Color(0xFFE8F0FF),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.build, color: Color(0xFF4A7FFF), size: 24),
+                child: const Icon(
+                  Icons.build,
+                  color: Color(0xFF4A7FFF),
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -379,7 +422,11 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.schedule, size: 14, color: Color(0xFF9CA3AF)),
+                        const Icon(
+                          Icons.schedule,
+                          size: 14,
+                          color: Color(0xFF9CA3AF),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           service['duration'],
@@ -433,7 +480,11 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
                       color: const Color(0xFFE8F0FF),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 20),
+                    child: const Icon(
+                      Icons.person,
+                      color: Color(0xFF4A7FFF),
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -461,7 +512,11 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
                   ),
                   Row(
                     children: [
-                      const Icon(Icons.star, size: 16, color: Color(0xFFFBBF24)),
+                      const Icon(
+                        Icons.star,
+                        size: 16,
+                        color: Color(0xFFFBBF24),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${review['rating']}',
@@ -513,10 +568,7 @@ class _CustomerWorkerProfileDetailScreenState extends State<CustomerWorkerProfil
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Color(0xFF9CA3AF),
-            ),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
           ),
         ],
       ),
@@ -560,11 +612,12 @@ class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => tabBar.preferredSize.height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: const Color(0xFFF8FAFC),
-      child: tabBar,
-    );
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(color: const Color(0xFFF8FAFC), child: tabBar);
   }
 
   @override

@@ -17,6 +17,8 @@ import 'screens/customer_dashboard.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'dart:io';
+import 'screens/customer_view_quotation_screen.dart';
+import 'screens/worker_create_invoice_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,6 +70,11 @@ class MyApp extends StatelessWidget {
         '/customer-photo': (context) => const CustomerPhotoScreen(),
         '/customer-location-setup': (context) =>
             const CustomerLocationSetupScreen(),
+        '/customer-view-quotation': (context) {
+          final bookingId =
+              ModalRoute.of(context)!.settings.arguments as String;
+          return CustomerViewQuotationScreen(bookingId: bookingId);
+        },
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/login') {
