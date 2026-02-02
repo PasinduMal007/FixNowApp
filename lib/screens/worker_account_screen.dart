@@ -3,11 +3,17 @@ import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'worker_personal_info_settings_screen.dart';
+import 'worker_bank_details_screen.dart';
 
 class WorkerAccountScreen extends StatefulWidget {
   final ValueChanged<String>? onNameChanged;
+  final bool showBackButton;
 
-  const WorkerAccountScreen({super.key, this.onNameChanged});
+  const WorkerAccountScreen({
+    super.key,
+    this.onNameChanged,
+    this.showBackButton = true,
+  });
 
   @override
   State<WorkerAccountScreen> createState() => _WorkerAccountScreenState();
@@ -114,22 +120,23 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
                 child: Row(
                   children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: Colors.white,
-                          size: 20,
+                    if (widget.showBackButton)
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
-                    ),
                     const Expanded(
                       child: Center(
                         child: Text(
@@ -142,7 +149,8 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 40, height: 40),
+                    if (widget.showBackButton)
+                      const SizedBox(width: 40, height: 40),
                   ],
                 ),
               ),
@@ -397,9 +405,17 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                               ),
                               _buildDivider(),
                               _buildMenuItem(
-                                Icons.payment_outlined,
-                                'Payment Methods',
-                                onTap: () {},
+                                Icons.account_balance,
+                                'Bank Details',
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const WorkerBankDetailsScreen(),
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
@@ -423,12 +439,6 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                           ),
                           child: Column(
                             children: [
-                              _buildMenuItem(
-                                Icons.favorite_outline,
-                                'Favorite Workers',
-                                onTap: () {},
-                              ),
-                              _buildDivider(),
                               _buildMenuItem(
                                 Icons.history,
                                 'Booking History',

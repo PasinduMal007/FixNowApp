@@ -4,7 +4,9 @@ import 'package:fix_now_app/Services/chat_service.dart';
 import 'worker_chat_conversation_screen.dart';
 
 class WorkerChatScreen extends StatefulWidget {
-  const WorkerChatScreen({super.key});
+  final bool showBackButton;
+
+  const WorkerChatScreen({super.key, this.showBackButton = true});
 
   @override
   State<WorkerChatScreen> createState() => _WorkerChatScreenState();
@@ -32,23 +34,24 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
                 child: Row(
                   children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: Colors.white,
-                          size: 20,
+                    if (widget.showBackButton)
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
+                    if (widget.showBackButton) const SizedBox(width: 16),
                     const Expanded(
                       child: Text(
                         'Messages',
@@ -114,12 +117,15 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                   child: FutureBuilder<DataSnapshot>(
                     future: _chat.inboxOnce(),
                     builder: (context, firstSnap) {
-                      if (firstSnap.connectionState == ConnectionState.waiting) {
+                      if (firstSnap.connectionState ==
+                          ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
 
                       if (firstSnap.hasError) {
-                        return Center(child: Text('Inbox error: ${firstSnap.error}'));
+                        return Center(
+                          child: Text('Inbox error: ${firstSnap.error}'),
+                        );
                       }
 
                       final firstData = firstSnap.data?.value;
@@ -134,7 +140,9 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                         stream: _chat.inboxQuery().onValue,
                         builder: (context, snap) {
                           if (snap.hasError) {
-                            return Center(child: Text('Live error: ${snap.error}'));
+                            return Center(
+                              child: Text('Live error: ${snap.error}'),
+                            );
                           }
 
                           final data = snap.data?.snapshot.value;
@@ -153,20 +161,25 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
 
                             final lastAt = (t['lastMessageAt'] is int)
                                 ? t['lastMessageAt'] as int
-                                : int.tryParse('${t['lastMessageAt'] ?? 0}') ?? 0;
+                                : int.tryParse('${t['lastMessageAt'] ?? 0}') ??
+                                      0;
 
                             return {
                               'threadId': e.key,
                               'otherUid': (t['otherUid'] ?? '').toString(),
-                              'otherName': (t['otherName'] ?? 'Customer').toString(),
-                              'otherPhotoUrl': (t['otherPhotoUrl'] ?? '').toString(),
-                              'lastMessageText': (t['lastMessageText'] ?? '').toString(),
+                              'otherName': (t['otherName'] ?? 'Customer')
+                                  .toString(),
+                              'otherPhotoUrl': (t['otherPhotoUrl'] ?? '')
+                                  .toString(),
+                              'lastMessageText': (t['lastMessageText'] ?? '')
+                                  .toString(),
                               'unreadCount': unread,
                               'lastMessageAt': lastAt,
                               'service': (t['service'] ?? '').toString(),
                               'rating': (t['rating'] is num)
                                   ? (t['rating'] as num).toDouble()
-                                  : double.tryParse('${t['rating'] ?? ''}') ?? 0.0,
+                                  : double.tryParse('${t['rating'] ?? ''}') ??
+                                        0.0,
                               'isOnline': (t['isOnline'] == true),
                             };
                           }).toList();
@@ -179,44 +192,75 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
 
                           if (threads.isEmpty) return _emptyState();
 
-                          final unreadThreads =
-                              threads.where((t) => ((t['unreadCount'] as int?) ?? 0) > 0).length;
+                          final unreadThreads = threads
+                              .where(
+                                (t) => ((t['unreadCount'] as int?) ?? 0) > 0,
+                              )
+                              .length;
 
                           return Column(
                             children: [
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  10,
+                                  24,
+                                  6,
+                                ),
                                 child: Align(
                                   alignment: Alignment.centerLeft,
                                   child: Text(
                                     '$unreadThreads unread messages',
-                                    style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF6B7280),
+                                    ),
                                   ),
                                 ),
                               ),
                               Expanded(
                                 child: ListView.builder(
-                                  padding: const EdgeInsets.fromLTRB(24, 10, 24, 100),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    24,
+                                    10,
+                                    24,
+                                    100,
+                                  ),
                                   itemCount: threads.length,
                                   itemBuilder: (context, index) {
                                     final conv = threads[index];
                                     return GestureDetector(
                                       onTap: () async {
                                         final tid = conv['threadId'] as String;
-                                        await _chat.markThreadRead(threadId: tid);
+                                        await _chat.markThreadRead(
+                                          threadId: tid,
+                                        );
 
                                         if (!context.mounted) return;
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) => WorkerChatConversationScreen(
-                                              threadId: tid,
-                                              otherUid: conv['otherUid'] as String,
-                                              otherName: conv['otherName'] as String,
-                                              customerName: conv['otherName'] as String,
-                                              service: (conv['service'] as String?) ?? '',
-                                              isOnline: (conv['isOnline'] as bool?) ?? false,
-                                            ),
+                                            builder: (_) =>
+                                                WorkerChatConversationScreen(
+                                                  threadId: tid,
+                                                  otherUid:
+                                                      conv['otherUid']
+                                                          as String,
+                                                  otherName:
+                                                      conv['otherName']
+                                                          as String,
+                                                  customerName:
+                                                      conv['otherName']
+                                                          as String,
+                                                  service:
+                                                      (conv['service']
+                                                          as String?) ??
+                                                      '',
+                                                  isOnline:
+                                                      (conv['isOnline']
+                                                          as bool?) ??
+                                                      false,
+                                                ),
                                           ),
                                         );
                                       },

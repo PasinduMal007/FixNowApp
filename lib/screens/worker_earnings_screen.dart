@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
+import 'package:intl/intl.dart';
+import 'worker_bank_details_screen.dart';
+import 'dart:async';
 
 class WorkerEarningsScreen extends StatefulWidget {
   const WorkerEarningsScreen({super.key});
@@ -7,59 +13,155 @@ class WorkerEarningsScreen extends StatefulWidget {
   State<WorkerEarningsScreen> createState() => _WorkerEarningsScreenState();
 }
 
-class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> with SingleTickerProviderStateMixin {
+class _WorkerEarningsScreenState extends State<WorkerEarningsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
-  final List<Map<String, dynamic>> _transactions = [
-    {
-      'id': 1,
-      'type': 'earning',
-      'customerName': 'Sarah Johnson',
-      'service': 'Pipe Repair',
-      'amount': 150.00,
-      'date': 'Today',
-      'status': 'completed',
-    },
-    {
-      'id': 2,
-      'type': 'earning',
-      'customerName': 'Michael Chen',
-      'service': 'Leak Fixing',
-      'amount': 120.00,
-      'date': 'Yesterday',
-      'status': 'completed',
-    },
-    {
-      'id': 3,
-      'type': 'payout',
-      'amount': 450.00,
-      'date': '2 days ago',
-      'status': 'processing',
-    },
-    {
-      'id': 4,
-      'type': 'earning',
-      'customerName': 'David Wilson',
-      'service': 'Installation',
-      'amount': 200.00,
-      'date': '3 days ago',
-      'status': 'completed',
-    },
-    {
-      'id': 5,
-      'type': 'earning',
-      'customerName': 'Emma Davis',
-      'service': 'Emergency Repair',
-      'amount': 180.00,
-      'date': '5 days ago',
-      'status': 'completed',
-    },
-  ];
+  StreamSubscription? _subscription;
+  bool _isLoading = true;
+
+  List<Map<String, dynamic>> _earnings = [];
+
+  double _totalEarnings = 0.0;
+
+  String get _workerId => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  Stream<DatabaseEvent> get _workerBookingIdsStream {
+    final uid = _workerId;
+    if (uid.isEmpty) return const Stream.empty();
+    return DB.ref().child('userBookings/workers/$uid').onValue;
+  }
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _setupStreamListener();
+  }
+
+  void _setupStreamListener() {
+    _subscription = _workerBookingIdsStream.listen((event) {
+      final data = event.snapshot.value;
+      if (data == null) {
+        if (mounted) {
+          setState(() {
+            _earnings = [];
+            _totalEarnings = 0.0;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      if (data is Map) {
+        final ids = data.keys.map((k) => k.toString()).toList();
+        _loadEarnings(ids);
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    });
+  }
+
+  Future<void> _loadEarnings(List<String> ids) async {
+    try {
+      final futures = ids.map(_fetchBooking).toList();
+      final results = await Future.wait(futures);
+      final allBookings = results.whereType<Map<String, dynamic>>().toList();
+
+      // Filter for completed/paid jobs
+      final completedJobs = allBookings.where((b) {
+        final status = (b['status'] ?? '').toString();
+        // Check for completed or invoice_sent statuses that imply earning
+        return ['completed', 'invoice_sent', 'paid'].contains(status);
+      }).toList();
+
+      // Sort by newer first
+      completedJobs.sort((a, b) {
+        final aTs = (a['createdAt'] is num)
+            ? (a['createdAt'] as num).toInt()
+            : 0;
+        final bTs = (b['createdAt'] is num)
+            ? (b['createdAt'] as num).toInt()
+            : 0;
+        return bTs.compareTo(aTs);
+      });
+
+      // Calculate totals and map to UI model
+      double total = 0.0;
+      final earningsList = <Map<String, dynamic>>[];
+
+      for (var b in completedJobs) {
+        // Extract amount from invoice if available
+        double amount = 0.0;
+        if (b['invoice'] is Map) {
+          final inv = b['invoice'] as Map;
+          amount = (inv['subtotal'] is num)
+              ? (inv['subtotal'] as num).toDouble()
+              : 0.0;
+        }
+
+        total += amount;
+
+        final customerName = (b['customerName'] ?? 'Customer').toString();
+        final service = (b['serviceName'] ?? b['serviceType'] ?? 'Service')
+            .toString();
+
+        final ts = (b['createdAt'] is num)
+            ? (b['createdAt'] as num).toInt()
+            : 0;
+        final dateStr = _formatDate(ts);
+
+        earningsList.add({
+          'id': b['bookingId'].toString(),
+          'type': 'earning',
+          'customerName': customerName,
+          'service': service,
+          'amount': amount,
+          'date': dateStr,
+          'status': 'completed',
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _earnings = earningsList;
+          _totalEarnings = total;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading earnings: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _formatDate(int timestamp) {
+    if (timestamp == 0) return 'Unknown Date';
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+
+    return DateFormat('MMM d, y').format(dt);
+  }
+
+  Future<Map<String, dynamic>?> _fetchBooking(String bookingId) async {
+    try {
+      final snap = await DB.ref().child('bookings/$bookingId').get();
+      if (!snap.exists || snap.value == null) return null;
+      final raw = snap.value;
+      if (raw is! Map) return null;
+
+      final map = Map<String, dynamic>.fromEntries(
+        (raw as Map).entries.map((e) => MapEntry(e.key.toString(), e.value)),
+      );
+      map['bookingId'] = bookingId;
+      return map;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
@@ -96,7 +198,11 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> with Single
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -121,12 +227,12 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> with Single
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: const Color(0xFF10B981).withOpacity(0.2),
                         blurRadius: 20,
-                        offset: const Offset(0, 4),
+                        offset: const Offset(0, 10),
                       ),
                     ],
                   ),
@@ -136,90 +242,48 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> with Single
                         'Total Earnings',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Color(0xFF9CA3AF),
+                          color: Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        '\$3,450.00',
-                        style: TextStyle(
-                          fontSize: 42,
+                      Text(
+                        'LKR ${_totalEarnings.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 36,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF10B981),
+                          color: Color(0xFF1F2937),
+                          letterSpacing: -0.5,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.trending_up, size: 16, color: Colors.green[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            '+12% from last month',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.green[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      const Divider(),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatCard(
-                              'Available',
-                              '\$850.00',
-                              const Color(0xFF10B981),
-                              Icons.monetization_on_outlined,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildStatCard(
-                              'Pending',
-                              '\$320.00',
-                              const Color(0xFFF59E0B),
-                              Icons.access_time,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Withdrawal request submitted!'),
-                              backgroundColor: Color(0xFF10B981),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          minimumSize: const Size(double.infinity, 52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.account_balance_wallet, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text(
-                              'Withdraw Funds',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const WorkerBankDetailsScreen(),
                               ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4A7FFF),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          ],
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Withdraw Funds',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -227,54 +291,49 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> with Single
                 ),
               ),
 
-              // Tabs and Transaction List
+              // Transaction History
               Expanded(
                 child: Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                  ),
+                  color: Colors.white,
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Tab Bar
-                      Container(
-                        margin: const EdgeInsets.all(20),
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
+                      TabBar(
+                        controller: _tabController,
+                        labelColor: const Color(0xFF4A7FFF),
+                        unselectedLabelColor: const Color(0xFF6B7280),
+                        indicatorColor: const Color(0xFF4A7FFF),
+                        indicatorWeight: 3,
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
                         ),
-                        child: TabBar(
-                          controller: _tabController,
-                          indicator: BoxDecoration(
-                            color: const Color(0xFF10B981),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          labelColor: Colors.white,
-                          unselectedLabelColor: const Color(0xFF6B7280),
-                          labelStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          tabs: const [
-                            Tab(text: 'Earnings'),
-                            Tab(text: 'Payouts'),
-                          ],
-                        ),
+                        tabs: const [
+                          Tab(text: 'Earnings'),
+                          Tab(text: 'Payouts'),
+                        ],
                       ),
-
-                      // Transaction List
                       Expanded(
                         child: TabBarView(
                           controller: _tabController,
                           children: [
-                            // Earnings Tab
-                            _buildTransactionList(_transactions.where((t) => t['type'] == 'earning').toList()),
-                            // Payouts Tab
-                            _buildTransactionList(_transactions.where((t) => t['type'] == 'payout').toList()),
+                            // Earnings List
+                            _earnings.isEmpty
+                                ? _buildEmptyState('No earnings yet')
+                                : ListView.separated(
+                                    padding: const EdgeInsets.all(24),
+                                    itemCount: _earnings.length,
+                                    separatorBuilder: (context, index) =>
+                                        const SizedBox(height: 16),
+                                    itemBuilder: (context, index) {
+                                      return _buildTransactionCard(
+                                        _earnings[index],
+                                      );
+                                    },
+                                  ),
+
+                            // Payouts List (Empty for now)
+                            _buildEmptyState('No payouts yet'),
                           ],
                         ),
                       ),
@@ -289,178 +348,83 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> with Single
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
+  Widget _buildEmptyState(String message) {
+    return Center(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
+          Icon(Icons.inbox_outlined, size: 48, color: Colors.grey[300]),
+          const SizedBox(height: 16),
           Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color.withOpacity(0.8),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            message,
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTransactionList(List<Map<String, dynamic>> transactions) {
-    if (transactions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No transactions',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Your transaction history will appear here',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      itemCount: transactions.length,
-      itemBuilder: (context, index) {
-        return _buildTransactionCard(transactions[index]);
-      },
-    );
-  }
-
   Widget _buildTransactionCard(Map<String, dynamic> transaction) {
-    final isEarning = transaction['type'] == 'earning';
-    
+    // transaction 'type' is 'earning' or 'payout'
+    // but for now we only really have earnings in the list
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: const Color(0xFFF3F4F6)),
       ),
       child: Row(
         children: [
-          // Icon
           Container(
-            width: 48,
-            height: 48,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: isEarning 
-                  ? const Color(0xFFD1FAE5) 
-                  : const Color(0xFFDBEAFE),
+              color: const Color(0xFFE8F0FF),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              isEarning ? Icons.arrow_downward : Icons.arrow_upward,
-              color: isEarning 
-                  ? const Color(0xFF10B981) 
-                  : const Color(0xFF3B82F6),
-              size: 24,
+            child: const Icon(
+              Icons.trending_up,
+              color: Color(0xFF4A7FFF),
+              size: 20,
             ),
           ),
           const SizedBox(width: 12),
-          // Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isEarning 
-                      ? transaction['service'] 
-                      : 'Withdrawal',
+                  transaction['customerName'] ?? 'Unknown',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF1F2937),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
-                  isEarning 
-                      ? transaction['customerName'] 
-                      : transaction['status'] == 'processing' 
-                          ? 'Processing...' 
-                          : 'Completed',
+                  transaction['service'] ?? 'Service',
                   style: const TextStyle(
                     fontSize: 13,
-                    color: Color(0xFF9CA3AF),
+                    color: Color(0xFF6B7280),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  transaction['date'],
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF9CA3AF),
-                  ),
+                  transaction['date'] ?? '',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[400]),
                 ),
               ],
             ),
           ),
-          // Amount
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${isEarning ? '+' : '-'}\$${transaction['amount'].toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isEarning 
-                      ? const Color(0xFF10B981) 
-                      : const Color(0xFF6B7280),
-                ),
-              ),
-              if (!isEarning && transaction['status'] == 'processing')
-                Container(
-                  margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3C7),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'Pending',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFF59E0B),
-                    ),
-                  ),
-                ),
-            ],
+          Text(
+            '+ LKR ${(transaction['amount'] as num).toStringAsFixed(0)}',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF10B981),
+            ),
           ),
         ],
       ),

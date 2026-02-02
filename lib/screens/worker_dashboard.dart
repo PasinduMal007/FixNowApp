@@ -22,12 +22,13 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
   List<Widget> get _screens => [
     WorkerHomeScreen(workerName: _workerName, unreadMessages: _unreadMessages),
     const WorkerBookingsScreen(),
-    const WorkerChatScreen(),
+    const WorkerChatScreen(showBackButton: false),
     WorkerAccountScreen(
       onNameChanged: (name) {
         if (!mounted) return;
         setState(() => _workerName = name);
       },
+      showBackButton: false,
     ),
   ];
 

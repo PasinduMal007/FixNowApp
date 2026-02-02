@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
+import 'dart:async';
 
 class WorkerBookingsScreen extends StatefulWidget {
   const WorkerBookingsScreen({super.key});
@@ -11,6 +15,21 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _selectedTabIndex = 0;
+  StreamSubscription? _subscription;
+  bool _isLoading = true;
+
+  // Dynamic data lists
+  List<Map<String, dynamic>> _upcomingBookings = [];
+  List<Map<String, dynamic>> _inProgressBookings = [];
+  List<Map<String, dynamic>> _pastBookings = [];
+
+  String get _workerId => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  Stream<DatabaseEvent> get _workerBookingIdsStream {
+    final uid = _workerId;
+    if (uid.isEmpty) return const Stream.empty();
+    return DB.ref().child('userBookings/workers/$uid').onValue;
+  }
 
   @override
   void initState() {
@@ -21,87 +40,167 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
         _selectedTabIndex = _tabController.index;
       });
     });
+    _setupStreamListener();
+  }
+
+  void _setupStreamListener() {
+    _subscription = _workerBookingIdsStream.listen((event) {
+      final data = event.snapshot.value;
+      if (data == null) {
+        if (mounted) {
+          setState(() {
+            _upcomingBookings = [];
+            _inProgressBookings = [];
+            _pastBookings = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      if (data is Map) {
+        final ids = data.keys.map((k) => k.toString()).toList();
+        _loadBookings(ids);
+      }
+    });
+  }
+
+  Future<void> _loadBookings(List<String> ids) async {
+    try {
+      final futures = ids.map(_fetchBooking).toList();
+      final results = await Future.wait(futures);
+      final allBookings = results.whereType<Map<String, dynamic>>().toList();
+
+      // Sort by newer first
+      allBookings.sort((a, b) {
+        final aTs = (a['createdAt'] is num)
+            ? (a['createdAt'] as num).toInt()
+            : 0;
+        final bTs = (b['createdAt'] is num)
+            ? (b['createdAt'] as num).toInt()
+            : 0;
+        return bTs.compareTo(aTs);
+      });
+
+      // Categorize
+      final upcoming = <Map<String, dynamic>>[];
+      final inProgress = <Map<String, dynamic>>[];
+      final past = <Map<String, dynamic>>[];
+
+      for (var b in allBookings) {
+        final status = (b['status'] ?? 'pending').toString();
+        // Categorization logic
+        if ([
+          'started',
+          'arrived',
+          'in_progress',
+          'invoice_sent',
+        ].contains(status)) {
+          inProgress.add(b);
+        } else if ([
+          'completed',
+          'cancelled',
+          'quote_declined',
+          'declined_by_worker',
+          'refunded',
+        ].contains(status)) {
+          past.add(b);
+        } else {
+          // 'pending', 'quote_requested', 'quote_received', 'quote_accepted', 'confirmed', 'scheduled' and fallback
+          upcoming.add(b);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _upcomingBookings = upcoming;
+          _inProgressBookings = inProgress;
+          _pastBookings = past;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading bookings: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<Map<String, dynamic>?> _fetchBooking(String bookingId) async {
+    try {
+      final snap = await DB.ref().child('bookings/$bookingId').get();
+      if (!snap.exists || snap.value == null) return null;
+      final raw = snap.value;
+      if (raw is! Map) return null;
+
+      final map = Map<String, dynamic>.fromEntries(
+        raw.entries.map((e) => MapEntry(e.key.toString(), e.value)),
+      );
+
+      // Add ID if missing
+      map['bookingId'] = bookingId; // Ensure ID is consistent
+      map['id'] = bookingId;
+
+      // Extract timestamp (scheduledAt or createdAt)
+      final tsVal = map['scheduledAt'] ?? map['createdAt'];
+      int? timestamp;
+      if (tsVal is int) {
+        timestamp = tsVal;
+      } else if (tsVal is String) {
+        // If stored as string, try to parse or just leave it
+        // If it's a number string:
+        timestamp = int.tryParse(tsVal);
+      }
+
+      if (timestamp != null) {
+        final dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
+        final months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
+
+        // Only set if not already present
+        map['date'] ??= '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+
+        final hour = dt.hour > 12
+            ? dt.hour - 12
+            : (dt.hour == 0 ? 12 : dt.hour);
+        final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+        final minute = dt.minute.toString().padLeft(2, '0');
+
+        map['time'] ??= '$hour:$minute $ampm';
+      }
+
+      // Defaults to prevent null errors
+      map['customerName'] ??= 'Unknown Customer';
+      map['service'] ??= 'Service Request';
+      map['description'] ??= 'No description provided';
+      map['location'] ??= 'Unknown Location';
+      map['payment'] ??= 'Pending';
+      map['date'] ??= 'Date Pending';
+      map['time'] ??= 'Time Pending';
+
+      return map;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
   void dispose() {
+    _subscription?.cancel();
     _tabController.dispose();
     super.dispose();
   }
-
-  // Mock data
-  final List<Map<String, dynamic>> _upcomingBookings = [
-    {
-      'id': 1,
-      'customerName': 'Sarah Johnson',
-      'service': 'Plumbing Repair',
-      'description': 'Kitchen sink leaking',
-      'date': 'Dec 30, 2024',
-      'time': '2:00 PM',
-      'location': 'Colombo 03',
-      'address': '523 Main Street',
-      'payment': 'Rs2,500',
-      'rating': 0,
-    },
-    {
-      'id': 2,
-      'customerName': 'John Smith',
-      'service': 'Electrical Work',
-      'description': 'Power outlet installation',
-      'date': 'Dec 31, 2024',
-      'time': '10:00 AM',
-      'location': 'Colombo 05',
-      'address': '435 Oak Avenue',
-      'payment': 'Rs3,000',
-      'rating': 0,
-    },
-  ];
-
-  final List<Map<String, dynamic>> _inProgressBookings = [
-    {
-      'id': 3,
-      'customerName': 'David Brown',
-      'service': 'AC Repair',
-      'description': 'AC not cooling properly',
-      'date': 'Today',
-      'time': '11:00 AM',
-      'location': 'Colombo 04',
-      'address': '341 Beach Road',
-      'payment': 'Rs4,500',
-      'rating': 0,
-    },
-  ];
-
-  final List<Map<String, dynamic>> _pastBookings = [
-    {
-      'id': 4,
-      'customerName': 'Lisa Anderson',
-      'service': 'Plumbing Repair',
-      'description': 'Bathroom drain clog',
-      'date': 'Dec 28, 2024',
-      'time': '3:00 PM',
-      'location': 'Colombo 06',
-      'address': '789 Park Avenue',
-      'payment': 'Rs2,000',
-      'earned': 'Rs1,800',
-      'rating': 5,
-      'review': '"Excellent work! Very professional."',
-    },
-    {
-      'id': 5,
-      'customerName': 'Michael Chen',
-      'service': 'Electrical Work',
-      'description': 'Light fixture installation',
-      'date': 'Dec 27, 2024',
-      'time': '1:00 PM',
-      'location': 'Colombo 07',
-      'address': '156 Hill Street',
-      'payment': 'Rs1,500',
-      'earned': 'Rs1,350',
-      'rating': 5,
-      'review': null,
-    },
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -131,33 +230,6 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
-                      ),
-                    ),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.search,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.filter_list,
-                        color: Colors.white,
-                        size: 20,
                       ),
                     ),
                   ],
@@ -271,17 +343,22 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                       topRight: Radius.circular(24),
                     ),
                   ),
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      // Upcoming
-                      _buildBookingsList(_upcomingBookings, 'upcoming'),
-                      // In Progress
-                      _buildBookingsList(_inProgressBookings, 'inProgress'),
-                      // Past
-                      _buildBookingsList(_pastBookings, 'past'),
-                    ],
-                  ),
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            // Upcoming
+                            _buildBookingsList(_upcomingBookings, 'upcoming'),
+                            // In Progress
+                            _buildBookingsList(
+                              _inProgressBookings,
+                              'inProgress',
+                            ),
+                            // Past
+                            _buildBookingsList(_pastBookings, 'past'),
+                          ],
+                        ),
                 ),
               ),
             ],

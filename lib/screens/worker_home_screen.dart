@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'worker_notifications_screen.dart';
 import 'worker_job_details_screen.dart';
 import 'worker_payment_details_screen.dart';
+import 'worker_earnings_screen.dart';
+import 'worker_reviews_screen.dart';
+import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -26,6 +29,15 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
 
   static const Set<String> _newRequestStatuses = {'pending', 'quote_requested'};
 
+  // Dashboard State
+  double _dashboardEarnings = 0.0;
+  int _dashboardJobsCompleted = 0;
+  double _dashboardRating = 0.0;
+  int _dashboardNewRequests = 0;
+
+  StreamSubscription? _bookingsSubscription;
+  StreamSubscription? _reviewsSubscription;
+
   String get _workerId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   Stream<DatabaseEvent> get _workerBookingIdsStream {
@@ -35,6 +47,139 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
       return const Stream.empty();
     }
     return DB.ref().child('userBookings/workers/$uid').onValue;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _setupDashboardListeners();
+  }
+
+  @override
+  void dispose() {
+    _bookingsSubscription?.cancel();
+    _reviewsSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _setupDashboardListeners() {
+    final uid = _workerId;
+    if (uid.isEmpty) return;
+
+    // 1. Listen to Bookings for Earnings, Jobs, New Requests
+    _bookingsSubscription = DB.ref().child('userBookings/workers/$uid').onValue.listen((
+      event,
+    ) async {
+      final data = event.snapshot.value;
+      if (data == null || data is! Map) {
+        if (mounted) {
+          setState(() {
+            _dashboardEarnings = 0.0;
+            _dashboardJobsCompleted = 0;
+            _dashboardNewRequests = 0;
+          });
+        }
+        return;
+      }
+
+      final ids = data.keys.map((k) => k.toString()).toList();
+      final bookings = await _fetchBookingsForIds(ids);
+
+      if (!mounted) return;
+
+      double earnings = 0.0;
+      int jobsToday = 0;
+      int newRequests = 0;
+
+      final now = DateTime.now();
+      final todayStart = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).millisecondsSinceEpoch;
+      final todayEnd = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        23,
+        59,
+        59,
+        999,
+      ).millisecondsSinceEpoch;
+
+      for (var b in bookings) {
+        final status = (b['status'] ?? '').toString();
+
+        // Count New Requests
+        if (_newRequestStatuses.contains(status)) {
+          newRequests++;
+        }
+
+        // Calculate Today's Earnings & Jobs logic
+        if (['completed', 'invoice_sent', 'paid'].contains(status)) {
+          // check if 'completedAt' or 'updatedAt' is today.
+          // Falling back to 'createdAt' if others missing, but ideally we want completion time.
+          // For now, let's use 'createdAt' or the timestamp field if we have one.
+          // Using createdAt for simplicity as per previous existing logic patterns or updated logic.
+          // Let's ensure we check if the transaction happened "Today".
+
+          // If we don't have completedAt, we can check updatedAt.
+          int timestamp = 0;
+          if (b['completedAt'] is num) {
+            timestamp = (b['completedAt'] as num).toInt();
+          } else if (b['updatedAt'] is num) {
+            timestamp = (b['updatedAt'] as num).toInt();
+          } else if (b['createdAt'] is num) {
+            timestamp = (b['createdAt'] as num).toInt();
+          }
+
+          if (timestamp >= todayStart && timestamp <= todayEnd) {
+            jobsToday++;
+
+            // Extract amount
+            if (b['invoice'] is Map) {
+              final inv = b['invoice'] as Map;
+              earnings += (inv['subtotal'] is num)
+                  ? (inv['subtotal'] as num).toDouble()
+                  : 0.0;
+            }
+          }
+        }
+      }
+
+      setState(() {
+        _dashboardEarnings = earnings;
+        _dashboardJobsCompleted = jobsToday;
+        _dashboardNewRequests = newRequests;
+      });
+    });
+
+    // 2. Listen to Reviews for Rating
+    _reviewsSubscription = DB.ref().child('reviews/$uid').onValue.listen((
+      event,
+    ) {
+      final data = event.snapshot.value;
+      if (data == null || data is! Map) {
+        if (mounted) setState(() => _dashboardRating = 0.0);
+        return;
+      }
+
+      double totalRating = 0.0;
+      int count = 0;
+
+      data.forEach((key, value) {
+        if (value is Map && value['rating'] is num) {
+          totalRating += (value['rating'] as num).toDouble();
+          count++;
+        }
+      });
+
+      if (mounted) {
+        setState(() {
+          _dashboardRating = count == 0 ? 0.0 : totalRating / count;
+        });
+      }
+    });
   }
 
   Future<Map<String, dynamic>?> _fetchBooking(String bookingId) async {
@@ -123,14 +268,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
       ),
     );
   }
-
-  // Mock data
-  final Map<String, dynamic> _todayStats = {
-    'earnings': 'Rs8,500',
-    'jobs': 3,
-    'rating': 4.9,
-    'newRequests': 5,
-  };
 
   Widget _buildBookingRequestCard(Map<String, dynamic> job) {
     final status = (job['status'] ?? '').toString();
@@ -440,7 +577,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                       size: 22,
                                     ),
                                   ),
-                                  if (_todayStats['newRequests'] > 0)
+                                  if (_dashboardNewRequests > 0)
                                     Positioned(
                                       top: 0,
                                       right: 0,
@@ -457,7 +594,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                         ),
                                         child: Center(
                                           child: Text(
-                                            '${_todayStats['newRequests']}',
+                                            '$_dashboardNewRequests',
                                             style: const TextStyle(
                                               color: Colors.white,
                                               fontSize: 11,
@@ -587,7 +724,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                     FittedBox(
                                       fit: BoxFit.scaleDown,
                                       child: Text(
-                                        _todayStats['earnings'],
+                                        'Rs${_dashboardEarnings.toStringAsFixed(0)}',
                                         style: const TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
@@ -612,21 +749,21 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                             const SizedBox(width: 8),
                             _buildStatCard(
                               Icons.check_circle_outline,
-                              '${_todayStats['jobs']}',
+                              '$_dashboardJobsCompleted',
                               'Jobs',
                               const Color(0xFF4A7FFF),
                             ),
                             const SizedBox(width: 8),
                             _buildStatCard(
                               Icons.star_outline,
-                              '${_todayStats['rating']}',
+                              _dashboardRating.toStringAsFixed(1),
                               'Rating',
                               const Color(0xFFFFB800),
                             ),
                             const SizedBox(width: 8),
                             _buildStatCard(
                               Icons.notifications_outlined,
-                              '${_todayStats['newRequests']}',
+                              '$_dashboardNewRequests',
                               'New',
                               const Color(0xFFFF6B6B),
                             ),
@@ -1165,6 +1302,15 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                 'My Earnings',
                                 const Color(0xFFE8F0FF),
                                 const Color(0xFF4A7FFF),
+                                () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const WorkerEarningsScreen(),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1174,6 +1320,15 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                 'My Reviews',
                                 const Color(0xFFFEF3C7),
                                 const Color(0xFFFFB800),
+                                () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const WorkerReviewsScreen(),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ],
@@ -1230,365 +1385,41 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
     );
   }
 
-  Widget _buildUpcomingJobCard(Map<String, dynamic> job) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person, color: Color(0xFF4A7FFF), size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      job['customerName'],
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    Text(
-                      job['time'],
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF4A7FFF),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  job['service'],
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 12,
-                      color: Color(0xFF9CA3AF),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      job['location'],
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF9CA3AF),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F0FF),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.navigation,
-              size: 16,
-              color: Color(0xFF4A7FFF),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildJobRequestCard(Map<String, dynamic> job) {
-    final isUrgent = job['urgency'] == 'urgent';
-
-    return GestureDetector(
-      onTap: () {
-        // TODO: Implement new job details screen
-        // Navigator.push(
-        //   context,
-        //   MaterialPageRoute(
-        //     builder: (context) =>
-        //         WorkerJobDetailsScreen(job: {...job, 'status': 'pending'}),
-        //   ),
-        // );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isUrgent ? const Color(0xFFFFF5F5) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isUrgent ? const Color(0xFFFF6B6B) : const Color(0xFFE5E7EB),
-            width: 2,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Urgency badge
-            if (isUrgent) ...[
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF6B6B),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Urgent Request',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFFFF6B6B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            // Customer info
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.person,
-                    color: Color(0xFF4A7FFF),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    job['customerName'] ?? 'Customer',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1F2937),
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD1FAE5),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'confirmed',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF10B981),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Job details
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.build_outlined,
-                        size: 16,
-                        color: Color(0xFF4A7FFF),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        job['service'],
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF1F2937),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 24),
-                    child: Text(
-                      job['issue'],
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Location
-            Row(
-              children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 14,
-                  color: Color(0xFFFF6B6B),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  job['location'],
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _handleDeclineJob(job['id']),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: const Color(0xFFF3F4F6),
-                      side: BorderSide.none,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Decline',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF6B7280),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Implement new job details screen
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //     builder: (context) => WorkerJobDetailsScreen(
-                      //       job: {...job, 'status': 'pending'},
-                      //     ),
-                      //   ),
-                      // );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: const Color(0xFF4A7FFF),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                    child: const Text(
-                      'View Request',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildQuickActionCard(
     IconData icon,
     String label,
     Color bgColor,
     Color iconColor,
+    VoidCallback onTap,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
-            child: Icon(icon, size: 24, color: iconColor),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF1F2937),
-              fontWeight: FontWeight.w500,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+              child: Icon(icon, size: 24, color: iconColor),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF1F2937),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
