@@ -34,6 +34,27 @@ class _CustomerRequestQuoteScreenState
   final ImagePicker _picker = ImagePicker();
   bool _sending = false;
 
+  String _two(int n) => n.toString().padLeft(2, '0');
+
+  String _dateYmd(DateTime d) {
+    return '${d.year}-${_two(d.month)}-${_two(d.day)}';
+  }
+
+  String _timeHm(TimeOfDay t) {
+    return '${_two(t.hour)}:${_two(t.minute)}';
+  }
+
+  int _scheduledAtMillis(DateTime date, TimeOfDay time) {
+    final dt = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    return dt.millisecondsSinceEpoch;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -278,6 +299,10 @@ class _CustomerRequestQuoteScreenState
         return;
       }
 
+      final scheduledDate = _dateYmd(_selectedDate);
+      final scheduledTime = _timeHm(_selectedTime);
+      final scheduledAt = _scheduledAtMillis(_selectedDate, _selectedTime);
+
       try {
         final functions = FirebaseFunctions.instanceFor(
           region: 'asia-southeast1',
@@ -290,6 +315,10 @@ class _CustomerRequestQuoteScreenState
           'locationText': _locationController.text.trim(),
           'problemDescription': _descriptionController.text.trim(),
           'requestNote': _needController.text.trim(),
+          'scheduledDate': scheduledDate,
+          'scheduledTime': scheduledTime,
+          'scheduledAt': scheduledAt,
+          'dateMode': _dateMode,
         });
 
         final bookingId = (createRes.data['bookingId'] ?? '').toString().trim();

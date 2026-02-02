@@ -420,6 +420,10 @@ type CreateBookingRequestInput = {
   locationText: string;
   problemDescription: string;
   requestNote?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  scheduledAt?: number;
+  dateMode?: string;
 };
 
 function asCleanString(v: unknown, maxLen: number): string {
@@ -444,6 +448,32 @@ export const createBookingRequest = onCall(
     const locationText = asCleanString(data.locationText, 200);
     const problemDescription = asCleanString(data.problemDescription, 5000);
     const requestNote = asCleanString(data.requestNote ?? "", 5000);
+    const scheduledDate = asCleanString(data.scheduledDate ?? "", 20);
+    const scheduledTime = asCleanString(data.scheduledTime ?? "", 10);
+    const dateMode = asCleanString(data.dateMode ?? "", 20);
+
+    const scheduledAtRaw = data.scheduledAt;
+    const scheduledAt =
+      typeof scheduledAtRaw === "number" && Number.isFinite(scheduledAtRaw) ?
+        scheduledAtRaw :
+        null;
+
+    // Basic format checks (optional but recommended)
+    if (scheduledDate && !/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "scheduledDate must be YYYY-MM-DD.",
+      );
+    }
+    if (scheduledTime && !/^\d{2}:\d{2}$/.test(scheduledTime)) {
+      throw new HttpsError("invalid-argument", "scheduledTime must be HH:mm.");
+    }
+    if (scheduledAt !== null && scheduledAt <= 0) {
+      throw new HttpsError(
+        "invalid-argument",
+        "scheduledAt must be a positive number.",
+      );
+    }
 
     if (!workerId) {
       throw new HttpsError("invalid-argument", "workerId is required.");
@@ -490,6 +520,10 @@ export const createBookingRequest = onCall(
       serviceName,
       locationText,
       problemDescription,
+      scheduledDate: scheduledDate || null,
+      scheduledTime: scheduledTime || null,
+      scheduledAt: scheduledAt ?? null,
+      dateMode: dateMode || null,
       status: "pending",
       createdAt: now,
       updatedAt: now,
@@ -762,6 +796,12 @@ app.post(
         serviceId,
         serviceName,
         locationText,
+        scheduledDate: asCleanString(req.body.scheduledDate, 20) || null,
+        scheduledTime: asCleanString(req.body.scheduledTime, 10) || null,
+        scheduledAt: Number.isFinite(Number(req.body.scheduledAt)) ?
+          Number(req.body.scheduledAt) :
+          null,
+        dateMode: asCleanString(req.body.dateMode, 20) || null,
         status: "quote_requested",
         createdAt: now,
         updatedAt: now,
