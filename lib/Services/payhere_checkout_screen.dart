@@ -46,7 +46,7 @@ class _PayHereCheckoutScreenState extends State<PayHereCheckoutScreen> {
           },
         ),
       )
-      ..loadHtmlString(html);
+      ..loadHtmlString(html, baseUrl: 'https://fixnow-app-75722.web.app');
   }
 
   void _popOnce(bool result) {
