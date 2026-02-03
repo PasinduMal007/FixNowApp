@@ -1,8 +1,7 @@
-import 'package:firebase_database/firebase_database.dart';
-import 'package:fix_now_app/Services/db.dart';
-import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:fix_now_app/services/db.dart';
 import 'customer_notifications_screen.dart';
 import 'customer_search_results_screen.dart';
 import 'customer_service_category_screen.dart';
@@ -11,69 +10,26 @@ import 'customer_chat_conversation_screen.dart';
 import 'customer_view_quotation_screen.dart';
 import 'customer_worker_profile_detail_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'customer_static_view_quotation_screen.dart';
+import 'customer_job_completion_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   final String customerName;
 
-  const CustomerHomeScreen({super.key, this.customerName = 'Sarah'});
+  const CustomerHomeScreen({super.key, required this.customerName});
 
   @override
   State<CustomerHomeScreen> createState() => _CustomerHomeScreenState();
 }
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
+  // Service categories
   final List<Map<String, dynamic>> _serviceCategories = [
-    {'name': 'Electrician', 'icon': Icons.flash_on, 'color': Color(0xFFFBBF24)},
-    {
-      'name': 'Plumber',
-      'icon': Icons.water_drop_outlined,
-      'color': Color(0xFF3B82F6),
-    },
-    {
-      'name': 'Carpenter',
-      'icon': Icons.handyman_outlined,
-      'color': Color(0xFF8B4513),
-    },
-    {
-      'name': 'Mason',
-      'icon': Icons.home_repair_service,
-      'color': Color(0xFF6B7280),
-    },
-    {
-      'name': 'Painter',
-      'icon': Icons.format_paint_outlined,
-      'color': Color(0xFFF97316),
-    },
-    {
-      'name': 'Mechanic',
-      'icon': Icons.build_circle_outlined,
-      'color': Color(0xFF1F2937),
-    },
-    {
-      'name': 'Welder',
-      'icon': Icons.whatshot_outlined,
-      'color': Color(0xFFEF4444),
-    },
-    {
-      'name': 'AC Technician',
-      'icon': Icons.ac_unit_outlined,
-      'color': Color(0xFF06B6D4),
-    },
-    {
-      'name': 'Tile Setter',
-      'icon': Icons.grid_on_outlined,
-      'color': Color(0xFF8B5CF6),
-    },
-    {
-      'name': 'Roofer',
-      'icon': Icons.roofing_outlined,
-      'color': Color(0xFF78716C),
-    },
-    {
-      'name': 'Gardener',
-      'icon': Icons.yard_outlined,
-      'color': Color(0xFF10B981),
-    },
+    {'name': 'Plumber', 'icon': Icons.plumbing, 'color': Color(0xFF3B82F6)},
+    {'name': 'Electrician', 'icon': Icons.bolt, 'color': Color(0xFFFBBF24)},
+    {'name': 'Carpenter', 'icon': Icons.handyman, 'color': Color(0xFF10B981)},
+    {'name': 'Painter', 'icon': Icons.format_paint, 'color': Color(0xFFEC4899)},
+    {'name': 'Mason', 'icon': Icons.foundation, 'color': Color(0xFF8B5CF6)},
     {
       'name': 'Cleaner',
       'icon': Icons.cleaning_services_outlined,
@@ -81,7 +37,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     },
   ];
 
-  Stream<Map<String, dynamic>?> get _activeServiceStream {
+  Stream<List<Map<String, dynamic>>> get _activeServiceStream {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
 
@@ -101,31 +57,61 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
     return q.onValue.map((event) {
       final raw = event.snapshot.value;
-      if (raw == null || raw is! Map) return null;
+      if (raw == null || raw is! Map) return [];
 
       final all = Map<dynamic, dynamic>.from(raw as Map);
+      final List<Map<String, dynamic>> active = [];
 
-      Map<String, dynamic>? best;
-      int bestUpdatedAt = -1;
+      print('=== DEBUG: Found ${all.length} total bookings for customer ===');
 
       all.forEach((bookingId, value) {
         if (value is! Map) return;
 
         final b = Map<String, dynamic>.from(value as Map);
-        
+
         final status = (b['status'] ?? '').toString();
-        if (status != 'invoice_sent') return;
+        print('Booking $bookingId: status = $status');
 
-        final updatedAt = _asInt(b['updatedAt']);
+        // Include both 'invoice_sent' (Quotation Ready) and 'started' (In Progress)
+        if (status != 'invoice_sent' && status != 'started') return;
 
-        if (updatedAt >= bestUpdatedAt) {
-          bestUpdatedAt = updatedAt;
-          b['id'] = bookingId.toString();
-          best = b;
-        }
+        b['id'] = bookingId.toString();
+        b['updatedAt'] = _asInt(b['updatedAt']);
+        active.add(b);
       });
 
-      return best;
+      print(
+        '=== DEBUG: Found ${active.length} active bookings (invoice_sent or started) ===',
+      );
+
+      // --- DEMO MODE: Injecting a fake 'started' booking to visualize the card ---
+      /*
+      active.add({
+        'id': 'demo_booking_123',
+        'status': 'started',
+        'serviceName': 'Plumber', // Matches your mock request
+        'workerName': 'Kamal Perera',
+        'updatedAt': DateTime.now().millisecondsSinceEpoch, // Show as most recent
+        'invoice': {
+          'workerName': 'Kamal Perera',
+          'inspectionFee': 1000,
+          'laborPrice': 1500,
+          'laborHours': 2,
+          'materials': 2000,
+          'subtotal': 4500,
+        }
+      });
+      */
+      // --------------------------------------------------------------------------
+
+      // Sort by updatedAt descending (newest first)
+      active.sort((a, b) {
+        final ua = _asInt(a['updatedAt']);
+        final ub = _asInt(b['updatedAt']);
+        return ub.compareTo(ua);
+      });
+
+      return active;
     });
   }
 
@@ -459,7 +445,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                         const SizedBox(height: 20),
 
                         // Active Service Card (from RTDB)
-                        StreamBuilder<Map<String, dynamic>?>(
+                        StreamBuilder<List<Map<String, dynamic>>>(
                           stream: _activeServiceStream,
                           builder: (context, snapshot) {
                             if (snapshot.hasError) {
@@ -468,34 +454,36 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                   horizontal: 24,
                                 ),
                                 child: Text(
-                                  'Failed to load booking: ${snapshot.error}',
+                                  'Failed to load bookings: ${snapshot.error}',
                                   style: const TextStyle(color: Colors.red),
                                 ),
                               );
                             }
 
-                            if (!snapshot.hasData || snapshot.data == null) {
+                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
                               return const SizedBox.shrink();
                             }
 
-                            final booking = snapshot.data!;
-                            final invoice = booking['invoice'] is Map
-                                ? booking['invoice'] as Map
-                                : null;
+                            final bookings = snapshot.data!;
 
                             return Column(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
+                              children: bookings.map((booking) {
+                                final invoice = booking['invoice'] is Map
+                                    ? booking['invoice'] as Map
+                                    : null;
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 24,
+                                    right: 24,
+                                    bottom: 20,
                                   ),
                                   child: _buildActiveServiceCardFromRtdb(
                                     booking,
                                     invoice,
                                   ),
-                                ),
-                                const SizedBox(height: 20),
-                              ],
+                                );
+                              }).toList(),
                             );
                           },
                         ),
@@ -967,10 +955,16 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   Widget _statusBadge(String status) {
     final isInvoice = status == 'invoice_sent';
 
+    Color bgColor = const Color(0xFF3B82F6);
+    if (isInvoice) bgColor = const Color(0xFF10B981);
+
+    String label = 'In Progress';
+    if (isInvoice) label = 'Quotation Ready';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isInvoice ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
+        color: bgColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -986,7 +980,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           ),
           const SizedBox(width: 6),
           Text(
-            isInvoice ? 'Quotation Ready' : 'In Progress',
+            label,
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -1011,7 +1005,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         ? Map<String, dynamic>.from(invoiceRaw as Map)
         : null;
 
-    // Per your rules, workerName exists inside invoice when invoice is present
     final workerName =
         (invoice?['workerName'] ??
                 booking['workerName'] ??
@@ -1020,7 +1013,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             .toString();
 
     num? _num(dynamic v) {
-      if (v is num) return v; // covers int + double
+      if (v is num) return v;
       return null;
     }
 
@@ -1028,7 +1021,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     final laborHours = _num(invoice?['laborHours']);
     final laborPrice = _num(invoice?['laborPrice']);
     final materials = _num(invoice?['materials']);
-    final subtotal = _num(invoice?['subtotal']);
+    final subtotal = _num(invoice?['subtotal']) ?? 0.0;
+
+    // For passing to detail view
+    final total = materials != null ? (subtotal) : subtotal;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1069,7 +1065,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           ),
           const SizedBox(height: 14),
 
-          // Show invoice snippet when invoice is present
+          // Show invoice snippet when invoice is present and status is invoice_sent
           if (status == 'invoice_sent' && invoice != null) ...[
             _invoiceLine('Subtotal', subtotal),
             const SizedBox(height: 6),
@@ -1115,6 +1111,71 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ),
                 elevation: 0,
               ),
+            )
+          else if (status == 'started')
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              CustomerStaticViewQuotationScreen(
+                                workerName: workerName,
+                                serviceName: serviceName,
+                                inspectionFee: (inspectionFee ?? 0).toDouble(),
+                                laborPrice: (laborPrice ?? 0).toDouble(),
+                                laborHours: (laborHours ?? 0).toDouble(),
+                                materials: (materials ?? 0).toDouble(),
+                                total: (total).toDouble(),
+                              ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.receipt_long, size: 18),
+                    label: const Text('View Quotation'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF4A7FFF),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CustomerJobCompletionScreen(
+                            booking: booking,
+                            invoice: invoice ?? {},
+                            total: (total).toDouble(),
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('Job Done'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white.withOpacity(0.2),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
             )
           else
             Row(
