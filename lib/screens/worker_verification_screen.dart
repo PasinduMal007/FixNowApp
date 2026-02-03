@@ -108,10 +108,22 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
         hasIdBack: _idBackPhoto != null,
       );
 
+      // 4) NEW: Save default rates and complete onboarding (bypass rates screen)
+      await onboardingService.saveRatesAndComplete(
+        rateType: 'per-hour',
+        baseRate: 2500,
+        callOutCharge: 500,
+        negotiable: true,
+      );
+
       if (!mounted) return;
 
       // Navigate only after everything succeeds
-      Navigator.pushNamed(context, '/worker-rates');
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/worker-dashboard',
+        (route) => false,
+      );
 
       widget.onNext?.call({
         'profilePhotoUrl': profileUrl,

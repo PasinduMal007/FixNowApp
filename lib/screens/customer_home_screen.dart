@@ -26,11 +26,21 @@ class CustomerHomeScreen extends StatefulWidget {
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   // Service categories
   final List<Map<String, dynamic>> _serviceCategories = [
-    {'name': 'Plumber', 'icon': Icons.plumbing, 'color': Color(0xFF3B82F6)},
     {'name': 'Electrician', 'icon': Icons.bolt, 'color': Color(0xFFFBBF24)},
+    {'name': 'Plumber', 'icon': Icons.plumbing, 'color': Color(0xFF3B82F6)},
     {'name': 'Carpenter', 'icon': Icons.handyman, 'color': Color(0xFF10B981)},
-    {'name': 'Painter', 'icon': Icons.format_paint, 'color': Color(0xFFEC4899)},
     {'name': 'Mason', 'icon': Icons.foundation, 'color': Color(0xFF8B5CF6)},
+    {'name': 'Painter', 'icon': Icons.format_paint, 'color': Color(0xFFEC4899)},
+    {'name': 'Mechanic', 'icon': Icons.settings, 'color': Color(0xFF6B7280)},
+    {'name': 'Welder', 'icon': Icons.flash_on, 'color': Color(0xFFF59E0B)},
+    {
+      'name': 'AC Technician',
+      'icon': Icons.ac_unit,
+      'color': Color(0xFF60A5FA),
+    },
+    {'name': 'Tile Setter', 'icon': Icons.grid_on, 'color': Color(0xFF9CA3AF)},
+    {'name': 'Roofer', 'icon': Icons.roofing, 'color': Color(0xFFB45309)},
+    {'name': 'Gardener', 'icon': Icons.grass, 'color': Color(0xFF22C55E)},
     {
       'name': 'Cleaner',
       'icon': Icons.cleaning_services_outlined,

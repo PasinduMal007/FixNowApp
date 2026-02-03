@@ -8,7 +8,6 @@ import 'screens/worker_profession_screen.dart';
 import 'screens/worker_experience_screen.dart';
 import 'screens/worker_profile_screen.dart';
 import 'screens/worker_verification_screen.dart';
-import 'screens/worker_rates_screen.dart';
 import 'screens/worker_dashboard.dart';
 import 'screens/customer_personal_info_screen.dart';
 import 'screens/customer_photo_screen.dart';
@@ -62,7 +61,6 @@ class MyApp extends StatelessWidget {
         '/worker-profession': (context) => const WorkerProfessionScreen(),
         '/worker-profile': (context) => const WorkerProfileScreen(),
         '/worker-verification': (context) => const WorkerVerificationScreen(),
-        '/worker-rates': (context) => const WorkerRatesScreen(),
         '/worker-dashboard': (context) => const WorkerDashboard(),
         // Customer onboarding routes
         '/customer-personal-info': (context) =>

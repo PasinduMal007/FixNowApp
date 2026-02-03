@@ -775,40 +775,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(height: 24),
 
-                              const Row(
-                                children: [
-                                  Expanded(child: Divider()),
-                                  Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    child: Text(
-                                      'OR',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF9CA3AF),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(child: Divider()),
-                                ],
-                              ),
-                              const SizedBox(height: 24),
-
-                              _SocialButton(
-                                onPressed: () {},
-                                icon: 'google',
-                                label: 'Continue with Google',
-                              ),
-                              const SizedBox(height: 12),
-                              _SocialButton(
-                                onPressed: () {},
-                                icon: 'apple',
-                                label: 'Continue with Apple',
-                                isBlack: true,
-                              ),
-                              const SizedBox(height: 24),
-
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -876,58 +842,6 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Opacity(
           opacity: 0.1,
           child: Icon(icon, size: size, color: Colors.white),
-        ),
-      ),
-    );
-  }
-}
-
-class _SocialButton extends StatelessWidget {
-  final VoidCallback onPressed;
-  final String icon;
-  final String label;
-  final bool isBlack;
-
-  const _SocialButton({
-    required this.onPressed,
-    required this.icon,
-    required this.label,
-    this.isBlack = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: isBlack ? Colors.black : Colors.white,
-          side: BorderSide(
-            color: isBlack ? Colors.black : const Color(0xFFE5E7EB),
-            width: 2,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon == 'google' ? Icons.g_mobiledata : Icons.apple,
-              color: isBlack ? Colors.white : Colors.black,
-              size: 24,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: isBlack ? Colors.white : const Color(0xFF1C2334),
-              ),
-            ),
-          ],
         ),
       ),
     );
