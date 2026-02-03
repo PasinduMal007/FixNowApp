@@ -104,6 +104,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 padding: const EdgeInsets.all(24),
                 child: Form(
                   key: _formKey,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -119,6 +120,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _fullNameController,
+                        validator: (value) {
+                          final v = (value ?? '').trim();
+                          if (v.isEmpty) return 'Full Name is required';
+                          if (v.length < 2) return 'Name is too short';
+                          return null;
+                        },
                         decoration: InputDecoration(
                           hintText: 'John Doe',
                           hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),
@@ -160,6 +167,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          final v = (value ?? '').trim();
+                          if (v.isEmpty) return 'Email is required';
+                          final emailRegex = RegExp(
+                            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                          );
+                          if (!emailRegex.hasMatch(v)) {
+                            return 'Please enter a valid email address';
+                          }
+                          return null;
+                        },
                         decoration: InputDecoration(
                           hintText: 'john@example.com',
                           hintStyle: const TextStyle(color: Color(0xFFBBBBBB)),
@@ -204,8 +222,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         validator: (value) {
                           final v = (value ?? '').trim();
                           if (v.isEmpty) return 'Password is required';
-                          if (v.length < 6) {
-                            return 'Password must be at least 6 characters';
+                          if (v.length < 8) {
+                            return 'Password must be at least 8 characters';
+                          }
+                          if (!v.contains(RegExp(r'[A-Z]'))) {
+                            return 'Must contain at least one uppercase letter';
+                          }
+                          if (!v.contains(RegExp(r'[a-z]'))) {
+                            return 'Must contain at least one lowercase letter';
+                          }
+                          if (!v.contains(RegExp(r'[0-9!@#\$&*~]'))) {
+                            return 'Must contain a number or special character';
                           }
                           return null;
                         },

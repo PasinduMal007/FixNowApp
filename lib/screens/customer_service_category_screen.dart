@@ -87,6 +87,14 @@ class _CustomerServiceCategoryScreenState
   List<Map<String, dynamic>> _applyFilterSort(List<Map<String, dynamic>> list) {
     var out = List<Map<String, dynamic>>.from(list);
 
+    // Filter by Category Name (Profession)
+    out = out.where((w) {
+      final type = (w['type'] ?? '').toString().toLowerCase();
+      final target = widget.categoryName.toLowerCase();
+      // Simple exact match or contains if you want looser matching
+      return type == target;
+    }).toList();
+
     switch (_selectedFilter) {
       case 'Top Rated':
         out.sort(
