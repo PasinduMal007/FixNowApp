@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/services/db.dart';
 import 'customer_notifications_screen.dart';
 import 'customer_search_results_screen.dart';
@@ -36,6 +37,51 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       'color': Color(0xFF06B6D4),
     },
   ];
+
+  Stream<DatabaseEvent> get _workersStream =>
+      DB.ref().child('workersPublic').onValue;
+
+  List<Map<String, dynamic>> _mapWorkersFromSnapshot(DataSnapshot snap) {
+    final list = <Map<String, dynamic>>[];
+    for (final child in snap.children) {
+      final key = (child.key ?? '').toString();
+      if (child.value is! Map) continue;
+      final data = Map<String, dynamic>.from(child.value as Map);
+
+      final fullName = (data['fullName'] ?? '').toString().trim();
+      final profession = (data['profession'] ?? '').toString().trim();
+      final ratingVal = data['rating'];
+      final reviewsVal = data['reviews'];
+
+      final rating = (ratingVal is num)
+          ? ratingVal.toDouble()
+          : double.tryParse(ratingVal?.toString() ?? '') ?? 0.0;
+
+      final reviews = (reviewsVal is num)
+          ? reviewsVal.toInt()
+          : int.tryParse(reviewsVal?.toString() ?? '') ?? 0;
+
+      final isAvailableVal = data['isAvailable'];
+      final isAvailable = isAvailableVal is bool ? isAvailableVal : false;
+
+      list.add(<String, dynamic>{
+        'uid': (data['uid'] ?? key).toString(),
+        'name': fullName.isEmpty ? 'Worker' : fullName,
+        'type': profession,
+        'rating': rating,
+        'reviews': reviews,
+        'distance': (data['distance'] is num)
+            ? (data['distance'] as num).toDouble()
+            : 0.0,
+        'experience': (data['experience'] ?? 0),
+        'description': (data['description'] ?? '').toString(),
+        'isAvailable': isAvailable,
+        'photoUrl': (data['photoUrl'] ?? '').toString(),
+        'locationText': (data['locationText'] ?? '').toString(),
+      });
+    }
+    return list;
+  }
 
   Stream<List<Map<String, dynamic>>> get _activeServiceStream {
     final user = FirebaseAuth.instance.currentUser;
@@ -124,84 +170,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
   // Google Maps variables
   GoogleMapController? _mapController;
-  final Set<Marker> _markers = {};
   final LatLng _initialPosition = const LatLng(
     6.9271,
     79.8612,
   ); // Colombo, Sri Lanka
-
-  // Nearby workers data
-  final List<Map<String, dynamic>> _nearbyWorkers = [
-    {
-      'name': 'Kasun Perera',
-      'profession': 'Electrician',
-      'lat': 6.9271,
-      'lng': 79.8612,
-      'rating': 4.8,
-    },
-    {
-      'name': 'Nimal Silva',
-      'profession': 'Plumber',
-      'lat': 6.9300,
-      'lng': 79.8650,
-      'rating': 4.6,
-    },
-    {
-      'name': 'Amal Fernando',
-      'profession': 'Carpenter',
-      'lat': 6.9250,
-      'lng': 79.8580,
-      'rating': 4.9,
-    },
-    {
-      'name': 'Sunil Dias',
-      'profession': 'Electrician',
-      'lat': 6.9320,
-      'lng': 79.8620,
-      'rating': 4.7,
-    },
-    {
-      'name': 'Chamara Wickrama',
-      'profession': 'Mason',
-      'lat': 6.9240,
-      'lng': 79.8640,
-      'rating': 4.5,
-    },
-  ];
-
-  // Available workers data
-  final List<Map<String, dynamic>> _availableWorkers = [
-    {
-      'name': 'Ravi Kumara',
-      'profession': 'Electrician',
-      'rating': 4.9,
-      'isAvailable': true,
-    },
-    {
-      'name': 'Saman Jayasinghe',
-      'profession': 'Plumber',
-      'rating': 4.7,
-      'isAvailable': true,
-    },
-    {
-      'name': 'Tharindu Bandara',
-      'profession': 'Carpenter',
-      'rating': 4.8,
-      'isAvailable': true,
-    },
-    {
-      'name': 'Indunil Perera',
-      'profession': 'Painter',
-      'rating': 4.6,
-      'isAvailable': true,
-    },
-    {
-      'name': 'Lakmal Rodrigo',
-      'profession': 'Mason',
-      'rating': 4.5,
-      'isAvailable': true,
-    },
-  ];
 
   @override
   void initState() {
@@ -560,384 +532,236 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                         ),
                         const SizedBox(height: 28),
 
-                        // Conditional display: Map for Nearby, Pros List for others
-                        if (_selectedFilter == 'Nearby') ...[
-                          // Nearby Workers Map
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 24,
-                                      height: 24,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFF4A7FFF),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.location_on,
-                                        color: Colors.white,
-                                        size: 14,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Nearby Workers',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1F2937),
-                                      ),
-                                    ),
-                                  ],
+                        // Conditional display based on Stream
+                        StreamBuilder<DatabaseEvent>(
+                          stream: _workersStream,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(40.0),
+                                  child: CircularProgressIndicator(),
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // Map Widget
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 24),
-                            height: 400,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
+                              );
+                            }
+
+                            final snap = snapshot.data?.snapshot;
+                            final allWorkers = snap == null
+                                ? <Map<String, dynamic>>[]
+                                : _mapWorkersFromSnapshot(snap);
+
+                            // Apply Filtering and Sorting
+                            var filteredWorkers =
+                                List<Map<String, dynamic>>.from(allWorkers);
+
+                            if (_selectedFilter == 'Top Rated') {
+                              filteredWorkers.sort(
+                                (a, b) => (b['rating'] as num).compareTo(
+                                  a['rating'] as num,
                                 ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: GoogleMap(
-                                initialCameraPosition: CameraPosition(
-                                  target: _initialPosition,
-                                  zoom: 13.5,
+                              );
+                            } else if (_selectedFilter == 'Nearby') {
+                              filteredWorkers.sort(
+                                (a, b) => (a['distance'] as num).compareTo(
+                                  b['distance'] as num,
                                 ),
-                                markers: _markers,
-                                onMapCreated: (GoogleMapController controller) {
-                                  _mapController = controller;
-                                  _createMarkers();
-                                  setState(() {});
-                                },
-                                myLocationButtonEnabled: true,
-                                myLocationEnabled: true,
-                                zoomControlsEnabled: true,
-                                mapToolbarEnabled: false,
-                              ),
-                            ),
-                          ),
-                        ] else if (_selectedFilter == 'Available Now') ...[
-                          // Available Workers
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 24,
-                                      height: 24,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFF10B981),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.check_circle,
-                                        color: Colors.white,
-                                        size: 14,
-                                      ),
+                              );
+                            } else if (_selectedFilter == 'Available Now') {
+                              filteredWorkers = filteredWorkers
+                                  .where((w) => w['isAvailable'] == true)
+                                  .toList();
+                            }
+
+                            if (_selectedFilter == 'Nearby') {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
                                     ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Available Workers',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1F2937),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // Available Workers Grid
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 2,
-                                    crossAxisSpacing: 12,
-                                    mainAxisSpacing: 12,
-                                    childAspectRatio: 0.85,
-                                  ),
-                              itemCount: _availableWorkers.length,
-                              itemBuilder: (context, index) {
-                                final worker = _availableWorkers[index];
-                                return GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            CustomerWorkerProfileDetailScreen(
-                                              worker: worker,
-                                            ),
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: const Color(0xFFE5E7EB),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.05),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                    child: Row(
                                       children: [
-                                        // Worker Avatar
                                         Container(
-                                          width: 60,
-                                          height: 60,
-                                          decoration: BoxDecoration(
-                                            gradient: const LinearGradient(
-                                              colors: [
-                                                Color(0xFFE8F0FF),
-                                                Color(0xFFD0E2FF),
-                                              ],
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
+                                          width: 24,
+                                          height: 24,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF4A7FFF),
+                                            shape: BoxShape.circle,
                                           ),
                                           child: const Icon(
-                                            Icons.person,
-                                            color: Color(0xFF4A7FFF),
-                                            size: 32,
+                                            Icons.location_on,
+                                            color: Colors.white,
+                                            size: 14,
                                           ),
                                         ),
-                                        const SizedBox(height: 12),
-                                        // Green Available Badge
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF10B981),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: const Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.circle,
-                                                size: 8,
-                                                color: Colors.white,
-                                              ),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                'Available',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        // Worker Name
-                                        Text(
-                                          worker['name'],
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Nearby Workers',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
                                             color: Color(0xFF1F2937),
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        // Profession
-                                        Text(
-                                          worker['profession'],
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Color(0xFF6B7280),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        // Rating
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            const Icon(
-                                              Icons.star,
-                                              size: 14,
-                                              color: Color(0xFFFBBF24),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              worker['rating'].toString(),
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: Color(0xFF1F2937),
-                                              ),
-                                            ),
-                                          ],
                                         ),
                                       ],
                                     ),
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                        ] else ...[
-                          // Top Rated Pros (Original)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 24,
-                                      height: 24,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFFBBF24),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.star,
-                                        color: Colors.white,
-                                        size: 14,
-                                      ),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 24,
                                     ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Top Rated Pros',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1F2937),
-                                      ),
+                                    height: 400,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.1),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // Top Rated Pros List
-                          SizedBox(
-                            height: 120,
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              scrollDirection: Axis.horizontal,
-                              itemCount: 5,
-                              itemBuilder: (context, index) {
-                                return Container(
-                                  width: 100,
-                                  margin: const EdgeInsets.only(right: 12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: const Color(0xFFE5E7EB),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: GoogleMap(
+                                        initialCameraPosition: CameraPosition(
+                                          target: _initialPosition,
+                                          zoom: 13.5,
+                                        ),
+                                        markers: _createMarkersFromList(
+                                          filteredWorkers,
+                                        ),
+                                        onMapCreated:
+                                            (GoogleMapController controller) {
+                                              _mapController = controller;
+                                            },
+                                        myLocationButtonEnabled: true,
+                                        myLocationEnabled: true,
+                                        zoomControlsEnabled: true,
+                                      ),
                                     ),
                                   ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        width: 48,
-                                        height: 48,
-                                        decoration: BoxDecoration(
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFFE8F0FF),
-                                              Color(0xFFD0E2FF),
-                                            ],
+                                ],
+                              );
+                            } else if (_selectedFilter == 'Available Now') {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 24,
+                                          height: 24,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF10B981),
+                                            shape: BoxShape.circle,
                                           ),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
+                                          child: const Icon(
+                                            Icons.check_circle,
+                                            color: Colors.white,
+                                            size: 14,
                                           ),
                                         ),
-                                        child: const Icon(
-                                          Icons.person,
-                                          color: Color(0xFF4A7FFF),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Available Workers',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1F2937),
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        'Pro Name',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF1F2937),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.star,
-                                            size: 12,
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+                                    child: GridView.builder(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      gridDelegate:
+                                          const SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 2,
+                                            crossAxisSpacing: 12,
+                                            mainAxisSpacing: 12,
+                                            childAspectRatio: 0.85,
+                                          ),
+                                      itemCount: filteredWorkers.length,
+                                      itemBuilder: (context, index) {
+                                        final worker = filteredWorkers[index];
+                                        return _buildWorkerGridCard(worker);
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              );
+                            } else {
+                              // Top Rated or default
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 24,
+                                          height: 24,
+                                          decoration: const BoxDecoration(
                                             color: Color(0xFFFBBF24),
+                                            shape: BoxShape.circle,
                                           ),
-                                          const SizedBox(width: 2),
-                                          const Text(
-                                            '4.9',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Color(0xFF9CA3AF),
-                                            ),
+                                          child: const Icon(
+                                            Icons.star,
+                                            color: Colors.white,
+                                            size: 14,
                                           ),
-                                        ],
-                                      ),
-                                    ],
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Top Rated Pros',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1F2937),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    height: 140,
+                                    child: ListView.builder(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                      ),
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: filteredWorkers.length,
+                                      itemBuilder: (context, index) {
+                                        final worker = filteredWorkers[index];
+                                        return _buildTopRatedProCard(worker);
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }
+                          },
+                        ),
 
                         const SizedBox(height: 100),
                       ],
@@ -1261,21 +1085,203 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   // Create markers for nearby workers
-  void _createMarkers() {
-    _markers.clear();
-    for (var worker in _nearbyWorkers) {
-      _markers.add(
+  Set<Marker> _createMarkersFromList(List<Map<String, dynamic>> workers) {
+    final Set<Marker> markers = {};
+    for (var worker in workers) {
+      final lat = (worker['lat'] is num)
+          ? (worker['lat'] as num).toDouble()
+          : 6.9271;
+      final lng = (worker['lng'] is num)
+          ? (worker['lng'] as num).toDouble()
+          : 79.8612;
+
+      markers.add(
         Marker(
-          markerId: MarkerId(worker['name']),
-          position: LatLng(worker['lat'], worker['lng']),
+          markerId: MarkerId(
+            worker['uid']?.toString() ?? worker['name'].toString(),
+          ),
+          position: LatLng(lat, lng),
           infoWindow: InfoWindow(
-            title: worker['name'],
-            snippet: '${worker['profession']} ⭐ ${worker['rating']}',
+            title: worker['name'].toString(),
+            snippet: '${worker['type']} ⭐ ${worker['rating']}',
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         ),
       );
     }
+    return markers;
+  }
+
+  Widget _buildTopRatedProCard(Map<String, dynamic> worker) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                CustomerWorkerProfileDetailScreen(worker: worker),
+          ),
+        );
+      },
+      child: Container(
+        width: 110,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.person, color: Color(0xFF4A7FFF)),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              worker['name'].toString(),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1F2937),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.star, size: 12, color: Color(0xFFFBBF24)),
+                const SizedBox(width: 4),
+                Text(
+                  (worker['rating'] as num).toStringAsFixed(1),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkerGridCard(Map<String, dynamic> worker) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                CustomerWorkerProfileDetailScreen(worker: worker),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.person,
+                color: Color(0xFF4A7FFF),
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.circle, size: 8, color: Colors.white),
+                  SizedBox(width: 4),
+                  Text(
+                    'Available',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              worker['name'].toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1F2937),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              worker['type'].toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.star, size: 14, color: Color(0xFFFBBF24)),
+                const SizedBox(width: 4),
+                Text(
+                  worker['rating'].toString(),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildFilterChip(String label, IconData icon, bool isSelected) {
@@ -1283,9 +1289,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       onTap: () {
         setState(() {
           _selectedFilter = label;
-          if (label == 'Nearby') {
-            _createMarkers();
-          }
         });
       },
       child: Container(
