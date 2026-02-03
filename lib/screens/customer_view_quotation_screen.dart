@@ -48,13 +48,10 @@ class CustomerViewQuotationScreen extends StatelessWidget {
 
       if (!context.mounted) return;
 
-      Navigator.pushReplacement(
+      Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => CustomerPaymentScreen(
-            booking: booking,
-            totalAmount: subtotal.toDouble(),
-          ),
+          builder: (_) => CustomerPaymentScreen(bookingId: bookingId),
         ),
       );
     } catch (e) {

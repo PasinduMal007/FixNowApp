@@ -1,15 +1,15 @@
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
 import 'payment_success_screen.dart';
+import 'package:fix_now_app/Services/payhere_start_service.dart';
+import 'package:fix_now_app/Services/payhere_checkout_screen.dart';
+import 'package:fix_now_app/Services/payment_waiting_screen.dart';
 
 class CustomerPaymentScreen extends StatefulWidget {
-  final Map<String, dynamic> booking;
-  final double totalAmount;
+  final String bookingId;
 
-  const CustomerPaymentScreen({
-    super.key,
-    required this.booking,
-    required this.totalAmount,
-  });
+  const CustomerPaymentScreen({super.key, required this.bookingId});
 
   @override
   State<CustomerPaymentScreen> createState() => _CustomerPaymentScreenState();
@@ -17,13 +17,143 @@ class CustomerPaymentScreen extends StatefulWidget {
 
 class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
   bool _agreedToTerms = false;
+  bool _paying = false;
+
+  Future<void> _startPayHereCheckout({
+    required Map<String, dynamic> booking,
+    required double advancePayment,
+  }) async {
+    if (_paying) return;
+    setState(() => _paying = true);
+
+    try {
+      // If already paid, go straight to success
+      final currentStatus = (booking['status'] ?? '').toString();
+      if (currentStatus == 'payment_paid') {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => PaymentSuccessScreen(amountPaid: advancePayment),
+          ),
+        );
+        return;
+      }
+
+      final svc = PayHereStartService();
+
+      // Call backend to get payload
+      final result = await svc.startPayment(bookingId: widget.bookingId);
+      final payload = (result['payherePayload'] as Map).cast<String, dynamic>();
+
+      if (!mounted) return;
+
+      // 1) Open checkout AND capture result
+      // true: returned via return_url, false: cancel/close
+      final checkoutOk = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => PayHereCheckoutScreen(payload: payload),
+        ),
+      );
+
+      if (!mounted) return;
+
+      // If user cancelled/closed checkout, stop here
+      if (checkoutOk != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment cancelled')),
+        );
+        return;
+      }
+
+      // 2) Now show waiting screen (notify_url is server-to-server)
+      final paid = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => PaymentWaitingScreen(bookingId: widget.bookingId),
+        ),
+      );
+
+      if (!mounted) return;
+
+      // 3) Paid => success screen
+      if (paid == true) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => PaymentSuccessScreen(amountPaid: advancePayment),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment not confirmed yet')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _paying = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Calculate payment split
-    final advancePayment = (widget.totalAmount * 0.20).round();
-    final completionPayment = widget.totalAmount.round() - advancePayment;
+    final ref = DB.instance.ref('bookings/${widget.bookingId}');
 
+    return StreamBuilder<DatabaseEvent>(
+      stream: ref.onValue,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return Scaffold(
+            appBar: AppBar(
+              backgroundColor: const Color(0xFF5B8CFF),
+              title: const Text('Payment', style: TextStyle(color: Colors.white)),
+            ),
+            body: Center(child: Text('Failed: ${snap.error}')),
+          );
+        }
+
+        if (!snap.hasData || snap.data!.snapshot.value == null) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final raw = snap.data!.snapshot.value;
+        if (raw is! Map) {
+          return const Scaffold(body: Center(child: Text('Invalid booking')));
+        }
+
+        final booking = Map<String, dynamic>.from(raw as Map);
+
+        final invoiceRaw = booking['invoice'];
+        final invoice = invoiceRaw is Map ? Map<String, dynamic>.from(invoiceRaw) : null;
+
+        final total = (invoice?['subtotal'] is num)
+            ? (invoice!['subtotal'] as num).toDouble()
+            : 0.0;
+
+        final advancePayment = (total * 0.20).roundToDouble();
+        final completionPayment = total.roundToDouble() - advancePayment;
+
+        return _buildPaymentScaffold(
+          context: context,
+          booking: booking,
+          total: total,
+          advancePayment: advancePayment,
+          completionPayment: completionPayment,
+        );
+      },
+    );
+  }
+
+  Widget _buildPaymentScaffold({
+    required BuildContext context,
+    required Map<String, dynamic> booking,
+    required double total,
+    required double advancePayment,
+    required double completionPayment,
+  }) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
@@ -89,7 +219,7 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                         const SizedBox(height: 20),
                         _buildPriceRow(
                           'Service (quoted):',
-                          'LKR ${widget.totalAmount.toStringAsFixed(0)}',
+                          'LKR ${total.toStringAsFixed(0)}',
                           isSubdued: true,
                         ),
                         const SizedBox(height: 12),
@@ -97,7 +227,7 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                         const SizedBox(height: 12),
                         _buildPriceRow(
                           'Total:',
-                          'LKR ${widget.totalAmount.toStringAsFixed(0)}',
+                          'LKR ${total.toStringAsFixed(0)}',
                           isBold: true,
                         ),
                       ],
@@ -105,7 +235,6 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Payment Split Title
                   const Text(
                     'Payment Split:',
                     style: TextStyle(
@@ -165,36 +294,12 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Text(
-                              'Via: Card ****4532',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF6B7280),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () {
-                                // TODO: Change payment method
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Change payment method'),
-                                    duration: Duration(seconds: 1),
-                                  ),
-                                );
-                              },
-                              child: const Text(
-                                '[Change]',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF4A7FFF),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
+                        const Text(
+                          'Via: PayHere',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF6B7280),
+                          ),
                         ),
                       ],
                     ),
@@ -276,11 +381,9 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                       children: [
                         Checkbox(
                           value: _agreedToTerms,
-                          onChanged: (value) {
-                            setState(() {
-                              _agreedToTerms = value ?? false;
-                            });
-                          },
+                          onChanged: (value) => setState(() {
+                            _agreedToTerms = value ?? false;
+                          }),
                           activeColor: const Color(0xFF10B981),
                         ),
                         const Expanded(
@@ -332,18 +435,11 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _agreedToTerms
-                      ? () {
-                          // Navigate to success screen
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => PaymentSuccessScreen(
-                                amountPaid: advancePayment.toDouble(),
-                              ),
-                            ),
-                          );
-                        }
+                  onPressed: (_agreedToTerms && !_paying && total > 0)
+                      ? () => _startPayHereCheckout(
+                            booking: booking,
+                            advancePayment: advancePayment,
+                          )
                       : null,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -358,7 +454,9 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Pay LKR ${advancePayment.toStringAsFixed(0)} Now',
+                        _paying
+                            ? 'Starting...'
+                            : 'Pay LKR ${advancePayment.toStringAsFixed(0)} Now',
                         style: TextStyle(
                           color: _agreedToTerms
                               ? Colors.white

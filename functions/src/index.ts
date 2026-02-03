@@ -7,13 +7,19 @@ import express, {
 import cors from "cors";
 import {onRequest, onCall, HttpsError} from "firebase-functions/v2/https";
 import {onValueCreated} from "firebase-functions/v2/database";
+import crypto from "crypto";
+import {defineSecret, defineString} from "firebase-functions/params";
 
 admin.initializeApp();
+
+const PAYHERE_MERCHANT_ID = defineString("PAYHERE_MERCHANT_ID");
+const PAYHERE_MERCHANT_SECRET = defineSecret("PAYHERE_MERCHANT_SECRET");
 
 const app = express();
 
 app.use(cors({origin: true}));
 app.use(express.json());
+app.use(express.urlencoded({extended: false}));
 
 type AuthedRequest = Request & {
   uid?: string;
@@ -454,6 +460,322 @@ function asCleanString(v: unknown, maxLen: number): string {
   return s.length > maxLen ? s.slice(0, maxLen) : s;
 }
 
+function md5(text: string): string {
+  return crypto.createHash("md5").update(text).digest("hex").toUpperCase();
+}
+
+app.post("/payhere/notify", async (req: Request, res: Response) => {
+  try {
+    const body = (req.body ?? {}) as Record<string, any>;
+
+    const merchantId = String(body.merchant_id ?? "");
+    const orderId = String(body.order_id ?? ""); // bookingId
+    const paymentId = String(body.payment_id ?? "");
+    const payhereAmount = String(body.payhere_amount ?? "");
+    const payhereCurrency = String(body.payhere_currency ?? "");
+    const statusCode = String(body.status_code ?? "");
+    const md5sig = String(body.md5sig ?? "").toUpperCase();
+
+    if (!orderId) return res.status(400).send("Missing order_id");
+
+    const merchantSecret = PAYHERE_MERCHANT_SECRET.value();
+    if (!merchantSecret) return res.status(500).send("Secret missing");
+
+    // Verify signature
+    const secretHash = md5(merchantSecret);
+    const localSig = md5(
+      merchantId +
+        orderId +
+        payhereAmount +
+        payhereCurrency +
+        statusCode +
+        secretHash,
+    );
+
+    const isValid = localSig === md5sig;
+    const isSuccess = statusCode === "2";
+
+    const bookingRef = admin.database().ref(`bookings/${orderId}`);
+
+    // Always log (useful for debugging)
+    await bookingRef.child("payhereNotifies").push({
+      receivedAt: admin.database.ServerValue.TIMESTAMP,
+      isValid,
+      merchant_id: merchantId,
+      order_id: orderId,
+      payment_id: paymentId,
+      payhere_amount: payhereAmount,
+      payhere_currency: payhereCurrency,
+      status_code: statusCode,
+      md5sig,
+      localSig,
+    });
+
+    if (!isValid) return res.status(200).send("INVALID_SIG");
+    if (!isSuccess) return res.status(200).send("NOT_SUCCESS");
+
+    // Idempotency: if already paid, return OK
+    const bookingSnap = await bookingRef.get();
+    if (!bookingSnap.exists()) return res.status(200).send("NO_BOOKING");
+
+    const booking = (bookingSnap.val() ?? {}) as Record<string, any>;
+    const currentStatus = String(booking.status ?? "");
+    const currentPayStatus = String(booking.payment?.status ?? "");
+
+    if (currentStatus === "payment_paid" || currentPayStatus === "paid") {
+      return res.status(200).send("OK_ALREADY_PAID");
+    }
+
+    const amountPaid = Number(payhereAmount) || 0;
+
+    // IMPORTANT: this shape matches your RTDB validation
+    const paymentData = {
+      status: "paid",
+      method: "payhere",
+      paidAt: admin.database.ServerValue.TIMESTAMP,
+      amountPaid,
+      gateway: "payhere",
+      payherePaymentId: paymentId, // <-- required by your rule (optional field but you want it)
+    };
+
+    // Optional: link notify to latest started intent (if you use PaymentWaitingScreen)
+    // We'll mark the newest intent as "paid".
+    let intentKey: string | null = null;
+    const intents = booking.paymentIntent ?? null;
+    if (intents && typeof intents === "object") {
+      const keys = Object.keys(intents);
+      if (keys.length > 0) {
+        // pick latest by createdAt if possible
+        intentKey = keys
+          .map((k) => ({k, createdAt: Number(intents[k]?.createdAt ?? 0)}))
+          .sort((a, b) => b.createdAt - a.createdAt)[0].k;
+      }
+    }
+
+    // Create a payment history record
+    const payRef = bookingRef.child("payments").push();
+    const payKey = payRef.key;
+
+    const updates: Record<string, any> = {
+      [`bookings/${orderId}/status`]: "payment_paid",
+      [`bookings/${orderId}/updatedAt`]: admin.database.ServerValue.TIMESTAMP,
+      [`bookings/${orderId}/payment`]: paymentData,
+    };
+
+    if (payKey) {
+      updates[`bookings/${orderId}/payments/${payKey}`] = paymentData;
+    }
+
+    if (intentKey) {
+      updates[`bookings/${orderId}/paymentIntent/${intentKey}/status`] = "paid";
+      updates[`bookings/${orderId}/paymentIntent/${intentKey}/paidAt`] =
+        admin.database.ServerValue.TIMESTAMP;
+      updates[`bookings/${orderId}/paymentIntent/${intentKey}/paymentId`] =
+        paymentId;
+    }
+
+    await admin.database().ref().update(updates);
+
+    return res.status(200).send("OK");
+  } catch (err) {
+    console.error("PayHere notify error:", err);
+    return res.status(500).send("ERROR");
+  }
+});
+
+function formatAmount(amount: number): string {
+  // PayHere expects 2 decimals as a string: "1200.00"
+  return Number(amount).toFixed(2);
+}
+
+function payhereCheckoutHash(params: {
+  merchantId: string;
+  orderId: string;
+  amount: string; // already formatted 2dp
+  currency: string; // "LKR"
+  merchantSecret: string;
+}): string {
+  // Hash rule used for PayHere checkout:
+  // MD5(merchant_id + order_id + amount + currency + MD5(merchant_secret))
+  const secretHash = md5(params.merchantSecret);
+  return md5(
+    params.merchantId +
+      params.orderId +
+      params.amount +
+      params.currency +
+      secretHash,
+  );
+}
+
+app.post(
+  "/payhere/start",
+  verifyFirebaseToken,
+  async (req: AuthedRequest, res: Response) => {
+    try {
+      const uid = req.uid;
+      if (!uid) {
+        res.status(401).json({ok: false, message: "Unauthenticated"});
+        return;
+      }
+
+      const bookingId = String(req.body?.bookingId ?? "").trim();
+      if (!bookingId) {
+        res.status(400).json({ok: false, message: "bookingId is required"});
+        return;
+      }
+
+      const db = admin.database();
+      const bookingRef = db.ref(`bookings/${bookingId}`);
+      const snap = await bookingRef.get();
+
+      if (!snap.exists()) {
+        res.status(404).json({ok: false, message: "Booking not found"});
+        return;
+      }
+
+      const booking = (snap.val() ?? {}) as Record<string, any>;
+
+      // Only the booking customer can pay
+      if (String(booking.customerId ?? "") !== uid) {
+        res.status(403).json({ok: false, message: "Not your booking"});
+        return;
+      }
+
+      // Make sure invoice exists
+      const invoice = (booking.invoice ?? {}) as Record<string, any>;
+      const subtotal = Number(invoice.subtotal ?? 0);
+      const advance = Math.round(subtotal * 0.2 * 100) / 100; // 2dp safe
+      const amount = formatAmount(advance);
+
+      if (!Number.isFinite(subtotal) || subtotal <= 0) {
+        res
+          .status(400)
+          .json({ok: false, message: "No valid invoice subtotal"});
+        return;
+      }
+
+      // Prevent paying twice
+      const status = String(booking.status ?? "");
+      if (status === "payment_paid") {
+        res.status(400).json({ok: false, message: "Already paid"});
+        return;
+      }
+
+      // Use your own allowed statuses
+      const allowedStatuses = ["invoice_sent", "quote_accepted"];
+      if (!allowedStatuses.includes(status)) {
+        res.status(400).json({
+          ok: false,
+          message: `Cannot pay while status is ${status}`,
+        });
+        return;
+      }
+
+      // ---- PayHere config ----
+      // Put merchant id in functions config, or hardcode for now.
+      // Better: store as normal env var PAYHERE_MERCHANT_ID (not secret).
+      const merchantId = (
+        process.env.PAYHERE_MERCHANT_ID ||
+        PAYHERE_MERCHANT_ID.value() ||
+        ""
+      ).trim();
+
+      if (!merchantId) {
+        res
+          .status(500)
+          .json({ok: false, message: "Missing PAYHERE_MERCHANT_ID"});
+        return;
+      }
+
+      const merchantSecret = PAYHERE_MERCHANT_SECRET.value();
+      if (!merchantSecret) {
+        res.status(500).json({ok: false, message: "Secret missing"});
+        return;
+      }
+
+      const currency = "LKR";
+
+      // Your deployed notify url:
+      const notifyUrl =
+        "https://asia-southeast1-fixnow-app-75722.cloudfunctions.net/api/payhere/notify";
+
+      // Return/cancel can be deep links or web URLs. They are mainly UI.
+      const returnUrl = "https://fixnow-app-75722.web.app/payhere/success";
+      const cancelUrl = "https://fixnow-app-75722.web.app/payhere/cancel";
+
+      // Customer info (optional but recommended)
+      const customerName = String(booking.customerName ?? "Customer");
+      const customerSnap = await db.ref(`users/customers/${uid}`).get();
+      const customer = (customerSnap.val() ?? {}) as Record<string, any>;
+      const email = String(customer.email ?? "");
+      const phone = String(customer.phoneNumber ?? "");
+      const address = String(
+        customer.locationText ?? booking.locationText ?? "",
+      );
+
+      const items = String(booking.serviceName ?? "Service");
+
+      const hash = payhereCheckoutHash({
+        merchantId,
+        orderId: bookingId,
+        amount,
+        currency,
+        merchantSecret,
+      });
+
+      const intentRef = bookingRef.child("paymentIntent").push();
+      const intentId = intentRef.key;
+      if (!intentId) throw new Error("Failed to create intentId");
+
+      const now = Date.now();
+
+      // Write paymentIntent so the app can show "waiting"
+      await db.ref().update({
+        [`bookings/${bookingId}/paymentIntent/${intentId}`]: {
+          intentId,
+          provider: "payhere",
+          amount: Number(amount),
+          currency,
+          status: "started",
+          createdAt: now,
+        },
+        [`bookings/${bookingId}/updatedAt`]: now,
+      });
+
+      // Build payload the app will post to PayHere checkout
+      const payherePayload = {
+        sandbox: true, // set false for live
+        checkoutUrl: "https://sandbox.payhere.lk/pay/checkout",
+
+        merchant_id: merchantId,
+        return_url: returnUrl,
+        cancel_url: cancelUrl,
+        notify_url: notifyUrl,
+
+        order_id: bookingId,
+        items,
+        currency,
+        amount,
+
+        first_name: customerName,
+        last_name: "",
+
+        email,
+        phone,
+        address,
+        city: "Colombo",
+        country: "Sri Lanka",
+
+        hash,
+      };
+
+      res.json({ok: true, intentId, payherePayload});
+    } catch (e: any) {
+      res.status(500).json({ok: false, message: e?.message ?? "Failed"});
+    }
+  },
+);
+
 export const createBookingRequest = onCall(
   {region: "asia-southeast1"}, // keep region consistent with your other exports
   async (request) => {
@@ -835,7 +1157,10 @@ export const sendInvoice = onCall(
   },
 );
 
-export const api = onRequest({region: "asia-southeast1"}, app);
+export const api = onRequest(
+  {region: "asia-southeast1", secrets: [PAYHERE_MERCHANT_SECRET]},
+  app,
+);
 
 export const onBookingCreateIndexUsers = onValueCreated(
   {region: "asia-southeast1", ref: "/bookings/{bookingId}"},
