@@ -597,14 +597,24 @@ function payhereCheckoutHash(params: {
 }): string {
   // Hash rule used for PayHere checkout:
   // MD5(merchant_id + order_id + amount + currency + MD5(merchant_secret))
-  const secretHash = md5(params.merchantSecret);
-  return md5(
-    params.merchantId +
-    params.orderId +
-    params.amount +
-    params.currency +
-    secretHash,
-  );
+  const secretHash = md5(params.merchantSecret.trim());
+  const preHash =
+    params.merchantId.trim() +
+    params.orderId.trim() +
+    params.amount.trim() +
+    params.currency.trim() +
+    secretHash;
+
+  console.log("PayHere Hash Debug (masked):", {
+    merchantId: params.merchantId.trim(),
+    orderId: params.orderId.trim(),
+    amount: params.amount.trim(),
+    currency: params.currency.trim(),
+    secretHashMasked: secretHash.substring(0, 4) + "...",
+    fullPreHashMasked: preHash.substring(0, 10) + "...",
+  });
+
+  return md5(preHash);
 }
 
 app.post(
@@ -723,13 +733,14 @@ app.post(
         merchantSecret,
       });
 
-      console.log("PayHere Checkout Start:", {
+      console.log("PayHere Checkout Start Payload:", {
         bookingId,
         merchantId,
         amount,
         currency,
         hashGenerated: hash,
         notifyUrl,
+        customerEmail: email,
       });
 
       const intentRef = bookingRef.child("paymentIntent").push();
