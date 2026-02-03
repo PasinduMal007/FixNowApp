@@ -1,3 +1,5 @@
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -8,6 +10,7 @@ import 'customer_live_tracking_screen.dart';
 import 'customer_chat_conversation_screen.dart';
 import 'customer_view_quotation_screen.dart';
 import 'customer_worker_profile_detail_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   final String customerName;
@@ -78,24 +81,53 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     },
   ];
 
-  final Map<String, dynamic>? _activeService = {
-    'service': 'Electrical Repair',
-    'worker': 'Kasun Perera',
-    'workerRating': 4.8,
-    'arrivingIn': '15 min',
-    'distance': '1.3 km away',
-    'status': 'invoice_sent', // Changed to test quotation button
-    'id': 'test123',
-    'invoice': {
-      'workerName': 'Kasun Perera',
-      'inspectionFee': 500,
-      'laborHours': 2,
-      'laborPrice': 2000,
-      'materials': 1000,
-      'subtotal': 3500,
-      'notes': 'Price may vary based on actual materials needed',
-    },
-  };
+  Stream<Map<String, dynamic>?> get _activeServiceStream {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Stream.empty();
+
+    final customerId = user.uid;
+
+    final q = DB.instance
+        .ref('bookings')
+        .orderByChild('customerId')
+        .equalTo(customerId);
+
+    int _asInt(dynamic v) {
+      if (v is int) return v;
+      if (v is double) return v.toInt();
+      if (v is num) return v.toInt();
+      return 0;
+    }
+
+    return q.onValue.map((event) {
+      final raw = event.snapshot.value;
+      if (raw == null || raw is! Map) return null;
+
+      final all = Map<dynamic, dynamic>.from(raw as Map);
+
+      Map<String, dynamic>? best;
+      int bestUpdatedAt = -1;
+
+      all.forEach((bookingId, value) {
+        if (value is! Map) return;
+
+        final b = Map<String, dynamic>.from(value as Map);
+        
+        final status = (b['status'] ?? '').toString();
+        if (status != 'invoice_sent') return;
+
+        final updatedAt = _asInt(b['updatedAt']);
+
+        if (updatedAt >= bestUpdatedAt) {
+          bestUpdatedAt = updatedAt;
+          b['id'] = bookingId.toString();
+          best = b;
+        }
+      });
+
+      return best;
+    });
+  }
 
   String _selectedFilter = 'Top Rated';
 
@@ -426,211 +458,47 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        // Active Service Card (if exists)
-                        if (_activeService != null) ...[
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFF4A7FFF),
-                                    Color(0xFF6B9FFF),
-                                  ],
+                        // Active Service Card (from RTDB)
+                        StreamBuilder<Map<String, dynamic>?>(
+                          stream: _activeServiceStream,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
                                 ),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFF4A7FFF,
-                                    ).withOpacity(0.3),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 8),
+                                child: Text(
+                                  'Failed to load booking: ${snapshot.error}',
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              );
+                            }
+
+                            if (!snapshot.hasData || snapshot.data == null) {
+                              return const SizedBox.shrink();
+                            }
+
+                            final booking = snapshot.data!;
+                            final invoice = booking['invoice'] is Map
+                                ? booking['invoice'] as Map
+                                : null;
+
+                            return Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
                                   ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF10B981),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 6,
-                                              height: 6,
-                                              decoration: const BoxDecoration(
-                                                color: Colors.white,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            const Text(
-                                              'In Progress',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
+                                  child: _buildActiveServiceCardFromRtdb(
+                                    booking,
+                                    invoice,
                                   ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    _activeService['service'],
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    _activeService['worker'],
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  // Show different buttons based on status
-                                  if (_activeService['status'] ==
-                                      'invoice_sent')
-                                    // Show View Quotation button
-                                    ElevatedButton.icon(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                CustomerViewQuotationScreen(
-                                                  booking: _activeService,
-                                                ),
-                                          ),
-                                        );
-                                      },
-                                      icon: const Icon(
-                                        Icons.receipt_long,
-                                        size: 18,
-                                      ),
-                                      label: const Text('View Quotation'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.white,
-                                        foregroundColor: const Color(
-                                          0xFF4A7FFF,
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        elevation: 0,
-                                      ),
-                                    )
-                                  else
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: ElevatedButton.icon(
-                                            onPressed: () {
-                                              // Navigate to chat with specific worker
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) =>
-                                                      CustomerChatConversationScreen(
-                                                        threadId: '',
-                                                        otherUid: '',
-                                                        otherName: '',
-                                                      ),
-                                                ),
-                                              );
-                                            },
-                                            icon: const Icon(
-                                              Icons.chat_bubble_outline,
-                                              size: 18,
-                                            ),
-                                            label: const Text('Message'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.white,
-                                              foregroundColor: const Color(
-                                                0xFF4A7FFF,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 12,
-                                                  ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              elevation: 0,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: ElevatedButton.icon(
-                                            onPressed: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) =>
-                                                      CustomerLiveTrackingScreen(
-                                                        booking: _activeService,
-                                                      ),
-                                                ),
-                                              );
-                                            },
-                                            icon: const Icon(
-                                              Icons.location_on,
-                                              size: 18,
-                                            ),
-                                            label: const Text('Track'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.white
-                                                  .withOpacity(0.2),
-                                              foregroundColor: Colors.white,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 12,
-                                                  ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              elevation: 0,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+                            );
+                          },
+                        ),
 
                         // Browse Services
                         const Padding(
@@ -1093,6 +961,241 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _statusBadge(String status) {
+    final isInvoice = status == 'invoice_sent';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isInvoice ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isInvoice ? 'Quotation Ready' : 'In Progress',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveServiceCardFromRtdb(
+    Map<String, dynamic> booking,
+    Map? invoiceRaw,
+  ) {
+    final status = (booking['status'] ?? '').toString();
+
+    final serviceName =
+        (booking['serviceName'] ?? booking['service'] ?? 'Service').toString();
+
+    final invoice = (invoiceRaw is Map)
+        ? Map<String, dynamic>.from(invoiceRaw as Map)
+        : null;
+
+    // Per your rules, workerName exists inside invoice when invoice is present
+    final workerName =
+        (invoice?['workerName'] ??
+                booking['workerName'] ??
+                booking['worker'] ??
+                'Worker')
+            .toString();
+
+    num? _num(dynamic v) {
+      if (v is num) return v; // covers int + double
+      return null;
+    }
+
+    final inspectionFee = _num(invoice?['inspectionFee']);
+    final laborHours = _num(invoice?['laborHours']);
+    final laborPrice = _num(invoice?['laborPrice']);
+    final materials = _num(invoice?['materials']);
+    final subtotal = _num(invoice?['subtotal']);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4A7FFF).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _statusBadge(status),
+          const SizedBox(height: 16),
+
+          Text(
+            serviceName,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          Text(
+            workerName,
+            style: const TextStyle(fontSize: 15, color: Colors.white70),
+          ),
+          const SizedBox(height: 14),
+
+          // Show invoice snippet when invoice is present
+          if (status == 'invoice_sent' && invoice != null) ...[
+            _invoiceLine('Subtotal', subtotal),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(child: _invoiceLine('Inspection', inspectionFee)),
+                const SizedBox(width: 12),
+                Expanded(child: _invoiceLine('Materials', materials)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(child: _invoiceLine('Labor hours', laborHours)),
+                const SizedBox(width: 12),
+                Expanded(child: _invoiceLine('Labor price', laborPrice)),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          if (status == 'invoice_sent')
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CustomerViewQuotationScreen(
+                      bookingId: (booking['id'] ?? booking['bookingId'] ?? '')
+                          .toString(),
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.receipt_long, size: 18),
+              label: const Text('View Quotation'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF4A7FFF),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CustomerChatConversationScreen(
+                            threadId: '',
+                            otherUid: (booking['workerId'] ?? '').toString(),
+                            otherName: workerName,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: const Text('Message'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF4A7FFF),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              CustomerLiveTrackingScreen(booking: booking),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.location_on, size: 18),
+                    label: const Text('Track'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white.withOpacity(0.2),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _invoiceLine(String label, num? value) {
+    final text = value == null ? '-' : value.toStringAsFixed(0);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 

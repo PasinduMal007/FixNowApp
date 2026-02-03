@@ -20,6 +20,27 @@ type AuthedRequest = Request & {
   token?: admin.auth.DecodedIdToken;
 };
 
+type SaveInvoiceDraftInput = {
+  bookingId: string;
+  inspectionFee: number;
+  laborHours: number;
+  laborPrice: number;
+  materials: number;
+  notes?: string;
+  validDays?: number;
+};
+
+function cleanNumber(v: any, field: string): number {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      `${field} must be a valid number >= 0`,
+    );
+  }
+  return n;
+}
+
 async function verifyFirebaseToken(
   req: AuthedRequest,
   res: Response,
@@ -642,6 +663,175 @@ export const attachBookingPhotos = onCall(
     await bookingRef.update(photosUpdate);
 
     return {ok: true, count: cleaned.length};
+  },
+);
+
+export const saveInvoiceDraft = onCall(
+  {region: "asia-southeast1"},
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Sign in required.");
+    }
+
+    const uid = request.auth.uid;
+    const data = (request.data ?? {}) as Partial<SaveInvoiceDraftInput>;
+
+    const bookingId = String(data.bookingId ?? "").trim();
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "bookingId is required.");
+    }
+
+    const inspectionFee = cleanNumber(data.inspectionFee, "inspectionFee");
+    const laborHours = cleanNumber(data.laborHours, "laborHours");
+    const laborPrice = cleanNumber(data.laborPrice, "laborPrice");
+    const materials = cleanNumber(data.materials, "materials");
+    const notes =
+      typeof data.notes === "string" ? data.notes.trim().slice(0, 1000) : "";
+    const validDaysRaw = Number(data.validDays ?? 3);
+    const validDays =
+      Number.isFinite(validDaysRaw) && validDaysRaw > 0 ? validDaysRaw : 3;
+
+    const subtotal = inspectionFee + laborHours * laborPrice + materials;
+    const now = Date.now();
+
+    const db = admin.database();
+    const bookingRef = db.ref(`bookings/${bookingId}`);
+    const snap = await bookingRef.get();
+    if (!snap.exists()) throw new HttpsError("not-found", "Booking not found.");
+
+    const booking = (snap.val() ?? {}) as Record<string, any>;
+    if (String(booking.workerId ?? "") !== uid) {
+      throw new HttpsError("permission-denied", "Not your booking.");
+    }
+
+    // You can optionally restrict which statuses allow draft saving
+    // const status = String(booking.status ?? "");
+    // if (!["pending", "quote_requested", "quote_accepted_by_worker"].includes(status)) {
+    //   throw new HttpsError("failed-precondition", "Cannot save draft for this booking status.");
+    // }
+
+    await bookingRef.update({
+      invoiceDraft: {
+        inspectionFee,
+        laborHours,
+        laborPrice,
+        materials,
+        subtotal,
+        notes,
+        validDays,
+        updatedAt: now,
+      },
+      updatedAt: now,
+    });
+
+    return {ok: true, subtotal};
+  },
+);
+
+export const sendInvoice = onCall(
+  {region: "asia-southeast1"},
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Sign in required.");
+    }
+
+    const uid = request.auth.uid;
+    const data = (request.data ?? {}) as Partial<SaveInvoiceDraftInput>;
+
+    const bookingId = String(data.bookingId ?? "").trim();
+    if (!bookingId) {
+      throw new HttpsError("invalid-argument", "bookingId is required.");
+    }
+
+    const inspectionFee = cleanNumber(data.inspectionFee, "inspectionFee");
+    const laborHours = cleanNumber(data.laborHours, "laborHours");
+    const laborPrice = cleanNumber(data.laborPrice, "laborPrice");
+    const materials = cleanNumber(data.materials, "materials");
+    const notes =
+      typeof data.notes === "string" ? data.notes.trim().slice(0, 1000) : "";
+    const validDaysRaw = Number(data.validDays ?? 3);
+    const validDays =
+      Number.isFinite(validDaysRaw) && validDaysRaw > 0 ? validDaysRaw : 3;
+
+    const subtotal = inspectionFee + laborHours * laborPrice + materials;
+    const now = Date.now();
+    const validUntil = now + validDays * 24 * 60 * 60 * 1000;
+
+    const db = admin.database();
+    const bookingRef = db.ref(`bookings/${bookingId}`);
+    const snap = await bookingRef.get();
+    if (!snap.exists()) throw new HttpsError("not-found", "Booking not found.");
+
+    const booking = (snap.val() ?? {}) as Record<string, any>;
+
+    if (String(booking.workerId ?? "") !== uid) {
+      throw new HttpsError("permission-denied", "Not your booking.");
+    }
+
+    // Optional status restriction (pick what matches your flow)
+    // If your flow is: pending -> invoice_sent, allow "pending"
+    // If your flow is: confirmed -> invoice_sent, restrict to that.
+    const status = String(booking.status ?? "");
+    const allowed = ["pending", "quote_requested", "confirmed"];
+    if (!allowed.includes(status)) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Cannot send invoice while status is ${status}`,
+      );
+    }
+
+    // Get worker name (optional)
+    let workerName = "Worker";
+    const workerSnap = await db.ref(`users/workers/${uid}`).get();
+    if (workerSnap.exists()) {
+      const w = workerSnap.val() ?? {};
+      workerName = String(w.fullName ?? "Worker");
+    }
+
+    const customerId = String(booking.customerId ?? "").trim();
+    if (!customerId) {
+      throw new HttpsError("internal", "Booking missing customerId.");
+    }
+
+    // Create notification
+    const notificationRef = db.ref(`notifications/${customerId}`).push();
+    const notificationId = notificationRef.key;
+
+    const updates: Record<string, any> = {
+      [`bookings/${bookingId}/invoice`]: {
+        inspectionFee,
+        laborHours,
+        laborPrice,
+        materials,
+        subtotal,
+        notes,
+        validUntil,
+        sentAt: now,
+        workerName,
+      },
+      [`bookings/${bookingId}/status`]: "invoice_sent",
+      [`bookings/${bookingId}/updatedAt`]: now,
+
+      [`userBookings/workers/${uid}/${bookingId}`]: null,
+      // Remove draft after sending (optional)
+      [`bookings/${bookingId}/invoiceDraft`]: null,
+    };
+
+    if (notificationId) {
+      updates[`notifications/${customerId}/${notificationId}`] = {
+        id: notificationId,
+        timestamp: now,
+        isRead: false,
+        type: "invoice_sent",
+        title: "New quotation received",
+        message: `${workerName} sent you a quotation for LKR ${Math.round(subtotal)}.`,
+        bookingId,
+      };
+    }
+
+    await db.ref().update(updates);
+
+    return {ok: true, subtotal: Math.round(subtotal), validUntil};
   },
 );
 

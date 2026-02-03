@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fix_now_app/Services/db.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class WorkerCreateInvoiceScreen extends StatefulWidget {
   final Map<String, dynamic> job;
@@ -20,11 +22,267 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
     text: 'Price may vary based on actual materials needed',
   );
 
+  bool _loading = true;
+  bool _savingDraft = false;
+  bool _sending = false;
+
+  // Booking UI fields
+  String _customerName = 'Customer';
+  String _request = '';
+  String _description = '';
+
+  String get _bookingId {
+    final v = widget.job['id'] ?? widget.job['bookingId'] ?? '';
+    return v.toString().trim();
+  }
+
+  DatabaseReference get _bookingRef => DB.ref().child('bookings/$_bookingId');
+
+  Map<String, dynamic> _asMap(dynamic v) {
+    if (v is Map) {
+      return Map<String, dynamic>.fromEntries(
+        v.entries.map((e) => MapEntry(e.key.toString(), e.value)),
+      );
+    }
+    return <String, dynamic>{};
+  }
+
+  String _pickFirstNonEmpty(List<String> values, {required String fallback}) {
+    for (final s in values) {
+      final t = s.trim();
+      if (t.isNotEmpty) return t;
+    }
+    return fallback;
+  }
+
+  double _toDouble(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0;
+  }
+
   double get subtotal {
     final inspection = double.tryParse(_inspectionController.text) ?? 0;
-    final labor = double.tryParse(_laborPriceController.text) ?? 0;
+    final hours = double.tryParse(_laborHoursController.text) ?? 0;
+    final pricePerHour = double.tryParse(_laborPriceController.text) ?? 0;
     final materials = double.tryParse(_materialsController.text) ?? 0;
-    return inspection + labor + materials;
+    return inspection + (hours * pricePerHour) + materials;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBookingAndInvoice();
+  }
+
+  Future<void> _loadBookingAndInvoice() async {
+    final bookingId = _bookingId;
+    if (bookingId.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+
+    try {
+      final snap = await _bookingRef.get();
+      if (!snap.exists || snap.value == null) {
+        setState(() => _loading = false);
+        return;
+      }
+
+      final booking = _asMap(snap.value);
+
+      // Support old + new shapes (same idea as job details screen)
+      final quotationRequest = _asMap(booking['quotationRequest']);
+      final quoteRequest = _asMap(booking['quoteRequest']);
+
+      _customerName =
+          (booking['customerName'] ?? booking['customer'] ?? 'Customer')
+              .toString();
+
+      _request = _pickFirstNonEmpty([
+        (booking['serviceName'] ?? '').toString(),
+        (booking['serviceType'] ?? '').toString(),
+        (booking['service'] ?? '').toString(),
+        (quotationRequest['serviceName'] ?? '').toString(),
+        (quoteRequest['title'] ?? '').toString(),
+      ], fallback: '');
+
+      _description = _pickFirstNonEmpty([
+        (booking['problemDescription'] ?? '').toString(),
+        (quotationRequest['requestNote'] ?? '').toString(),
+        (quoteRequest['description'] ?? '').toString(),
+        (booking['issue'] ?? '').toString(),
+        (booking['description'] ?? '').toString(),
+      ], fallback: '');
+
+      // Prefer final invoice if exists; otherwise draft
+      final invoice = (booking['invoice'] is Map)
+          ? Map<String, dynamic>.from(booking['invoice'] as Map)
+          : null;
+
+      final invoiceDraft = (booking['invoiceDraft'] is Map)
+          ? Map<String, dynamic>.from(booking['invoiceDraft'] as Map)
+          : null;
+
+      final used = invoice ?? invoiceDraft;
+
+      if (used != null) {
+        _inspectionController.text = _toDouble(
+          used['inspectionFee'],
+        ).toStringAsFixed(0);
+        _laborHoursController.text = _toDouble(
+          used['laborHours'],
+        ).toStringAsFixed(0);
+        _laborPriceController.text = _toDouble(
+          used['laborPrice'],
+        ).toStringAsFixed(0);
+        _materialsController.text = _toDouble(
+          used['materials'],
+        ).toStringAsFixed(0);
+
+        final notes = (used['notes'] ?? '').toString();
+        if (notes.trim().isNotEmpty) _notesController.text = notes;
+      }
+    } catch (_) {
+      // ignore and show UI
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Map<String, dynamic> _invoicePayload() {
+    final inspection = double.tryParse(_inspectionController.text) ?? 0;
+    final laborHours = double.tryParse(_laborHoursController.text) ?? 0;
+    final laborPrice = double.tryParse(_laborPriceController.text) ?? 0;
+    final materials = double.tryParse(_materialsController.text) ?? 0;
+
+    return {
+      'inspectionFee': inspection,
+      'laborHours': laborHours,
+      'laborPrice': laborPrice,
+      'materials': materials,
+      'subtotal': inspection + (laborHours * laborPrice) + materials,
+      'notes': _notesController.text.trim(),
+      'validDays': 3,
+    };
+  }
+
+  Future<void> _saveDraft() async {
+    if (_savingDraft) return;
+
+    final bookingId = _bookingId;
+    if (bookingId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: Booking ID not found'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _savingDraft = true);
+
+    try {
+      final functions = FirebaseFunctions.instanceFor(
+        region: 'asia-southeast1',
+      );
+      final callable = functions.httpsCallable('saveInvoiceDraft');
+
+      await callable.call({'bookingId': bookingId, ..._invoicePayload()});
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Draft saved'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.black87,
+        ),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Failed to save draft'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save draft: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingDraft = false);
+    }
+  }
+
+  Future<void> _sendQuotation() async {
+    if (_sending) return;
+
+    final bookingId = _bookingId;
+    if (bookingId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: Booking ID not found'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _sending = true);
+
+    try {
+      final functions = FirebaseFunctions.instanceFor(
+        region: 'asia-southeast1',
+      );
+      final callable = functions.httpsCallable('sendInvoice');
+
+      final res = await callable.call({
+        'bookingId': bookingId,
+        ..._invoicePayload(),
+      });
+
+      final subtotalReturned = (res.data is Map)
+          ? (res.data['subtotal'])
+          : null;
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            subtotalReturned != null
+                ? 'Quotation sent. Total: LKR $subtotalReturned'
+                : 'Quotation sent to customer',
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      Navigator.pop(context);
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Failed to send quotation'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error sending quotation: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
@@ -39,9 +297,24 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final customerName = widget.job['customerName'] ?? 'Customer';
-    final request = widget.job['whatNeeded'] ?? widget.job['service'] ?? '';
-    final description = widget.job['description'] ?? widget.job['issue'] ?? '';
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F5F5),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF5B8CFF),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            'Create Invoice',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -75,10 +348,9 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title
               Center(
                 child: Text(
-                  'Invoice for $customerName',
+                  'Invoice for $_customerName',
                   style: const TextStyle(
                     color: Color(0xFF1F2937),
                     fontSize: 18,
@@ -88,25 +360,25 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Customer Info
-              _buildReadOnlyField('Customer:', customerName),
+              _buildReadOnlyField('Customer:', _customerName),
               const SizedBox(height: 12),
-              _buildReadOnlyField('Request:', request),
+              _buildReadOnlyField(
+                'Request:',
+                _request.isEmpty ? '-' : _request,
+              ),
               const SizedBox(height: 12),
 
-              // Service Description
               const Text(
                 'Service Description:',
                 style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
               ),
               const SizedBox(height: 4),
               Text(
-                '"$description"',
+                _description.trim().isEmpty ? '"-"' : '"$_description"',
                 style: const TextStyle(color: Color(0xFF1F2937), fontSize: 14),
               ),
               const SizedBox(height: 24),
 
-              // Price Breakdown
               const Text(
                 'Price Breakdown:',
                 style: TextStyle(
@@ -117,7 +389,6 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Inspection Fee
               _buildEditableField(
                 'Inspection fee:',
                 _inspectionController,
@@ -125,7 +396,6 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Labor
               Row(
                 children: [
                   const Text(
@@ -182,7 +452,6 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Materials
               _buildEditableField(
                 'Materials (est.):',
                 _materialsController,
@@ -190,11 +459,9 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Divider
               const Divider(color: Color(0xFF10B981), thickness: 2),
               const SizedBox(height: 8),
 
-              // Subtotal
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -218,7 +485,6 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Valid Until
               Row(
                 children: [
                   const Text(
@@ -244,7 +510,6 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Notes
               const Text(
                 'Notes for customer:',
                 style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
@@ -273,20 +538,11 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Action Buttons
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () {
-                        // TODO: Save draft
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Draft saved'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      },
+                      onPressed: _savingDraft ? null : _saveDraft,
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         side: const BorderSide(
@@ -297,9 +553,9 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Save Draft',
-                        style: TextStyle(
+                      child: Text(
+                        _savingDraft ? 'Saving...' : 'Save Draft',
+                        style: const TextStyle(
                           color: Color(0xFF6B7280),
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -310,84 +566,7 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () async {
-                        // Save invoice to Firebase
-                        final bookingId = widget.job['id'];
-                        if (bookingId == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Error: Booking ID not found'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          return;
-                        }
-
-                        try {
-                          // Save invoice data
-                          await DB
-                              .ref()
-                              .child('bookings/$bookingId/invoice')
-                              .set({
-                                'inspectionFee':
-                                    double.tryParse(
-                                      _inspectionController.text,
-                                    ) ??
-                                    0,
-                                'laborHours':
-                                    double.tryParse(
-                                      _laborHoursController.text,
-                                    ) ??
-                                    0,
-                                'laborPrice':
-                                    double.tryParse(
-                                      _laborPriceController.text,
-                                    ) ??
-                                    0,
-                                'materials':
-                                    double.tryParse(
-                                      _materialsController.text,
-                                    ) ??
-                                    0,
-                                'subtotal': subtotal,
-                                'notes': _notesController.text,
-                                'validUntil': DateTime.now()
-                                    .add(const Duration(days: 3))
-                                    .millisecondsSinceEpoch,
-                                'sentAt': DateTime.now().millisecondsSinceEpoch,
-                                'workerName':
-                                    widget.job['workerName'] ?? 'Worker',
-                              });
-
-                          // Update booking status
-                          await DB.ref().child('bookings/$bookingId').update({
-                            'status': 'invoice_sent',
-                            'updatedAt': DateTime.now().millisecondsSinceEpoch,
-                          });
-
-                          // TODO: Add notification for customer
-
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Invoice sent to customer'),
-                                backgroundColor: Colors.green,
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                            Navigator.pop(context);
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error sending invoice: $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        }
-                      },
+                      onPressed: _sending ? null : _sendQuotation,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         backgroundColor: const Color(0xFF10B981),
@@ -396,9 +575,9 @@ class _WorkerCreateInvoiceScreenState extends State<WorkerCreateInvoiceScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Send Invoice',
-                        style: TextStyle(
+                      child: Text(
+                        _sending ? 'Sending...' : 'Send Quotation',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

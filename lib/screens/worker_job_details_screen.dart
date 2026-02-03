@@ -42,80 +42,93 @@ class _WorkerJobDetailsScreenState extends State<WorkerJobDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: StreamBuilder<DatabaseEvent>(
-        stream: _bookingRef.onValue,
-        builder: (context, snap) {
-          if (snap.hasError) {
-            return _errorScaffold(context, 'Failed to load: ${snap.error}');
+    return StreamBuilder<DatabaseEvent>(
+      stream: _bookingRef.onValue,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
+            body: _errorScaffold(context, 'Failed to load: ${snap.error}'),
+          );
+        }
+
+        if (!snap.hasData) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
+            body: _loadingScaffold(context),
+          );
+        }
+
+        final raw = snap.data!.snapshot.value;
+        final booking = _asMap(raw);
+
+        if (booking.isEmpty) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
+            body: _errorScaffold(context, 'Booking not found.'),
+          );
+        }
+
+        // --- Support old + new shapes ---
+        final quotationRequest = _asMap(booking['quotationRequest']);
+        final quoteRequest = _asMap(booking['quoteRequest']);
+
+        final customerName =
+            (booking['customerName'] ?? booking['customer'] ?? 'Customer')
+                .toString();
+
+        final serviceName = _pickFirstNonEmpty([
+          (booking['serviceName'] ?? '').toString(),
+          (booking['serviceType'] ?? '').toString(),
+          (booking['service'] ?? '').toString(),
+          (quotationRequest['serviceName'] ?? '').toString(),
+          (quoteRequest['title'] ?? '').toString(),
+        ], fallback: 'Service');
+
+        final description = _pickFirstNonEmpty([
+          (booking['problemDescription'] ?? '').toString(),
+          (quotationRequest['requestNote'] ?? '').toString(),
+          (quoteRequest['description'] ?? '').toString(),
+          (booking['issue'] ?? '').toString(),
+          (booking['description'] ?? '').toString(),
+        ], fallback: 'No description provided');
+
+        final location = _pickFirstNonEmpty([
+          (booking['locationText'] ?? '').toString(),
+          (booking['location'] ?? '').toString(),
+        ], fallback: 'Not specified');
+
+        String date = (booking['date'] ?? booking['scheduledDate'] ?? '')
+            .toString();
+        String time = (booking['time'] ?? booking['scheduledTime'] ?? '')
+            .toString();
+
+        if (date.contains('PM') || date.contains('AM')) {
+          final parts = date.split(' ');
+          if (parts.length >= 2) {
+            time = '${parts[parts.length - 2]} ${parts[parts.length - 1]}';
+            date = parts.sublist(0, parts.length - 2).join(' ');
           }
+        }
 
-          if (!snap.hasData) {
-            return _loadingScaffold(context);
-          }
+        date = date.trim().isEmpty ? 'Not specified' : date;
+        time = time.trim().isEmpty ? 'Not specified' : time;
 
-          final raw = snap.data!.snapshot.value;
-          final booking = _asMap(raw);
+        final status = (booking['status'] ?? '').toString();
 
-          if (booking.isEmpty) {
-            return _errorScaffold(context, 'Booking not found.');
-          }
+        final canAccept = status == 'pending';
+        final canOpenInvoice =
+            status == 'confirmed' || status == 'invoice_sent';
 
-          // --- Support old + new shapes ---
-          final quotationRequest = _asMap(booking['quotationRequest']);
-          final quoteRequest = _asMap(booking['quoteRequest']);
+        final photos = _asStringList(booking['photos']).isNotEmpty
+            ? _asStringList(booking['photos'])
+            : _asStringList(quotationRequest['photos']);
 
-          final customerName =
-              (booking['customerName'] ?? booking['customer'] ?? 'Customer')
-                  .toString();
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
 
-          final serviceName = _pickFirstNonEmpty([
-            (booking['serviceName'] ?? '').toString(),
-            (booking['serviceType'] ?? '').toString(),
-            (booking['service'] ?? '').toString(),
-            (quotationRequest['serviceName'] ?? '').toString(),
-            (quoteRequest['title'] ?? '').toString(),
-          ], fallback: 'Service');
-
-          final description = _pickFirstNonEmpty([
-            (booking['problemDescription'] ?? '').toString(),
-            (quotationRequest['requestNote'] ?? '').toString(),
-            (quoteRequest['description'] ?? '').toString(),
-            (booking['issue'] ?? '').toString(),
-            (booking['description'] ?? '').toString(),
-          ], fallback: 'No description provided');
-
-          final location = _pickFirstNonEmpty([
-            (booking['locationText'] ?? '').toString(),
-            (booking['location'] ?? '').toString(),
-          ], fallback: 'Not specified');
-
-          // Optional schedule fields (keep your logic)
-          String date = (booking['date'] ?? booking['scheduledDate'] ?? '')
-              .toString();
-          String time = (booking['time'] ?? booking['scheduledTime'] ?? '')
-              .toString();
-
-          if (date.contains('PM') || date.contains('AM')) {
-            final parts = date.split(' ');
-            if (parts.length >= 2) {
-              time = '${parts[parts.length - 2]} ${parts[parts.length - 1]}';
-              date = parts.sublist(0, parts.length - 2).join(' ');
-            }
-          }
-
-          date = date.trim().isEmpty ? 'Not specified' : date;
-          time = time.trim().isEmpty ? 'Not specified' : time;
-
-          final status = (booking['status'] ?? '').toString();
-
-          // Photos can be at booking['photos'] or inside quotationRequest
-          final photos = _asStringList(booking['photos']).isNotEmpty
-              ? _asStringList(booking['photos'])
-              : _asStringList(quotationRequest['photos']);
-
-          return Column(
+          // ✅ your existing body (same UI)
+          body: Column(
             children: [
               // Header with gradient
               Container(
@@ -155,7 +168,6 @@ class _WorkerJobDetailsScreenState extends State<WorkerJobDetailsScreen> {
                 ),
               ),
 
-              // Content
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
@@ -233,7 +245,6 @@ class _WorkerJobDetailsScreenState extends State<WorkerJobDetailsScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // Optional status display
                       _sectionTitle('Status:'),
                       const SizedBox(height: 12),
                       _normalBox(status.isEmpty ? 'Unknown' : status),
@@ -243,97 +254,138 @@ class _WorkerJobDetailsScreenState extends State<WorkerJobDetailsScreen> {
                 ),
               ),
             ],
-          );
-        },
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () async {
-                    await _bookingRef.update({
-                      'status': 'declined_by_worker',
-                      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-                    });
 
-                    if (!context.mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Job declined'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: const BorderSide(color: Color(0xFFEF4444), width: 2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+          // ✅ bottom nav now has access to canAccept
+          bottomNavigationBar: SafeArea(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
                   ),
-                  child: const Text(
-                    'Decline',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFFEF4444),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => WorkerCreateInvoiceScreen(
-                          job: {
-                            ...{
-                              'id': widget.bookingKey, // keep key for writes
-                            },
-                          },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        await _bookingRef.update({
+                          'status': 'declined_by_worker',
+                          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                        });
+
+                        if (!context.mounted) return;
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Job declined'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(
+                          color: Color(0xFFEF4444),
+                          width: 2,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: const Color(0xFF10B981),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Accept Job',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                      child: const Text(
+                        'Decline',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Color(0xFFEF4444),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: canAccept
+                          ? () async {
+                              final bookingId = widget.bookingKey;
+
+                              try {
+                                await DB
+                                    .ref()
+                                    .child('bookings/$bookingId')
+                                    .update({
+                                      'status': 'confirmed',
+                                      'updatedAt':
+                                          DateTime.now().millisecondsSinceEpoch,
+                                    });
+
+                                if (!context.mounted) return;
+
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => WorkerCreateInvoiceScreen(
+                                      job: {'id': bookingId},
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Failed to accept job: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          : (canOpenInvoice
+                                ? () {
+                                    final bookingId = widget.bookingKey;
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            WorkerCreateInvoiceScreen(
+                                              job: {'id': bookingId},
+                                            ),
+                                      ),
+                                    );
+                                  }
+                                : null),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: const Color(0xFF10B981),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        canAccept
+                            ? 'Accept Job'
+                            : (canOpenInvoice ? 'Open Invoice' : 'Accept Job'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

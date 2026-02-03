@@ -28,6 +28,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   bool _isAvailable = true;
 
   static const Set<String> _newRequestStatuses = {'pending', 'quote_requested'};
+  static const Set<String> _activeStatuses = {'confirmed'};
 
   // Dashboard State
   double _dashboardEarnings = 0.0;
@@ -1091,28 +1092,64 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                     final bookings =
                                         bookingsSnap.data ?? const [];
 
+                                    final activeCount = bookings.where((b) {
+                                      final s = (b['status'] ?? '').toString();
+                                      return _activeStatuses.contains(s);
+                                    }).length;
+
                                     final pendingCount = bookings.where((b) {
                                       final s = (b['status'] ?? '').toString();
                                       return _newRequestStatuses.contains(s);
                                     }).length;
 
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFEE2E2),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        '$pendingCount pending',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFFEF4444),
-                                          fontWeight: FontWeight.w500,
+                                    return Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        // Pending (red)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFEE2E2),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$pendingCount pending',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Color(0xFFEF4444),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 8),
+
+                                        // Active (green)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFDCFCE7),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$activeCount active',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Color(0xFF10B981),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     );
                                   },
                                 );
