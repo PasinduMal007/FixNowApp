@@ -13,6 +13,7 @@ import 'customer_worker_profile_detail_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'customer_static_view_quotation_screen.dart';
 import 'customer_job_completion_screen.dart';
+import 'package:fix_now_app/Services/chat_service.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   final String customerName;
@@ -1016,17 +1017,39 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CustomerChatConversationScreen(
-                            threadId: '',
-                            otherUid: (booking['workerId'] ?? '').toString(),
-                            otherName: workerName,
+                    onPressed: () async {
+                      final workerId = (booking['workerId'] ?? '').toString();
+                      final workerName = (booking['workerName'] ?? 'Worker')
+                          .toString();
+                      final myUid = FirebaseAuth.instance.currentUser?.uid;
+
+                      if (workerId.isNotEmpty && myUid != null) {
+                        final chat = ChatService();
+                        final customerName =
+                            widget.customerName; // Pass customer name
+
+                        final threadId = await chat.createOrGetThread(
+                          otherUid: workerId,
+                          otherName: workerName,
+                          otherRole: 'worker',
+                          myRole: 'customer',
+                          myName: customerName,
+                        );
+
+                        if (!context.mounted) return;
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                CustomerChatConversationScreen(
+                                  threadId: threadId,
+                                  otherUid: workerId,
+                                  otherName: workerName,
+                                ),
                           ),
-                        ),
-                      );
+                        );
+                      }
                     },
                     icon: const Icon(Icons.chat_bubble_outline, size: 18),
                     label: const Text('Message'),
@@ -1182,6 +1205,29 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 4),
+            IconButton(
+              onPressed: () {
+                final workerId = worker['uid'] ?? worker['id'];
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CustomerChatConversationScreen(
+                      threadId: 'mock_$workerId',
+                      otherUid: workerId.toString(),
+                      otherName: worker['name'] ?? 'Worker',
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(
+                Icons.chat_bubble_outline,
+                size: 18,
+                color: Color(0xFF10B981),
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
           ],
         ),
       ),
@@ -1287,6 +1333,37 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  final workerId = worker['uid'] ?? worker['id'];
+                  final workerName = worker['name'];
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CustomerChatConversationScreen(
+                        threadId: 'mock_$workerId',
+                        otherUid: workerId.toString(),
+                        otherName: workerName?.toString() ?? 'Worker',
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.chat_bubble_outline, size: 14),
+                label: const Text('Message', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
+                ),
+              ),
             ),
           ],
         ),

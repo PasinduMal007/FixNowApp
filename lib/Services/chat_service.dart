@@ -84,7 +84,9 @@ class ChatService {
   }
 
   Query inboxQuery() {
-    return _userThreadsRef.child(_uid).orderByChild('lastMessageAt');
+    final path = 'userThreads/$_uid';
+    print('DEBUG: inboxQuery path: $path');
+    return _userThreadsRef.child(_uid);
   }
 
   Future<void> sendTextMessage({
@@ -127,10 +129,7 @@ class ChatService {
       return Transaction.success(current + 1);
     });
 
-    await otherItemRef.update({
-      'lastMessageText': text,
-      'lastMessageAt': now,
-    });
+    await otherItemRef.update({'lastMessageText': text, 'lastMessageAt': now});
   }
 
   Future<void> markThreadRead({required String threadId}) async {

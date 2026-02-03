@@ -15,26 +15,31 @@ class CustomerDashboard extends StatefulWidget {
 
 class _CustomerDashboardState extends State<CustomerDashboard> {
   int _currentIndex = 0;
-  final int _unreadMessages = 2;
+  int _unreadMessages = 0; // Changed from final to variable
 
   String _customerName = "Customer";
   bool _loadingName = true;
 
-  List<Widget> get _screens => [
-    CustomerHomeScreen(customerName: _customerName),
-    const CustomerBookingsScreen(),
-    const CustomerMessagesScreen(),
-    CustomerProfileScreen(
-      onNameChanged: (name) {
-        if (!mounted) return;
-        setState(() => _customerName = name);
-      },
-    ),
-  ];
+  late List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
+    _screens = [
+      CustomerHomeScreen(customerName: _customerName),
+      const CustomerBookingsScreen(),
+      const CustomerMessagesScreen(),
+      CustomerProfileScreen(
+        onNameChanged: (name) {
+          if (!mounted) return;
+          setState(() {
+            _customerName = name;
+            // Update the Home screen in the list if name changes
+            _screens[0] = CustomerHomeScreen(customerName: _customerName);
+          });
+        },
+      ),
+    ];
     _loadName();
   }
 
@@ -46,12 +51,14 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       if (!mounted) return;
       setState(() {
         _customerName = name.isNotEmpty ? name : 'Customer';
+        _screens[0] = CustomerHomeScreen(customerName: _customerName);
         _loadingName = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _customerName = _customerName.isNotEmpty ? _customerName : 'Customer';
+        _screens[0] = CustomerHomeScreen(customerName: _customerName);
         _loadingName = false;
       });
     }

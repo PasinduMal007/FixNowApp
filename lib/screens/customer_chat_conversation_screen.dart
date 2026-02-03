@@ -24,19 +24,46 @@ class _CustomerChatConversationScreenState
     extends State<CustomerChatConversationScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
-
   final _chat = ChatService();
-  late final String threadId;
-  late final String otherUid;
+
+  final List<Map<String, dynamic>> _mockMessages = [
+    {
+      'senderId': 'other',
+      'text': 'Hi there! How can I help you today?',
+      'createdAt': DateTime.now()
+          .subtract(const Duration(minutes: 10))
+          .millisecondsSinceEpoch,
+    },
+    {
+      'senderId': 'me',
+      'text': 'I need some help with my plumbing.',
+      'createdAt': DateTime.now()
+          .subtract(const Duration(minutes: 8))
+          .millisecondsSinceEpoch,
+    },
+    {
+      'senderId': 'other',
+      'text': 'Sure, what seems to be the problem?',
+      'createdAt': DateTime.now()
+          .subtract(const Duration(minutes: 5))
+          .millisecondsSinceEpoch,
+    },
+    {
+      'senderId': 'me',
+      'text': 'The kitchen sink is leaking.',
+      'createdAt': DateTime.now()
+          .subtract(const Duration(minutes: 2))
+          .millisecondsSinceEpoch,
+    },
+  ];
 
   @override
   void initState() {
     super.initState();
-
-    threadId = widget.threadId;
-    otherUid = widget.otherUid;
-
-    _chat.markThreadRead(threadId: threadId);
+    if (!widget.threadId.startsWith('mock_')) {
+      _chat.markThreadRead(threadId: widget.threadId);
+    }
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -51,16 +78,43 @@ class _CustomerChatConversationScreenState
     });
   }
 
+  void _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    if (widget.threadId.startsWith('mock_')) {
+      setState(() {
+        _mockMessages.add({
+          'senderId': 'me',
+          'text': text,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      });
+      _messageController.clear();
+      _scrollToBottom();
+      return;
+    }
+
+    _messageController.clear();
+    await _chat.sendTextMessage(
+      threadId: widget.threadId,
+      text: text,
+      otherUid: widget.otherUid,
+    );
+    _scrollToBottom();
+  }
+
   @override
   Widget build(BuildContext context) {
     final myUid = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF4A7FFF),
         elevation: 0,
+        backgroundColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -70,14 +124,14 @@ class _CustomerChatConversationScreenState
               height: 40,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFFE8F0FF), Color(0xFFFFFFFF)],
+                  colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
                 ),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
                 Icons.person,
                 color: Color(0xFF4A7FFF),
-                size: 20,
+                size: 24,
               ),
             ),
             const SizedBox(width: 12),
@@ -90,176 +144,152 @@ class _CustomerChatConversationScreenState
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Color(0xFF1F2937),
                     ),
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF10B981),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'Online',
-                        style: TextStyle(fontSize: 12, color: Colors.white70),
-                      ),
-                    ],
+                  const Text(
+                    'Online',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF10B981)),
                   ),
                 ],
               ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.phone, color: Colors.white),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: Column(
         children: [
           Expanded(
-            child: Container(
-              color: const Color(0xFFF8FAFC),
-              child: StreamBuilder<DatabaseEvent>(
-                stream: _chat.messagesQuery(threadId).onValue,
-                builder: (context, snapshot) {
-                  final val = snapshot.data?.snapshot.value;
-
-                  if (val == null) {
-                    return const Center(child: Text('No messages yet'));
-                  }
-
-                  final raw = Map<dynamic, dynamic>.from(val as Map);
-
-                  final list =
-                      raw.entries.map((e) {
-                        final m = Map<String, dynamic>.from(e.value as Map);
-                        return {'id': e.key.toString(), ...m};
-                      }).toList()..sort((a, b) {
-                        final aa = (a['createdAt'] ?? 0) as int;
-                        final bb = (b['createdAt'] ?? 0) as int;
-                        return aa.compareTo(bb);
-                      });
-
-                  // Auto-scroll whenever messages change
-                  _scrollToBottom();
-
-                  return ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: list.length,
-                    itemBuilder: (context, index) {
-                      final message = list[index];
-                      final isMine = (message['senderId']?.toString() == myUid);
-
-                      return _buildMessageBubble({
-                        'text': (message['text'] ?? '').toString(),
-                        'isMine': isMine,
-                        'timestamp': '',
-                        'isRead': true,
-                      });
-                    },
-                  );
-                },
-              ),
-            ),
+            child: widget.threadId.startsWith('mock_')
+                ? _buildMockListView(myUid)
+                : _buildFirebaseListView(myUid),
           ),
-
-          // Input Bar
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.attach_file,
-                      color: Color(0xFF9CA3AF),
-                    ),
-                    onPressed: () {},
-                  ),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: TextField(
-                        controller: _messageController,
-                        decoration: const InputDecoration(
-                          hintText: 'Type a message...',
-                          border: InputBorder.none,
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF4A7FFF),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.send,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () async {
-                        final text = _messageController.text.trim();
-                        if (text.isEmpty) return;
-
-                        _messageController.clear();
-
-                        await _chat.sendTextMessage(
-                          threadId: threadId,
-                          text: text,
-                          otherUid: otherUid,
-                        );
-
-                        _scrollToBottom();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildInputArea(),
         ],
       ),
     );
   }
 
+  Widget _buildMockListView(String? myUid) {
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(20),
+      itemCount: _mockMessages.length,
+      itemBuilder: (context, index) {
+        final m = _mockMessages[index];
+        final isMe = m['senderId'] == 'me';
+        return _buildMessageBubble({
+          'text': m['text'],
+          'isMine': isMe,
+          'timestamp': '',
+          'isRead': true,
+        });
+      },
+    );
+  }
+
+  Widget _buildFirebaseListView(String? myUid) {
+    return StreamBuilder<DatabaseEvent>(
+      stream: _chat.messagesQuery(widget.threadId).onValue,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final val = snap.data?.snapshot.value;
+        if (val == null) {
+          return const Center(child: Text('Start a conversation'));
+        }
+
+        final map = Map<String, dynamic>.from(val as Map);
+        final list = map.entries.map((e) {
+          final m = Map<String, dynamic>.from(e.value as Map);
+          return {'id': e.key, ...m};
+        }).toList();
+
+        list.sort((a, b) {
+          final aa = (a['createdAt'] ?? 0) as int;
+          final bb = (b['createdAt'] ?? 0) as int;
+          return aa.compareTo(bb);
+        });
+
+        _scrollToBottom();
+
+        return ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(20),
+          itemCount: list.length,
+          itemBuilder: (context, index) {
+            final m = list[index];
+            final isMine = (m['senderId']?.toString() == myUid);
+            return _buildMessageBubble({
+              'text': (m['text'] ?? '').toString(),
+              'isMine': isMine,
+              'timestamp': '',
+              'isRead': true,
+            });
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildInputArea() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: TextField(
+                  controller: _messageController,
+                  decoration: const InputDecoration(
+                    hintText: 'Type a message...',
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                color: Color(0xFF4A7FFF),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.send, color: Colors.white, size: 20),
+                onPressed: _sendMessage,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMessageBubble(Map<String, dynamic> message) {
-    final isMine = message['isMine'] as bool;
+    final bool isMine = message['isMine'] ?? false;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -267,65 +297,49 @@ class _CustomerChatConversationScreenState
         mainAxisAlignment: isMine
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMine) ...[
             Container(
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
-                ),
+                color: const Color(0xFFE5E7EB),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
                 Icons.person,
-                color: Color(0xFF4A7FFF),
-                size: 16,
+                size: 20,
+                color: Color(0xFF9CA3AF),
               ),
             ),
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Column(
-              crossAxisAlignment: isMine
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isMine ? const Color(0xFF4A7FFF) : Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMine ? 16 : 4),
-                      bottomRight: Radius.circular(isMine ? 4 : 16),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    message['text'].toString(),
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isMine ? Colors.white : const Color(0xFF1F2937),
-                      height: 1.4,
-                    ),
-                  ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isMine ? const Color(0xFF4A7FFF) : Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(isMine ? 16 : 4),
+                  bottomRight: Radius.circular(isMine ? 4 : 16),
                 ),
-                const SizedBox(height: 4),
-                // timestamp optional
-              ],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                message['text'] ?? '',
+                style: TextStyle(
+                  color: isMine ? Colors.white : const Color(0xFF1F2937),
+                  fontSize: 14,
+                ),
+              ),
             ),
           ),
           if (isMine) const SizedBox(width: 40),

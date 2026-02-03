@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'customer_request_quote_screen.dart';
+import 'customer_chat_conversation_screen.dart';
 
 class CustomerWorkerProfileDetailScreen extends StatefulWidget {
   final Map<String, dynamic> worker;
@@ -200,34 +201,77 @@ class _CustomerWorkerProfileDetailScreenState
             bottom: 20,
             left: 20,
             right: 20,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => CustomerRequestQuoteScreen(
-                      worker: widget.worker,
-                      categoryName: widget.worker['type'] ?? 'Service',
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CustomerRequestQuoteScreen(
+                            worker: widget.worker,
+                            categoryName: widget.worker['type'] ?? 'Service',
+                          ),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4A7FFF),
+                      minimumSize: const Size(double.infinity, 56),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 8,
+                    ),
+                    child: const Text(
+                      'Book Service',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4A7FFF),
-                minimumSize: const Size(double.infinity, 56),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
                 ),
-                elevation: 8,
-              ),
-              child: const Text(
-                'Book Service',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                const SizedBox(width: 12),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF10B981).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.chat_bubble_outline,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      final workerId =
+                          widget.worker['uid'] ?? widget.worker['id'];
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CustomerChatConversationScreen(
+                            threadId: 'mock_$workerId',
+                            otherUid: workerId.toString(),
+                            otherName: widget.worker['name'] ?? 'Worker',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ],

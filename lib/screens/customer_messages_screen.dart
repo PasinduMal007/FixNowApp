@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/chat_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'customer_chat_conversation_screen.dart';
 
 class CustomerMessagesScreen extends StatefulWidget {
@@ -11,147 +12,220 @@ class CustomerMessagesScreen extends StatefulWidget {
 }
 
 class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
-  final _chat = ChatService();
+  late final ChatService _chat;
+  bool useMock = true; // Set to true to see mock data
+
+  final List<Map<String, dynamic>> _mockThreads = [
+    {
+      'threadId': 'mock_1',
+      'otherUid': 'worker_1',
+      'otherName': 'Nimal Perera',
+      'otherPhotoUrl': '',
+      'lastMessageText': 'I can come at 10 AM tomorrow.',
+      'unreadCount': 2,
+      'lastMessageAt': DateTime.now().millisecondsSinceEpoch,
+    },
+    {
+      'threadId': 'mock_2',
+      'otherUid': 'worker_2',
+      'otherName': 'Sunil Shantha',
+      'otherPhotoUrl': '',
+      'lastMessageText': 'Quote accepted. Starting work.',
+      'unreadCount': 0,
+      'lastMessageAt': DateTime.now()
+          .subtract(const Duration(hours: 2))
+          .millisecondsSinceEpoch,
+    },
+    {
+      'threadId': 'mock_3',
+      'otherUid': 'worker_3',
+      'otherName': 'Kamal Addararachchi',
+      'otherPhotoUrl': '',
+      'lastMessageText': 'Thanks for the payment!',
+      'unreadCount': 0,
+      'lastMessageAt': DateTime.now()
+          .subtract(const Duration(days: 1))
+          .millisecondsSinceEpoch,
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _chat = ChatService();
+    try {
+      debugPrint(
+        'DEBUG: Messages initialized for UID: ${_chat.connectedRef().parent?.key}',
+      );
+      // Note: connectedRef is .info/connected, its parent is .info.
+      // To get UID, I should just print what ChatService has.
+    } catch (e) {
+      debugPrint('DEBUG: ChatService init error: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (useMock) {
+      return _buildMockView();
+    }
+
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.topRight,
-            colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header + unread (dynamic)
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: StreamBuilder(
-                  stream: _chat.inboxQuery().onValue,
-                  builder: (context, snapshot) {
-                    int unreadTotal = 0;
+      body: StreamBuilder(
+        stream: _chat.connectedRef().onValue,
+        builder: (context, connSnap) {
+          final isConnected = connSnap.data?.snapshot.value == true;
 
-                    if (snapshot.hasData) {
-                      final event = snapshot.data as DatabaseEvent;
-                      final data = event.snapshot.value;
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.topRight,
+                colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+              ),
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  if (!isConnected)
+                    Container(
+                      color: Colors.orange.withOpacity(0.8),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        isConnected ? 'Checking inbox... ' : 'Connecting... ',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  // Small diagnostic text below Header if still loading
+                  StreamBuilder<User?>(
+                    stream: FirebaseAuth.instance.authStateChanges(),
+                    builder: (context, authSnap) {
+                      final uid = authSnap.data?.uid ?? 'None';
+                      return Container(
+                        padding: const EdgeInsets.all(4),
+                        child: Text(
+                          'DEBUG UID: $uid',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.blueGrey,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
 
-                      if (data != null) {
-                        final map = Map<String, dynamic>.from(data as Map);
-                        for (final e in map.entries) {
-                          final t = Map<String, dynamic>.from(e.value as Map);
-                          final u = t['unreadCount'];
-                          if (u is int) unreadTotal += u;
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: StreamBuilder<DatabaseEvent>(
+                      stream: _chat.inboxQuery().onValue,
+                      builder: (context, snapshot) {
+                        int unreadTotal = 0;
+
+                        if (snapshot.hasData) {
+                          final data = snapshot.data?.snapshot.value;
+                          if (data != null) {
+                            final map = Map<String, dynamic>.from(data as Map);
+                            for (final e in map.entries) {
+                              final t = Map<String, dynamic>.from(
+                                e.value as Map,
+                              );
+                              final u = t['unreadCount'];
+                              if (u is int) unreadTotal += u;
+                            }
+                          }
                         }
-                      }
-                    }
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: const [
-                            Expanded(
-                              child: Text(
-                                'Messages',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Messages',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '$unreadTotal unread',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(
+                                    Icons.search,
+                                    color: Color(0xFF9CA3AF),
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Search conversations...',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF9CA3AF),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '$unreadTotal unread',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.white70,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Search Bar (still UI only for now)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.search,
-                                color: Color(0xFF9CA3AF),
-                                size: 20,
-                              ),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Search conversations...',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF9CA3AF),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-
-              // Conversations List (THIS is where your StreamBuilder goes)
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
+                        );
+                      },
                     ),
                   ),
-                  child: FutureBuilder<DataSnapshot>(
-                    future: _chat.inboxOnce(),
-                    builder: (context, firstSnap) {
-                      // 1) First load: always ends (success or error)
-                      if (firstSnap.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
 
-                      if (firstSnap.hasError) {
-                        return Center(child: Text('Inbox error: ${firstSnap.error}'));
-                      }
-
-                      final firstData = firstSnap.data?.value;
-
-                      // Empty inbox
-                      if (firstData == null) {
-                        return const Center(child: Text('No conversations yet'));
-                      }
-
-                      // 2) After first load, keep it live
-                      return StreamBuilder<DatabaseEvent>(
+                  // Conversations List
+                  Expanded(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(24),
+                          topRight: Radius.circular(24),
+                        ),
+                      ),
+                      child: StreamBuilder<DatabaseEvent>(
                         stream: _chat.inboxQuery().onValue,
                         builder: (context, snap) {
-                          final data = snap.data?.snapshot.value;
-
-                          if (snap.hasError) {
-                            return Center(child: Text('Live error: ${snap.error}'));
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
                           }
 
+                          if (snap.hasError) {
+                            return Center(
+                              child: Text('Inbox error: ${snap.error}'),
+                            );
+                          }
+
+                          final data = snap.data?.snapshot.value;
                           if (data == null) {
-                            return const Center(child: Text('No conversations yet'));
+                            return const Center(
+                              child: Text('No conversations yet'),
+                            );
                           }
 
                           final map = Map<String, dynamic>.from(data as Map);
@@ -165,14 +239,18 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
 
                             final lastAt = (t['lastMessageAt'] is int)
                                 ? t['lastMessageAt'] as int
-                                : int.tryParse('${t['lastMessageAt'] ?? 0}') ?? 0;
+                                : int.tryParse('${t['lastMessageAt'] ?? 0}') ??
+                                      0;
 
                             return {
                               'threadId': e.key,
                               'otherUid': (t['otherUid'] ?? '').toString(),
-                              'otherName': (t['otherName'] ?? 'User').toString(),
-                              'otherPhotoUrl': (t['otherPhotoUrl'] ?? '').toString(),
-                              'lastMessageText': (t['lastMessageText'] ?? '').toString(),
+                              'otherName': (t['otherName'] ?? 'User')
+                                  .toString(),
+                              'otherPhotoUrl': (t['otherPhotoUrl'] ?? '')
+                                  .toString(),
+                              'lastMessageText': (t['lastMessageText'] ?? '')
+                                  .toString(),
                               'unreadCount': unread,
                               'lastMessageAt': lastAt,
                             };
@@ -192,7 +270,117 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                             },
                           );
                         },
-                      );
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMockView() {
+    int unreadTotal = 0;
+    for (var t in _mockThreads) {
+      unreadTotal += (t['unreadCount'] as int);
+    }
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.topRight,
+            colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Messages (MOCK)',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Switch(
+                          value: useMock,
+                          onChanged: (v) => setState(() => useMock = v),
+                          activeColor: Colors.white,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$unreadTotal unread',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.search,
+                            color: Color(0xFF9CA3AF),
+                            size: 20,
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Search conversations...',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Conversations List
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                  ),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: _mockThreads.length,
+                    itemBuilder: (context, index) {
+                      return _buildConversationCard(_mockThreads[index]);
                     },
                   ),
                 ),
@@ -214,7 +402,15 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
         final otherUid = conversation['otherUid'] as String;
         final otherName = conversation['otherName'] as String;
 
-        await _chat.markThreadRead(threadId: threadId);
+        if (!threadId.startsWith('mock_')) {
+          try {
+            await _chat
+                .markThreadRead(threadId: threadId)
+                .timeout(const Duration(seconds: 1));
+          } catch (e) {
+            debugPrint('DEBUG: markThreadRead error or timeout: $e');
+          }
+        }
 
         if (!context.mounted) return;
         Navigator.push(

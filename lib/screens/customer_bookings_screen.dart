@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fix_now_app/services/db.dart';
 import 'customer_chat_conversation_screen.dart'; // Ensure this exists or adapt
+import 'package:fix_now_app/Services/chat_service.dart';
+import 'package:fix_now_app/Services/customer_profile_service.dart';
 
 class CustomerBookingsScreen extends StatefulWidget {
   const CustomerBookingsScreen({super.key});
@@ -40,12 +42,12 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
       final raw = event.snapshot.value;
       if (raw == null || raw is! Map) return [];
 
-      final all = Map<dynamic, dynamic>.from(raw as Map);
+      final all = Map<dynamic, dynamic>.from(raw);
       final List<Map<String, dynamic>> list = [];
 
       all.forEach((key, value) {
         if (value is! Map) return;
-        final data = Map<String, dynamic>.from(value as Map);
+        final data = Map<String, dynamic>.from(value);
         data['id'] = key;
         list.add(data);
       });
@@ -59,13 +61,6 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
 
       return list;
     });
-  }
-
-  // Helper to generate consistent thread ID
-  String _getThreadId(String myUid, String otherUid) {
-    return (myUid.compareTo(otherUid) < 0)
-        ? '${myUid}_$otherUid'
-        : '${otherUid}_$myUid';
   }
 
   @override
@@ -473,23 +468,45 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  // Chat Navigation
                   final workerId = booking['workerId'];
                   final workerName = booking['workerName'];
                   final myUid = FirebaseAuth.instance.currentUser?.uid;
 
                   if (workerId != null && myUid != null) {
-                    final threadId = _getThreadId(myUid, workerId);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CustomerChatConversationScreen(
-                          threadId: threadId,
-                          otherUid: workerId,
-                          otherName: workerName ?? 'Worker',
+                    final chat = ChatService();
+                    final profileService = CustomerProfileService();
+
+                    profileService.getCustomerName().then((myName) async {
+                      String threadId;
+                      try {
+                        threadId = await chat
+                            .createOrGetThread(
+                              otherUid: workerId.toString(),
+                              otherName: workerName?.toString() ?? 'Worker',
+                              otherRole: 'worker',
+                              myRole: 'customer',
+                              myName: myName.isNotEmpty ? myName : 'Customer',
+                            )
+                            .timeout(const Duration(seconds: 2));
+                      } catch (e) {
+                        debugPrint(
+                          'DEBUG: createOrGetThread timeout/error: $e',
+                        );
+                        threadId = 'mock_${workerId}';
+                      }
+
+                      if (!context.mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CustomerChatConversationScreen(
+                            threadId: threadId,
+                            otherUid: workerId.toString(),
+                            otherName: workerName?.toString() ?? 'Worker',
+                          ),
                         ),
-                      ),
-                    );
+                      );
+                    });
                   }
                 },
                 icon: const Icon(Icons.chat_bubble_outline, size: 18),

@@ -36,15 +36,52 @@ class _WorkerChatConversationScreenState
   late final String threadId;
   late final String otherUid;
 
+  bool useMock = false;
+  final List<Map<String, dynamic>> _mockMessages = [];
+
   @override
   void initState() {
     super.initState();
 
     threadId = widget.threadId;
     otherUid = widget.otherUid;
+    useMock = threadId.startsWith('mock_');
+
+    if (useMock) {
+      _mockMessages.addAll([
+        {
+          'id': 'm1',
+          'senderId': otherUid,
+          'text': 'Hello! Are you available for an electrical repair?',
+          'createdAt': DateTime.now()
+              .subtract(const Duration(minutes: 10))
+              .millisecondsSinceEpoch,
+        },
+        {
+          'id': 'm2',
+          'senderId': FirebaseAuth.instance.currentUser?.uid,
+          'text': 'Yes, I am. Where is the location?',
+          'createdAt': DateTime.now()
+              .subtract(const Duration(minutes: 8))
+              .millisecondsSinceEpoch,
+        },
+        {
+          'id': 'm3',
+          'senderId': otherUid,
+          'text': 'It\'s in Colombo 03. Can you come at 10 AM?',
+          'createdAt': DateTime.now()
+              .subtract(const Duration(minutes: 5))
+              .millisecondsSinceEpoch,
+        },
+      ]);
+    }
 
     // Mark as read when opening
-    _chat.markThreadRead(threadId: threadId);
+    if (!useMock) {
+      _chat.markThreadRead(threadId: threadId).catchError((e) {
+        debugPrint('DEBUG: markThreadRead error: $e');
+      });
+    }
 
     // Small delay so build finishes, then scroll if needed later
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -65,11 +102,22 @@ class _WorkerChatConversationScreenState
 
     _messageController.clear();
 
-    await _chat.sendTextMessage(
-      threadId: threadId,
-      text: text,
-      otherUid: otherUid,
-    );
+    if (useMock) {
+      setState(() {
+        _mockMessages.add({
+          'id': DateTime.now().millisecondsSinceEpoch.toString(),
+          'senderId': FirebaseAuth.instance.currentUser?.uid,
+          'text': text,
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      });
+    } else {
+      await _chat.sendTextMessage(
+        threadId: threadId,
+        text: text,
+        otherUid: otherUid,
+      );
+    }
 
     if (!mounted) return;
     _scrollToBottom(animated: true);
@@ -179,7 +227,7 @@ class _WorkerChatConversationScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            titleName,
+                            titleName + (useMock ? ' (MOCK)' : ''),
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -237,54 +285,63 @@ class _WorkerChatConversationScreenState
                       topRight: Radius.circular(24),
                     ),
                   ),
-                  child: StreamBuilder<DatabaseEvent>(
-                    stream: _chat.messagesQuery(threadId).onValue,
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
+                  child: useMock
+                      ? _buildMockListView()
+                      : StreamBuilder<DatabaseEvent>(
+                          stream: _chat.messagesQuery(threadId).onValue,
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
 
-                      final val = snapshot.data!.snapshot.value;
-                      if (val == null) {
-                        return const Center(child: Text('No messages yet'));
-                      }
+                            final val = snapshot.data!.snapshot.value;
+                            if (val == null) {
+                              return const Center(
+                                child: Text('No messages yet'),
+                              );
+                            }
 
-                      final raw = Map<dynamic, dynamic>.from(val as Map);
-                      final list = raw.entries.map((e) {
-                        final m = Map<String, dynamic>.from(e.value as Map);
-                        return {'id': e.key.toString(), ...m};
-                      }).toList();
+                            final raw = Map<dynamic, dynamic>.from(val as Map);
+                            final list = raw.entries.map((e) {
+                              final m = Map<String, dynamic>.from(
+                                e.value as Map,
+                              );
+                              return {'id': e.key.toString(), ...m};
+                            }).toList();
 
-                      list.sort((a, b) {
-                        final aa = _toInt(a['createdAt']);
-                        final bb = _toInt(b['createdAt']);
-                        return aa.compareTo(bb);
-                      });
+                            list.sort((a, b) {
+                              final aa = _toInt(a['createdAt']);
+                              final bb = _toInt(b['createdAt']);
+                              return aa.compareTo(bb);
+                            });
 
-                      // After rebuild, scroll to bottom if user is already near bottom
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _scrollToBottom(animated: false);
-                      });
+                            // After rebuild, scroll to bottom if user is already near bottom
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _scrollToBottom(animated: false);
+                            });
 
-                      return ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: list.length,
-                        itemBuilder: (context, index) {
-                          final message = list[index];
-                          final isMine =
-                              message['senderId'] ==
-                              FirebaseAuth.instance.currentUser?.uid;
+                            return ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.all(16),
+                              itemCount: list.length,
+                              itemBuilder: (context, index) {
+                                final message = list[index];
+                                final isMine =
+                                    message['senderId'] ==
+                                    FirebaseAuth.instance.currentUser?.uid;
 
-                          return _buildMessageBubble(
-                            text: (message['text'] ?? '').toString(),
-                            isSent: isMine,
-                            timestamp: '', // format createdAt later if you want
-                          );
-                        },
-                      );
-                    },
-                  ),
+                                return _buildMessageBubble(
+                                  text: (message['text'] ?? '').toString(),
+                                  isSent: isMine,
+                                  timestamp:
+                                      '', // format createdAt later if you want
+                                );
+                              },
+                            );
+                          },
+                        ),
                 ),
               ),
 
@@ -385,6 +442,30 @@ class _WorkerChatConversationScreenState
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMockListView() {
+    // After rebuild, scroll to bottom
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom(animated: false);
+    });
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(16),
+      itemCount: _mockMessages.length,
+      itemBuilder: (context, index) {
+        final message = _mockMessages[index];
+        final isMine =
+            message['senderId'] == FirebaseAuth.instance.currentUser?.uid;
+
+        return _buildMessageBubble(
+          text: (message['text'] ?? '').toString(),
+          isSent: isMine,
+          timestamp: 'Mock Time',
+        );
+      },
     );
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fix_now_app/Services/chat_service.dart';
 import 'worker_chat_conversation_screen.dart';
 
@@ -14,9 +15,373 @@ class WorkerChatScreen extends StatefulWidget {
 
 class _WorkerChatScreenState extends State<WorkerChatScreen> {
   final _chat = ChatService();
+  bool useMock = true; // Enabled by default for bypass
+
+  final List<Map<String, dynamic>> _mockThreads = [
+    {
+      'threadId': 'mock_customer_1',
+      'otherUid': 'cust1',
+      'otherName': 'Chethiya Fernando',
+      'otherPhotoUrl': '',
+      'lastMessageText': 'Can you come at 10 AM?',
+      'unreadCount': 2,
+      'lastMessageAt': DateTime.now().millisecondsSinceEpoch,
+      'service': 'Electrical Repair',
+      'rating': 4.5,
+      'isOnline': true,
+    },
+    {
+      'threadId': 'mock_customer_2',
+      'otherUid': 'cust2',
+      'otherName': 'Amila Perera',
+      'otherPhotoUrl': '',
+      'lastMessageText': 'Quote accepted. Please start.',
+      'unreadCount': 0,
+      'lastMessageAt': DateTime.now()
+          .subtract(const Duration(hours: 2))
+          .millisecondsSinceEpoch,
+      'service': 'Plumbing',
+      'rating': 4.8,
+      'isOnline': false,
+    },
+  ];
 
   @override
   Widget build(BuildContext context) {
+    if (useMock) return _buildMockView();
+
+    return Scaffold(
+      body: StreamBuilder(
+        stream: _chat.connectedRef().onValue,
+        builder: (context, connSnap) {
+          final isConnected = connSnap.data?.snapshot.value == true;
+          final myUid = FirebaseAuth.instance.currentUser?.uid ?? 'None';
+
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.topRight,
+                colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+              ),
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  if (!isConnected)
+                    Container(
+                      color: Colors.orange.withOpacity(0.8),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        'Connecting... (UID: $myUid)',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      color: Colors.green.withOpacity(0.6),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        'Checking inbox... (UID: $myUid)',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+
+                  // Header + Search (static UI)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                    child: Row(
+                      children: [
+                        if (widget.showBackButton)
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        if (widget.showBackButton) const SizedBox(width: 16),
+                        const Expanded(
+                          child: Text(
+                            'Messages',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        Switch(
+                          value: useMock,
+                          onChanged: (v) => setState(() => useMock = v),
+                          activeColor: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.search,
+                            color: Color(0xFF9CA3AF),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              decoration: const InputDecoration(
+                                hintText: 'Search conversations...',
+                                hintStyle: TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF9CA3AF),
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                              ),
+                              onChanged: (_) {
+                                // Optional: implement filtering later
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Conversations list (dynamic)
+                  Expanded(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(24),
+                          topRight: Radius.circular(24),
+                        ),
+                      ),
+                      child: FutureBuilder<DataSnapshot>(
+                        future: _chat.inboxOnce(),
+                        builder: (context, firstSnap) {
+                          if (firstSnap.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          if (firstSnap.hasError) {
+                            return Center(
+                              child: Text('Inbox error: ${firstSnap.error}'),
+                            );
+                          }
+
+                          final firstData = firstSnap.data?.value;
+
+                          // If no conversations node exists yet
+                          if (firstData == null) {
+                            return _emptyState();
+                          }
+
+                          // After first load, keep it live
+                          return StreamBuilder<DatabaseEvent>(
+                            stream: _chat.inboxQuery().onValue,
+                            builder: (context, snap) {
+                              if (snap.hasError) {
+                                return Center(
+                                  child: Text('Live error: ${snap.error}'),
+                                );
+                              }
+
+                              final data = snap.data?.snapshot.value;
+
+                              // IMPORTANT: no spinner here
+                              if (data == null) return _emptyState();
+
+                              final map = Map<String, dynamic>.from(
+                                data as Map,
+                              );
+
+                              final threads = map.entries.map((e) {
+                                final t = Map<String, dynamic>.from(
+                                  e.value as Map,
+                                );
+
+                                final unread = (t['unreadCount'] is int)
+                                    ? t['unreadCount'] as int
+                                    : int.tryParse(
+                                            '${t['unreadCount'] ?? 0}',
+                                          ) ??
+                                          0;
+
+                                final lastAt = (t['lastMessageAt'] is int)
+                                    ? t['lastMessageAt'] as int
+                                    : int.tryParse(
+                                            '${t['lastMessageAt'] ?? 0}',
+                                          ) ??
+                                          0;
+
+                                return {
+                                  'threadId': e.key,
+                                  'otherUid': (t['otherUid'] ?? '').toString(),
+                                  'otherName': (t['otherName'] ?? 'Customer')
+                                      .toString(),
+                                  'otherPhotoUrl': (t['otherPhotoUrl'] ?? '')
+                                      .toString(),
+                                  'lastMessageText':
+                                      (t['lastMessageText'] ?? '').toString(),
+                                  'unreadCount': unread,
+                                  'lastMessageAt': lastAt,
+                                  'service': (t['service'] ?? '').toString(),
+                                  'rating': (t['rating'] is num)
+                                      ? (t['rating'] as num).toDouble()
+                                      : double.tryParse(
+                                              '${t['rating'] ?? ''}',
+                                            ) ??
+                                            0.0,
+                                  'isOnline': (t['isOnline'] == true),
+                                };
+                              }).toList();
+
+                              threads.sort((a, b) {
+                                final aa = (a['lastMessageAt'] as int?) ?? 0;
+                                final bb = (b['lastMessageAt'] as int?) ?? 0;
+                                return bb.compareTo(aa);
+                              });
+
+                              if (threads.isEmpty) return _emptyState();
+
+                              final unreadThreads = threads
+                                  .where(
+                                    (t) =>
+                                        ((t['unreadCount'] as int?) ?? 0) > 0,
+                                  )
+                                  .length;
+
+                              return Column(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      24,
+                                      10,
+                                      24,
+                                      6,
+                                    ),
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        '$unreadThreads unread messages',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF6B7280),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: ListView.builder(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        24,
+                                        10,
+                                        24,
+                                        100,
+                                      ),
+                                      itemCount: threads.length,
+                                      itemBuilder: (context, index) {
+                                        final conv = threads[index];
+                                        return GestureDetector(
+                                          onTap: () async {
+                                            final tid =
+                                                conv['threadId'] as String;
+                                            await _chat.markThreadRead(
+                                              threadId: tid,
+                                            );
+
+                                            if (!context.mounted) return;
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    WorkerChatConversationScreen(
+                                                      threadId: tid,
+                                                      otherUid:
+                                                          conv['otherUid']
+                                                              as String,
+                                                      otherName:
+                                                          conv['otherName']
+                                                              as String,
+                                                      customerName:
+                                                          conv['otherName']
+                                                              as String,
+                                                      service:
+                                                          (conv['service']
+                                                              as String?) ??
+                                                          '',
+                                                      isOnline:
+                                                          (conv['isOnline']
+                                                              as bool?) ??
+                                                          false,
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          child: _buildConversationCard(conv),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMockView() {
+    int unreadTotal = 0;
+    for (var t in _mockThreads) {
+      unreadTotal += (t['unreadCount'] as int);
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -29,7 +394,7 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header + Search (static UI)
+              // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
                 child: Row(
@@ -54,7 +419,7 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                     if (widget.showBackButton) const SizedBox(width: 16),
                     const Expanded(
                       child: Text(
-                        'Messages',
+                        'Messages (MOCK)',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -62,49 +427,27 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                         ),
                       ),
                     ),
+                    Switch(
+                      value: useMock,
+                      onChanged: (v) => setState(() => useMock = v),
+                      activeColor: Colors.white,
+                    ),
                   ],
                 ),
               ),
 
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.search,
-                        color: Color(0xFF9CA3AF),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          decoration: const InputDecoration(
-                            hintText: 'Search conversations...',
-                            hintStyle: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF9CA3AF),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          onChanged: (_) {
-                            // Optional: implement filtering later
-                          },
-                        ),
-                      ),
-                    ],
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '$unreadTotal unread messages',
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
 
-              // Conversations list (dynamic)
+              // Conversations List
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -114,164 +457,41 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                       topRight: Radius.circular(24),
                     ),
                   ),
-                  child: FutureBuilder<DataSnapshot>(
-                    future: _chat.inboxOnce(),
-                    builder: (context, firstSnap) {
-                      if (firstSnap.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
+                    itemCount: _mockThreads.length,
+                    itemBuilder: (context, index) {
+                      final conv = _mockThreads[index];
+                      return GestureDetector(
+                        onTap: () async {
+                          final tid = conv['threadId'] as String;
 
-                      if (firstSnap.hasError) {
-                        return Center(
-                          child: Text('Inbox error: ${firstSnap.error}'),
-                        );
-                      }
-
-                      final firstData = firstSnap.data?.value;
-
-                      // If no conversations node exists yet
-                      if (firstData == null) {
-                        return _emptyState();
-                      }
-
-                      // After first load, keep it live
-                      return StreamBuilder<DatabaseEvent>(
-                        stream: _chat.inboxQuery().onValue,
-                        builder: (context, snap) {
-                          if (snap.hasError) {
-                            return Center(
-                              child: Text('Live error: ${snap.error}'),
-                            );
+                          if (!tid.startsWith('mock_')) {
+                            try {
+                              await _chat
+                                  .markThreadRead(threadId: tid)
+                                  .timeout(const Duration(seconds: 1));
+                            } catch (e) {
+                              debugPrint('DEBUG: markThreadRead timeout: $e');
+                            }
                           }
 
-                          final data = snap.data?.snapshot.value;
-
-                          // IMPORTANT: no spinner here
-                          if (data == null) return _emptyState();
-
-                          final map = Map<String, dynamic>.from(data as Map);
-
-                          final threads = map.entries.map((e) {
-                            final t = Map<String, dynamic>.from(e.value as Map);
-
-                            final unread = (t['unreadCount'] is int)
-                                ? t['unreadCount'] as int
-                                : int.tryParse('${t['unreadCount'] ?? 0}') ?? 0;
-
-                            final lastAt = (t['lastMessageAt'] is int)
-                                ? t['lastMessageAt'] as int
-                                : int.tryParse('${t['lastMessageAt'] ?? 0}') ??
-                                      0;
-
-                            return {
-                              'threadId': e.key,
-                              'otherUid': (t['otherUid'] ?? '').toString(),
-                              'otherName': (t['otherName'] ?? 'Customer')
-                                  .toString(),
-                              'otherPhotoUrl': (t['otherPhotoUrl'] ?? '')
-                                  .toString(),
-                              'lastMessageText': (t['lastMessageText'] ?? '')
-                                  .toString(),
-                              'unreadCount': unread,
-                              'lastMessageAt': lastAt,
-                              'service': (t['service'] ?? '').toString(),
-                              'rating': (t['rating'] is num)
-                                  ? (t['rating'] as num).toDouble()
-                                  : double.tryParse('${t['rating'] ?? ''}') ??
-                                        0.0,
-                              'isOnline': (t['isOnline'] == true),
-                            };
-                          }).toList();
-
-                          threads.sort((a, b) {
-                            final aa = (a['lastMessageAt'] as int?) ?? 0;
-                            final bb = (b['lastMessageAt'] as int?) ?? 0;
-                            return bb.compareTo(aa);
-                          });
-
-                          if (threads.isEmpty) return _emptyState();
-
-                          final unreadThreads = threads
-                              .where(
-                                (t) => ((t['unreadCount'] as int?) ?? 0) > 0,
-                              )
-                              .length;
-
-                          return Column(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  24,
-                                  10,
-                                  24,
-                                  6,
-                                ),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    '$unreadThreads unread messages',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF6B7280),
-                                    ),
-                                  ),
-                                ),
+                          if (!context.mounted) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => WorkerChatConversationScreen(
+                                threadId: tid,
+                                otherUid: conv['otherUid'] as String,
+                                otherName: conv['otherName'] as String,
+                                customerName: conv['otherName'] as String,
+                                service: (conv['service'] as String?) ?? '',
+                                isOnline: (conv['isOnline'] as bool?) ?? false,
                               ),
-                              Expanded(
-                                child: ListView.builder(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    24,
-                                    10,
-                                    24,
-                                    100,
-                                  ),
-                                  itemCount: threads.length,
-                                  itemBuilder: (context, index) {
-                                    final conv = threads[index];
-                                    return GestureDetector(
-                                      onTap: () async {
-                                        final tid = conv['threadId'] as String;
-                                        await _chat.markThreadRead(
-                                          threadId: tid,
-                                        );
-
-                                        if (!context.mounted) return;
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                WorkerChatConversationScreen(
-                                                  threadId: tid,
-                                                  otherUid:
-                                                      conv['otherUid']
-                                                          as String,
-                                                  otherName:
-                                                      conv['otherName']
-                                                          as String,
-                                                  customerName:
-                                                      conv['otherName']
-                                                          as String,
-                                                  service:
-                                                      (conv['service']
-                                                          as String?) ??
-                                                      '',
-                                                  isOnline:
-                                                      (conv['isOnline']
-                                                          as bool?) ??
-                                                      false,
-                                                ),
-                                          ),
-                                        );
-                                      },
-                                      child: _buildConversationCard(conv),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
+                            ),
                           );
                         },
+                        child: _buildConversationCard(conv),
                       );
                     },
                   ),

@@ -4,6 +4,7 @@ import 'worker_job_details_screen.dart';
 import 'worker_payment_details_screen.dart';
 import 'worker_earnings_screen.dart';
 import 'worker_reviews_screen.dart';
+import 'worker_chat_conversation_screen.dart';
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -466,6 +467,37 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                       color: Colors.white,
                       fontWeight: FontWeight.w500,
                     ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F0FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: IconButton(
+                  onPressed: () {
+                    final customerId = job['customerId'];
+                    final customerName = job['customerName'];
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => WorkerChatConversationScreen(
+                          threadId: 'mock_$customerId',
+                          otherUid: customerId.toString(),
+                          otherName: customerName.toString(),
+                          customerName: customerName.toString(),
+                          service: job['service'].toString(),
+                          isOnline: true,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.chat_bubble_outline,
+                    color: Color(0xFF4A7FFF),
+                    size: 20,
                   ),
                 ),
               ),
@@ -976,40 +1008,81 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 16),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                WorkerPaymentDetailsScreen(
-                                                  bookingId: bookingId,
-                                                  customerId: customerId,
-                                                  serviceType: serviceType,
-                                                  quotedAmount: quotedAmount,
-                                                ),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    WorkerPaymentDetailsScreen(
+                                                      bookingId: bookingId,
+                                                      customerId: customerId,
+                                                      serviceType: serviceType,
+                                                      quotedAmount:
+                                                          quotedAmount,
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(
+                                            Icons.payment,
+                                            size: 16,
                                           ),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.payment, size: 16),
-                                      label: const Text('View Payment'),
-                                      style: OutlinedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
+                                          label: const Text('View Payment'),
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                            side: const BorderSide(
+                                              color: Color(0xFF4A7FFF),
+                                              width: 1.5,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                          ),
                                         ),
-                                        side: const BorderSide(
-                                          color: Color(0xFF4A7FFF),
-                                          width: 1.5,
-                                        ),
-                                        shape: RoundedRectangleBorder(
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFD1FAE5),
                                           borderRadius: BorderRadius.circular(
                                             10,
                                           ),
                                         ),
+                                        child: IconButton(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) =>
+                                                    WorkerChatConversationScreen(
+                                                      threadId:
+                                                          'mock_$customerId',
+                                                      otherUid: customerId
+                                                          .toString(),
+                                                      otherName: customerName,
+                                                      customerName:
+                                                          customerName,
+                                                      service: serviceType,
+                                                      isOnline: true,
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(
+                                            Icons.chat_bubble_outline,
+                                            color: Color(0xFF059669),
+                                            size: 20,
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ),
                                 ],
                               ),
