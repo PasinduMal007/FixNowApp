@@ -49,52 +49,18 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     },
   ];
 
-  Stream<DatabaseEvent> get _workersStream =>
-      DB.ref().child('workersPublic').onValue;
+  late Stream<DatabaseEvent> _workersStream;
+  late Stream<List<Map<String, dynamic>>> _activeServiceStream;
 
-  List<Map<String, dynamic>> _mapWorkersFromSnapshot(DataSnapshot snap) {
-    final list = <Map<String, dynamic>>[];
-    for (final child in snap.children) {
-      final key = (child.key ?? '').toString();
-      if (child.value is! Map) continue;
-      final data = Map<String, dynamic>.from(child.value as Map);
-
-      final fullName = (data['fullName'] ?? '').toString().trim();
-      final profession = (data['profession'] ?? '').toString().trim();
-      final ratingVal = data['rating'];
-      final reviewsVal = data['reviews'];
-
-      final rating = (ratingVal is num)
-          ? ratingVal.toDouble()
-          : double.tryParse(ratingVal?.toString() ?? '') ?? 0.0;
-
-      final reviews = (reviewsVal is num)
-          ? reviewsVal.toInt()
-          : int.tryParse(reviewsVal?.toString() ?? '') ?? 0;
-
-      final isAvailableVal = data['isAvailable'];
-      final isAvailable = isAvailableVal is bool ? isAvailableVal : false;
-
-      list.add(<String, dynamic>{
-        'uid': (data['uid'] ?? key).toString(),
-        'name': fullName.isEmpty ? 'Worker' : fullName,
-        'type': profession,
-        'rating': rating,
-        'reviews': reviews,
-        'distance': (data['distance'] is num)
-            ? (data['distance'] as num).toDouble()
-            : 0.0,
-        'experience': (data['experience'] ?? 0),
-        'description': (data['description'] ?? '').toString(),
-        'isAvailable': isAvailable,
-        'photoUrl': (data['photoUrl'] ?? '').toString(),
-        'locationText': (data['locationText'] ?? '').toString(),
-      });
-    }
-    return list;
+  @override
+  void initState() {
+    super.initState();
+    _workersStream = DB.ref().child('workersPublic').onValue;
+    _activeServiceStream = _createActiveServiceStream();
+    _startRealTimeUpdates();
   }
 
-  Stream<List<Map<String, dynamic>>> get _activeServiceStream {
+  Stream<List<Map<String, dynamic>>> _createActiveServiceStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
 
@@ -134,26 +100,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         active.add(b);
       });
 
-      // --- DEMO MODE: Injecting a fake 'started' booking to visualize the card ---
-      /*
-      active.add({
-        'id': 'demo_booking_123',
-        'status': 'started',
-        'serviceName': 'Plumber', // Matches your mock request
-        'workerName': 'Kamal Perera',
-        'updatedAt': DateTime.now().millisecondsSinceEpoch, // Show as most recent
-        'invoice': {
-          'workerName': 'Kamal Perera',
-          'inspectionFee': 1000,
-          'laborPrice': 1500,
-          'laborHours': 2,
-          'materials': 2000,
-          'subtotal': 4500,
-        }
-      });
-      */
-      // --------------------------------------------------------------------------
-
       // Sort by updatedAt descending (newest first)
       active.sort((a, b) {
         final ua = _asInt(a['updatedAt']);
@@ -163,6 +109,72 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
       return active;
     });
+  }
+
+  // Helper method restored
+  List<Map<String, dynamic>> _mapWorkersFromSnapshot(DataSnapshot snap) {
+    final list = <Map<String, dynamic>>[];
+    for (final child in snap.children) {
+      final key = (child.key ?? '').toString();
+      if (child.value is! Map) continue;
+      final data = Map<String, dynamic>.from(child.value as Map);
+
+      final fullName = (data['fullName'] ?? '').toString().trim();
+      final profession = (data['profession'] ?? '').toString().trim();
+      final ratingVal = data['rating'];
+      final reviewsVal = data['reviews'];
+
+      final rating = (ratingVal is num)
+          ? ratingVal.toDouble()
+          : double.tryParse(ratingVal?.toString() ?? '') ?? 0.0;
+
+      final reviews = (reviewsVal is num)
+          ? reviewsVal.toInt()
+          : int.tryParse(reviewsVal?.toString() ?? '') ?? 0;
+
+      final isAvailableVal = data['isAvailable'];
+      final isAvailable = isAvailableVal is bool ? isAvailableVal : false;
+
+      final rawLat = (data['lat'] is num)
+          ? (data['lat'] as num).toDouble()
+          : 6.9271;
+      final rawLng = (data['lng'] is num)
+          ? (data['lng'] as num).toDouble()
+          : 79.8612;
+
+      // ⚠️ FIX: Spread markers if they are at default location or identical
+      // using a deterministic offset based on UID hash
+      double lat = rawLat;
+      double lng = rawLng;
+
+      if ((rawLat - 6.9271).abs() < 0.0001 &&
+          (rawLng - 79.8612).abs() < 0.0001) {
+        final hash = key.codeUnits.fold(0, (p, c) => p + c);
+        final offsetLat = ((hash % 100) - 50) / 5000.0; // +/- 0.01
+        final offsetLng = ((hash % 90) - 45) / 5000.0;
+        lat += offsetLat;
+        lng += offsetLng;
+      }
+
+      list.add(<String, dynamic>{
+        'uid': (data['uid'] ?? key).toString(),
+        'name': fullName.isEmpty ? 'Worker' : fullName,
+        'type': profession,
+        'rating': rating,
+        'reviews': reviews,
+        'distance': (data['distance'] is num)
+            ? (data['distance'] as num).toDouble()
+            : 0.0,
+        'experience': (data['experience'] ?? 0),
+        'description': (data['description'] ?? '').toString(),
+        'isAvailable': isAvailable,
+        'photoUrl': (data['photoUrl'] ?? '').toString(),
+        'locationText': (data['locationText'] ?? '').toString(),
+        'lat': lat,
+        'lng': lng,
+      });
+    }
+    return list;
   }
 
   String _selectedFilter = 'Top Rated';
@@ -178,12 +190,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     6.9271,
     79.8612,
   ); // Colombo, Sri Lanka
-
-  @override
-  void initState() {
-    super.initState();
-    _startRealTimeUpdates();
-  }
 
   @override
   void dispose() {
@@ -1162,6 +1168,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           infoWindow: InfoWindow(
             title: worker['name'].toString(),
             snippet: '${worker['type']} ⭐ ${worker['rating']}',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      CustomerWorkerProfileDetailScreen(worker: worker),
+                ),
+              );
+            },
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         ),

@@ -74,7 +74,7 @@ class MockDataService {
     for (var entry in mockWorkers.entries) {
       // Use set to overwrite if exists, or just push() if you want new ones every time.
       // Using set with specific IDs to avoid spamming duplicates if clicked multiple times.
-      await _db.ref('workers/${entry.key}').set(entry.value);
+      await _db.ref('users/workers/${entry.key}').set(entry.value);
     }
   }
 }

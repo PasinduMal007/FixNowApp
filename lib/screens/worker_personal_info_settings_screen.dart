@@ -106,7 +106,23 @@ class _WorkerPersonalInfoSettingsScreenState
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        await _updateWorkersPublicAboutMe(uid: user.uid, aboutMe: aboutMe);
+        // Mock Geocoding: If location changed, generate new coordinates near Colombo center (6.9271, 79.8612)
+        // This is a placeholder until a real map picker is added.
+        double? lat, lng;
+        if (locationText.isNotEmpty) {
+          // Deterministic "random" offset based on location text length to simulate different places
+          final offset = (locationText.length % 10) / 100.0;
+          lat = 6.9271 + (locationText.hashCode % 100 / 1000.0) - 0.05;
+          lng = 79.8612 + (locationText.hashCode % 100 / 1000.0) - 0.05;
+        }
+
+        await _updateWorkersPublicProfile(
+          uid: user.uid,
+          aboutMe: aboutMe,
+          locationText: locationText,
+          lat: lat,
+          lng: lng,
+        );
       }
 
       setState(() {
@@ -134,14 +150,24 @@ class _WorkerPersonalInfoSettingsScreenState
     }
   }
 
-  Future<void> _updateWorkersPublicAboutMe({
+  Future<void> _updateWorkersPublicProfile({
     required String uid,
     required String aboutMe,
+    required String locationText,
+    double? lat,
+    double? lng,
   }) async {
-    await DB.ref().child('workersPublic').child(uid).update({
+    final updates = {
       'aboutMe': aboutMe,
+      'description': aboutMe, // Sync consistency
+      'locationText': locationText,
       'updatedAt': ServerValue.timestamp,
-    });
+    };
+
+    if (lat != null) updates['lat'] = lat;
+    if (lng != null) updates['lng'] = lng;
+
+    await DB.ref().child('workersPublic').child(uid).update(updates);
   }
 
   Future<void> _changePhoto() async {

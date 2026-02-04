@@ -305,7 +305,7 @@ class _CustomerWorkerProfileDetailScreenState
               Expanded(
                 child: _buildStatCard(
                   'Experience',
-                  '${widget.worker['experience']} years',
+                  '${widget.worker['experience'] ?? 0} years',
                   Icons.work_outline,
                 ),
               ),
@@ -338,8 +338,12 @@ class _CustomerWorkerProfileDetailScreenState
               borderRadius: BorderRadius.circular(16),
             ),
             child: Text(
-              widget.worker['description'] +
-                  '\n\nSpecializing in residential and commercial electrical work with over ${widget.worker['experience']} years of experience. Licensed and insured professional committed to quality service and customer satisfaction.',
+              (widget.worker['aboutMe'] ?? widget.worker['description'] ?? '')
+                      .toString()
+                      .isNotEmpty
+                  ? (widget.worker['aboutMe'] ?? widget.worker['description'])
+                        .toString()
+                  : 'Specializing in residential and commercial electrical work with over ${widget.worker['experience'] ?? "0"} years of experience. Licensed and insured professional committed to quality service and customer satisfaction.',
               style: const TextStyle(
                 fontSize: 14,
                 color: Color(0xFF6B7280),

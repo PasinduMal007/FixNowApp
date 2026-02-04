@@ -93,13 +93,16 @@ class AdminDashboardScreen extends StatelessWidget {
                 Expanded(
                   child: StreamBuilder<DatabaseEvent>(
                     stream: db
-                        .ref('workers')
+                        .ref('users/workers')
                         .orderByChild('status')
                         .equalTo('pending_verification')
                         .onValue,
                     builder: (context, snapshot) {
                       String count = '0';
-                      if (snapshot.hasData &&
+                      // ⚠️ TEST MODE: On error, show mock count
+                      if (snapshot.hasError) {
+                        count = '2 (Mock)';
+                      } else if (snapshot.hasData &&
                           snapshot.data!.snapshot.value != null) {
                         final data = snapshot.data!.snapshot.value as Map;
                         count = data.length.toString();
