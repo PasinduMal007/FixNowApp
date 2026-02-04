@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fix_now_app/screens/login_screen.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
+import 'package:intl/intl.dart';
+
 import 'admin_verification_screen.dart';
 import 'admin_earnings_screen.dart';
 
@@ -8,7 +12,14 @@ class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
 
   @override
+  @override
   Widget build(BuildContext context) {
+    final currencyFormat = NumberFormat.currency(
+      symbol: 'LKR ',
+      decimalDigits: 0,
+    );
+    final db = DB.instance;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -54,36 +65,77 @@ class AdminDashboardScreen extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _buildStatCard(
-                    context,
-                    title: 'Pending Verifications',
-                    value: 'Checking...',
-                    icon: Icons.verified_user,
-                    color: Colors.orange,
-                    onTap: () {
-                      Navigator.push(
+                  child: StreamBuilder<DatabaseEvent>(
+                    stream: db
+                        .ref('workers')
+                        .orderByChild('verificationStatus')
+                        .equalTo('pending')
+                        .onValue,
+                    builder: (context, snapshot) {
+                      String count = '0';
+                      if (snapshot.hasData &&
+                          snapshot.data!.snapshot.value != null) {
+                        final data = snapshot.data!.snapshot.value as Map;
+                        count = data.length.toString();
+                      }
+                      return _buildStatCard(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const AdminVerificationScreen(),
-                        ),
+                        title: 'Pending Verifications',
+                        value: count,
+                        icon: Icons.verified_user,
+                        color: Colors.orange,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AdminVerificationScreen(),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _buildStatCard(
-                    context,
-                    title: 'Total Earnings',
-                    value: 'Checking...',
-                    icon: Icons.attach_money,
-                    color: Colors.green,
-                    onTap: () {
-                      Navigator.push(
+                  child: StreamBuilder<DatabaseEvent>(
+                    stream: db
+                        .ref('bookings')
+                        .orderByChild('status')
+                        .equalTo('completed')
+                        .onValue,
+                    builder: (context, snapshot) {
+                      double earning = 0.0;
+                      if (snapshot.hasData &&
+                          snapshot.data!.snapshot.value != null) {
+                        try {
+                          final data = Map<dynamic, dynamic>.from(
+                            snapshot.data!.snapshot.value as Map,
+                          );
+                          for (var jobVal in data.values) {
+                            final job = Map<String, dynamic>.from(
+                              jobVal as Map,
+                            );
+                            final total =
+                                double.tryParse(job['total'].toString()) ?? 0;
+                            earning += (total * 0.10); // 10% commission
+                          }
+                        } catch (_) {}
+                      }
+                      return _buildStatCard(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const AdminEarningsScreen(),
-                        ),
+                        title: 'Total Earnings',
+                        value: currencyFormat.format(earning),
+                        icon: Icons.attach_money,
+                        color: Colors.green,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AdminEarningsScreen(),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),

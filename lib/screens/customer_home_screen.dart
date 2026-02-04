@@ -731,7 +731,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                             crossAxisCount: 2,
                                             crossAxisSpacing: 12,
                                             mainAxisSpacing: 12,
-                                            childAspectRatio: 0.85,
+                                            childAspectRatio: 0.65,
                                           ),
                                       itemCount: filteredWorkers.length,
                                       itemBuilder: (context, index) {
@@ -780,7 +780,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                   ),
                                   const SizedBox(height: 12),
                                   SizedBox(
-                                    height: 140,
+                                    height: 165,
                                     child: ListView.builder(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 24,
