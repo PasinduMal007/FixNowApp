@@ -1328,6 +1328,7 @@ export const onChatMessageCreate = onValueCreated(
     updates[`/userThreads/${senderUid}/${threadId}/lastMessageText`] = text;
     updates[`/userThreads/${senderUid}/${threadId}/lastMessageAt`] = createdAt;
     updates[`/userThreads/${senderUid}/${threadId}/unreadCount`] = 0;
+    updates[`/threadUnread/${senderUid}/${threadId}`] = 0;
 
     updates[`/userThreads/${receiverUid}/${threadId}/lastMessageText`] = text;
     updates[`/userThreads/${receiverUid}/${threadId}/lastMessageAt`] =
@@ -1339,6 +1340,14 @@ export const onChatMessageCreate = onValueCreated(
       `/userThreads/${receiverUid}/${threadId}/unreadCount`,
     );
     await unreadRef.transaction((cur) => {
+      const n = typeof cur === "number" ? cur : 0;
+      return n + 1;
+    });
+
+    const threadUnreadRef = db.ref(
+      `/threadUnread/${receiverUid}/${threadId}`,
+    );
+    await threadUnreadRef.transaction((cur) => {
       const n = typeof cur === "number" ? cur : 0;
       return n + 1;
     });

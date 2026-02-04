@@ -23,6 +23,7 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
   bool _loadingName = true;
 
   StreamSubscription<DatabaseEvent>? _unreadSub;
+  StreamSubscription<User?>? _authSub;
 
   List<Widget> get _screens => [
     WorkerHomeScreen(workerName: _workerName, unreadMessages: _unreadMessages),
@@ -47,6 +48,7 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
   @override
   void dispose() {
     _unreadSub?.cancel();
+    _authSub?.cancel();
     super.dispose();
   }
 
@@ -67,43 +69,54 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
   }
 
   void _listenUnreadBadge() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    _authSub?.cancel();
+    _unreadSub?.cancel();
 
-    final ref = FirebaseDatabase.instance.ref('threadUnread/$uid');
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      _unreadSub?.cancel();
 
-    _unreadSub = ref.onValue.listen(
-      (event) {
-        final v = event.snapshot.value;
+      final uid = user?.uid;
+      if (uid == null) {
+        if (!mounted) return;
+        setState(() => _unreadMessages = 0);
+        return;
+      }
 
-        int total = 0;
+      final ref = FirebaseDatabase.instance.ref('threadUnread/$uid');
 
-        if (v is Map) {
-          final m = Map<dynamic, dynamic>.from(v as Map);
-          for (final entry in m.entries) {
-            final val = entry.value;
-            if (val is int) {
-              total += val;
-            } else if (val is num) {
-              total += val.toInt();
-            } else if (val is String) {
-              total += int.tryParse(val) ?? 0;
+      _unreadSub = ref.onValue.listen(
+        (event) {
+          final v = event.snapshot.value;
+
+          int total = 0;
+
+          if (v is Map) {
+            final m = Map<dynamic, dynamic>.from(v as Map);
+            for (final entry in m.entries) {
+              final val = entry.value;
+              if (val is int) {
+                total += val;
+              } else if (val is num) {
+                total += val.toInt();
+              } else if (val is String) {
+                total += int.tryParse(val) ?? 0;
+              }
             }
           }
-        }
 
-        if (!mounted) return;
-        setState(() {
-          _unreadMessages = total;
-        });
-      },
-      onError: (_) {
-        if (!mounted) return;
-        setState(() {
-          _unreadMessages = 0;
-        });
-      },
-    );
+          if (!mounted) return;
+          setState(() {
+            _unreadMessages = total;
+          });
+        },
+        onError: (_) {
+          if (!mounted) return;
+          setState(() {
+            _unreadMessages = 0;
+          });
+        },
+      );
+    });
   }
 
   @override
