@@ -468,8 +468,8 @@ function asCleanString(v: unknown, maxLen: number): string {
   return s.length > maxLen ? s.slice(0, maxLen) : s;
 }
 
-function md5(text: string): string {
-  return crypto.createHash("md5").update(text).digest("hex").toUpperCase();
+function md5Hex(s: string) {
+  return crypto.createHash("md5").update(s, "utf8").digest("hex");
 }
 
 app.post("/payhere/notify", async (req: Request, res: Response) => {
@@ -490,14 +490,14 @@ app.post("/payhere/notify", async (req: Request, res: Response) => {
     if (!merchantSecret) return res.status(500).send("Secret missing");
 
     // Verify signature
-    const secretHash = md5(merchantSecret);
-    const localSig = md5(
+    const secretHash = md5Hex(merchantSecret);
+    const localSig = md5Hex(
       merchantId +
-      orderId +
-      payhereAmount +
-      payhereCurrency +
-      statusCode +
-      secretHash,
+        orderId +
+        payhereAmount +
+        payhereCurrency +
+        statusCode +
+        secretHash,
     );
 
     const isValid = localSig === md5sig;
@@ -603,15 +603,11 @@ function payhereCheckoutHash(params: {
   currency: string; // "LKR"
   merchantSecret: string;
 }): string {
-  // Hash rule used for PayHere checkout:
-  // MD5(merchant_id + order_id + amount + currency + MD5(merchant_secret))
-  const secretHash = md5(params.merchantSecret.trim());
-  const preHash =
-    params.merchantId.trim() +
-    params.orderId.trim() +
-    params.amount.trim() +
-    params.currency.trim() +
-    secretHash;
+  const decodedSecret = Buffer.from(params.merchantSecret, "base64").toString(
+    "utf8",
+  );
+  const secretHash = md5Hex(decodedSecret).toUpperCase();
+  const preHash = `${params.merchantId}${params.orderId}${params.amount}${params.currency}${secretHash}`;
 
   console.log("PayHere Hash Debug (masked):", {
     merchantId: params.merchantId.trim(),
@@ -622,7 +618,7 @@ function payhereCheckoutHash(params: {
     fullPreHashMasked: preHash.substring(0, 10) + "...",
   });
 
-  return md5(preHash);
+  return md5Hex(preHash).toUpperCase();
 }
 
 app.post(
@@ -662,8 +658,6 @@ app.post(
       // Make sure invoice exists
       const invoice = (booking.invoice ?? {}) as Record<string, any>;
       const subtotal = Number(invoice.subtotal ?? 0);
-      const advance = Math.round(subtotal * 0.2 * 100) / 100; // 2dp safe
-      const amount = formatAmount(advance);
 
       if (!Number.isFinite(subtotal) || subtotal <= 0) {
         res
@@ -671,6 +665,10 @@ app.post(
           .json({ok: false, message: "No valid invoice subtotal"});
         return;
       }
+
+      const advance = Math.round(subtotal * 0.2 * 100) / 100; // 2dp safe
+      const amount = formatAmount(advance);
+      const currency = "LKR";
 
       // Prevent paying twice
       const status = String(booking.status ?? "");
@@ -711,8 +709,6 @@ app.post(
         return;
       }
 
-      const currency = "LKR";
-
       // Your deployed notify url:
       const notifyUrl =
         "https://asia-southeast1-fixnow-app-75722.cloudfunctions.net/api/payhere/notify";
@@ -741,6 +737,9 @@ app.post(
         merchantSecret,
       });
 
+      console.log("Merchant ID:", merchantId);
+      console.log("Secret length:", merchantSecret.length);
+
       console.log("PayHere Checkout Start Payload:", {
         bookingId,
         merchantId,
@@ -762,7 +761,7 @@ app.post(
         [`bookings/${bookingId}/paymentIntent/${intentId}`]: {
           intentId,
           provider: "payhere",
-          amount: Number(amount),
+          amount: advance,
           currency,
           status: "started",
           createdAt: now,
@@ -872,11 +871,6 @@ export const createBookingRequest = onCall(
     const workerSnap = await db.ref(`users/workers/${workerId}`).get();
     if (!workerSnap.exists()) {
       throw new HttpsError("not-found", "Worker not found.");
-    }
-
-    const adminSnap = await db.ref(`users/admin/${workerId}`).get();
-    if (!adminSnap.exists()) {
-      throw new HttpsError("not-found", "Admin not found.");
     }
 
     const bookingRef = db.ref("bookings").push();

@@ -12,17 +12,16 @@ class PayHereCheckoutScreen extends StatefulWidget {
 
 class _PayHereCheckoutScreenState extends State<PayHereCheckoutScreen> {
   late final WebViewController _controller;
-
   bool _popped = false;
 
   @override
   void initState() {
     super.initState();
 
-    final html = _buildAutoSubmitHtml(widget.payload);
+    final returnUrl = (widget.payload['return_url'] ?? '').toString().trim();
+    final cancelUrl = (widget.payload['cancel_url'] ?? '').toString().trim();
 
-    final returnUrl = (widget.payload['return_url'] ?? '').toString();
-    final cancelUrl = (widget.payload['cancel_url'] ?? '').toString();
+    final html = _buildAutoSubmitHtml(widget.payload);
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -31,14 +30,13 @@ class _PayHereCheckoutScreenState extends State<PayHereCheckoutScreen> {
           onNavigationRequest: (request) {
             final url = request.url;
 
-            // Close when PayHere redirects to return/cancel
             if (_isSameTarget(url, returnUrl)) {
-              _popOnce(true); // user completed checkout
+              _popOnce(true);
               return NavigationDecision.prevent;
             }
 
             if (_isSameTarget(url, cancelUrl)) {
-              _popOnce(false); // user cancelled
+              _popOnce(false);
               return NavigationDecision.prevent;
             }
 
@@ -46,7 +44,10 @@ class _PayHereCheckoutScreenState extends State<PayHereCheckoutScreen> {
           },
         ),
       )
-      ..loadHtmlString(html, baseUrl: 'https://fixnow-app-75722.web.app');
+      ..loadHtmlString(
+        html,
+        baseUrl: 'https://fixnow-app-75722.web.app', // your hosted domain
+      );
   }
 
   void _popOnce(bool result) {
@@ -57,10 +58,6 @@ class _PayHereCheckoutScreenState extends State<PayHereCheckoutScreen> {
 
   bool _isSameTarget(String current, String target) {
     if (target.isEmpty) return false;
-
-    // Simple startsWith is enough for most cases:
-    // - fixnow://payment-success
-    // - https://yourdomain.com/payment/success
     return current.startsWith(target);
   }
 
@@ -69,27 +66,61 @@ class _PayHereCheckoutScreenState extends State<PayHereCheckoutScreen> {
       .replaceAll('"', '&quot;')
       .replaceAll('<', '&lt;');
 
+  String _amount2dp(dynamic v) {
+    if (v == null) return '';
+    if (v is num) return v.toStringAsFixed(2);
+    final n = num.tryParse(v.toString().trim());
+    return n != null ? n.toStringAsFixed(2) : v.toString().trim();
+  }
+
   String _buildAutoSubmitHtml(Map<String, dynamic> payload) {
-    final checkoutUrl = (payload['checkoutUrl'] ?? '').toString();
+    String s(dynamic v) => (v ?? '').toString().trim();
+
+    final checkoutUrl = s(payload['checkoutUrl']).isNotEmpty
+        ? s(payload['checkoutUrl'])
+        : 'https://sandbox.payhere.lk/pay/checkout';
 
     final formFields = <String, String>{
-      'merchant_id': (payload['merchant_id'] ?? '').toString(),
-      'return_url': (payload['return_url'] ?? '').toString(),
-      'cancel_url': (payload['cancel_url'] ?? '').toString(),
-      'notify_url': (payload['notify_url'] ?? '').toString(),
-      'order_id': (payload['order_id'] ?? '').toString(),
-      'items': (payload['items'] ?? '').toString(),
-      'currency': (payload['currency'] ?? '').toString(),
-      'amount': (payload['amount'] ?? '').toString(),
-      'first_name': (payload['first_name'] ?? '').toString(),
-      'last_name': (payload['last_name'] ?? '').toString(),
-      'email': (payload['email'] ?? '').toString(),
-      'phone': (payload['phone'] ?? '').toString(),
-      'address': (payload['address'] ?? '').toString(),
-      'city': (payload['city'] ?? '').toString(),
-      'country': (payload['country'] ?? '').toString(),
-      'hash': (payload['hash'] ?? '').toString(),
+      'merchant_id': s(payload['merchant_id']),
+      'return_url': s(payload['return_url']),
+      'cancel_url': s(payload['cancel_url']),
+      'notify_url': s(payload['notify_url']),
+      'order_id': s(payload['order_id']),
+      'items': s(payload['items']),
+      'currency': s(payload['currency']),
+      'amount': _amount2dp(payload['amount']),
+      'first_name': s(payload['first_name']),
+      'last_name': s(payload['last_name']),
+      'email': s(payload['email']),
+      'phone': s(payload['phone']),
+      'address': s(payload['address']),
+      'city': s(payload['city']),
+      'country': s(payload['country']),
+      'hash': s(payload['hash']),
     };
+
+    // Keep required fields even if empty (so you catch it early)
+    final requiredKeys = <String>{
+      'merchant_id',
+      'return_url',
+      'cancel_url',
+      'notify_url',
+      'order_id',
+      'items',
+      'currency',
+      'amount',
+      'first_name',
+      'last_name',
+      'email',
+      'phone',
+      'address',
+      'city',
+      'country',
+      'hash',
+    };
+
+    // Remove only non-required empties
+    formFields.removeWhere((k, v) => v.isEmpty && !requiredKeys.contains(k));
 
     final inputs = formFields.entries
         .map(
@@ -106,7 +137,7 @@ class _PayHereCheckoutScreenState extends State<PayHereCheckoutScreen> {
 </head>
 <body>
   <p style="font-family: Arial; padding: 12px;">Redirecting to PayHere...</p>
-  <form id="payhereForm" method="post" action="$checkoutUrl">
+  <form id="payhereForm" method="post" action="${_escape(checkoutUrl)}">
     $inputs
   </form>
   <script>

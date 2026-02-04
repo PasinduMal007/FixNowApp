@@ -2,7 +2,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:fix_now_app/Services/db.dart';
 import 'customer_payment_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fix_now_app/Services/chat_service.dart';
 import 'customer_chat_conversation_screen.dart';
 
@@ -10,8 +9,6 @@ class CustomerViewQuotationScreen extends StatelessWidget {
   final String bookingId;
 
   const CustomerViewQuotationScreen({super.key, required this.bookingId});
-
-  static final ChatService _chat = ChatService();
 
   int _asInt(dynamic v) {
     if (v is int) return v;
