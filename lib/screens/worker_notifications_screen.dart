@@ -1,110 +1,210 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
 
 class WorkerNotificationsScreen extends StatefulWidget {
   const WorkerNotificationsScreen({super.key});
 
   @override
-  State<WorkerNotificationsScreen> createState() => _WorkerNotificationsScreenState();
+  State<WorkerNotificationsScreen> createState() =>
+      _WorkerNotificationsScreenState();
 }
 
 class _WorkerNotificationsScreenState extends State<WorkerNotificationsScreen> {
   String _selectedTab = 'all';
-  
-  final List<Map<String, dynamic>> _notifications = [
-    {
-      'id': 1,
-      'type': 'booking',
-      'icon': Icons.calendar_today,
-      'iconColor': Color(0xFF3B82F6),
-      'iconBg': Color(0xFFDBEAFE),
-      'title': 'New Booking Request',
-      'description': 'John Smith requested plumbing service for tomorrow at 2:00 PM',
-      'time': '5 min ago',
-      'isRead': false,
-    },
-    {
-      'id': 2,
-      'type': 'message',
-      'icon': Icons.chat_bubble_outline,
-      'iconColor': Color(0xFF10B981),
-      'iconBg': Color(0xFFD1FAE5),
-      'title': 'New Message',
-      'description': 'Sarah Johnson: "Thank you for the excellent service!"',
-      'time': '15 min ago',
-      'isRead': false,
-    },
-    {
-      'id': 3,
-      'type': 'payment',
-      'icon': Icons.attach_money,
-      'iconColor': Color(0xFF10B981),
-      'iconBg': Color(0xFFD1FAE5),
-      'title': 'Payment Received',
-      'description': 'You received \$150 for Pipe Repair service',
-      'time': '1 hour ago',
-      'isRead': false,
-    },
-    {
-      'id': 4,
-      'type': 'review',
-      'icon': Icons.star_outline,
-      'iconColor': Color(0xFFFBBF24),
-      'iconBg': Color(0xFFFEF3C7),
-      'title': 'New Review',
-      'description': 'Michael Chen left a 5-star review for your service',
-      'time': '2 hours ago',
-      'isRead': false,
-    },
-    {
-      'id': 5,
-      'type': 'completed',
-      'icon': Icons.check_circle_outline,
-      'iconColor': Color(0xFF10B981),
-      'iconBg': Color(0xFFD1FAE5),
-      'title': 'Booking Completed',
-      'description': 'Your booking with David Wilson has been completed',
-      'time': '3 hours ago',
-      'isRead': true,
-    },
-    {
-      'id': 6,
-      'type': 'appointment',
-      'icon': Icons.access_time,
-      'iconColor': Color(0xFFEF4444),
-      'iconBg': Color(0xFFFEE2E2),
-      'title': 'Upcoming Appointment',
-      'description': 'You have a booking scheduled in 30 minutes',
-      'time': '5 hours ago',
-      'isRead': true,
-    },
-    {
-      'id': 7,
-      'type': 'offer',
-      'icon': Icons.card_giftcard_outlined,
-      'iconColor': Color(0xFF8B5CF6),
-      'iconBg': Color(0xFFEDE9FE),
-      'title': 'Special Offer',
-      'description': 'Get 20% off on emergency service bookings this weekend!',
-      'time': '1 day ago',
-      'isRead': true,
-    },
-  ];
 
-  int get _unreadCount => _notifications.where((n) => !n['isRead']).length;
+  final _auth = FirebaseAuth.instance;
+  final _db = DB.instance;
 
-  List<Map<String, dynamic>> get _filteredNotifications {
-    if (_selectedTab == 'unread') {
-      return _notifications.where((n) => !n['isRead']).toList();
-    }
-    return _notifications;
+  DatabaseReference get _root => _db.ref();
+
+  String get _uid {
+    final u = _auth.currentUser;
+    if (u == null) throw Exception('Not logged in');
+    return u.uid;
   }
 
-  void _markAllAsRead() {
-    setState(() {
-      for (var notification in _notifications) {
-        notification['isRead'] = true;
+  DatabaseReference get _notifRef => _root.child('notifications').child(_uid);
+
+  IconData _iconForType(String type) {
+    switch (type) {
+      case 'booking':
+      case 'confirmed':
+      case 'quote_request':
+      case 'quote_accepted':
+      case 'invoice_sent':
+      case 'completed':
+        return Icons.calendar_today;
+
+      case 'message':
+        return Icons.chat_bubble_outline;
+
+      case 'payment':
+      case 'paid':
+      case 'invoice_paid':
+      case 'payment_success':
+        return Icons.attach_money;
+
+      case 'review':
+        return Icons.star_outline;
+
+      case 'appointment':
+        return Icons.access_time;
+
+      case 'offer':
+      case 'promo':
+        return Icons.card_giftcard_outlined;
+
+      default:
+        return Icons.notifications;
+    }
+  }
+
+  Color _colorForType(String type) {
+    switch (type) {
+      case 'booking':
+      case 'confirmed':
+      case 'quote_request':
+      case 'quote_accepted':
+      case 'invoice_sent':
+      case 'completed':
+        return const Color(0xFF3B82F6);
+
+      case 'message':
+        return const Color(0xFF10B981);
+
+      case 'payment':
+      case 'paid':
+      case 'invoice_paid':
+      case 'payment_success':
+        return const Color(0xFF10B981);
+
+      case 'review':
+        return const Color(0xFFFBBF24);
+
+      case 'appointment':
+        return const Color(0xFFEF4444);
+
+      case 'offer':
+      case 'promo':
+        return const Color(0xFF8B5CF6);
+
+      default:
+        return const Color(0xFF6B7280);
+    }
+  }
+
+  String _timeAgo(int tsMs) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final diff = now - tsMs;
+    if (diff < 0) return 'Just now';
+
+    final secs = (diff / 1000).floor();
+    if (secs < 60) return 'Just now';
+
+    final mins = (secs / 60).floor();
+    if (mins < 60) return '$mins min ago';
+
+    final hrs = (mins / 60).floor();
+    if (hrs < 24) return '$hrs hours ago';
+
+    final days = (hrs / 24).floor();
+    if (days == 1) return '1 day ago';
+    return '$days days ago';
+  }
+
+  List<Map<String, dynamic>> _parseNotifications(DataSnapshot snap) {
+    final v = snap.value;
+    if (v == null) return [];
+
+    final list = <Map<String, dynamic>>[];
+
+    void addOne(String nid, dynamic val) {
+      if (val is! Map) return;
+
+      final data = Map<String, dynamic>.from(val as Map);
+
+      final type = (data['type'] ?? '').toString().trim();
+
+      final ts = (data['timestamp'] is int)
+          ? data['timestamp'] as int
+          : int.tryParse('${data['timestamp']}') ?? 0;
+
+      final rawIsRead = data['isRead'];
+      final isRead = rawIsRead == true || rawIsRead.toString() == 'true';
+
+      final title = (data['title'] ?? '').toString();
+      final desc = (data['message'] ?? data['description'] ?? '').toString();
+
+      final c = _colorForType(type);
+
+      list.add({
+        // keep nid so we can mark read on tap
+        'nid': nid,
+        'id': (data['id'] ?? nid).toString(),
+
+        'type': type,
+        'title': title,
+        'description': desc,
+
+        'timestamp': ts,
+        'time': _timeAgo(ts),
+
+        'isRead': isRead,
+
+        // UI expects these
+        'icon': _iconForType(type),
+        'iconColor': c,
+        'iconBg': c.withOpacity(0.15),
+      });
+    }
+
+    if (v is Map) {
+      final m = Map<dynamic, dynamic>.from(v as Map);
+      for (final e in m.entries) {
+        addOne(e.key.toString(), e.value);
       }
+    } else if (v is List) {
+      for (int i = 0; i < v.length; i++) {
+        addOne(i.toString(), v[i]);
+      }
+    }
+
+    list.sort((a, b) {
+      final aa = (a['timestamp'] as int?) ?? 0;
+      final bb = (b['timestamp'] as int?) ?? 0;
+      return bb.compareTo(aa);
     });
+
+    return list;
+  }
+
+  Future<void> _markOneRead(String nid) async {
+    final ref = _notifRef.child(nid);
+    final snap = await ref.get();
+    if (!snap.exists) return;
+
+    if (snap.value is! Map) return;
+    final data = Map<String, dynamic>.from(snap.value as Map);
+
+    if (data['isRead'] == true) return;
+
+    data['isRead'] = true;
+
+    // safest: write back the whole object (works even if your rules validate full payload)
+    await ref.set(data);
+  }
+
+  Future<void> _markAllAsRead(List<Map<String, dynamic>> all) async {
+    for (final n in all) {
+      if (n['isRead'] == true) continue;
+      final nid = (n['nid'] ?? '').toString();
+      if (nid.isEmpty) continue;
+      await _markOneRead(nid);
+    }
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('All notifications marked as read'),
@@ -114,15 +214,22 @@ class _WorkerNotificationsScreenState extends State<WorkerNotificationsScreen> {
     );
   }
 
-  void _markAsRead(int id) {
-    setState(() {
-      final notification = _notifications.firstWhere((n) => n['id'] == id);
-      notification['isRead'] = true;
-    });
+  List<Map<String, dynamic>> _filteredNotifications(
+    List<Map<String, dynamic>> all,
+  ) {
+    if (_selectedTab == 'unread') {
+      return all.where((n) => n['isRead'] != true).toList();
+    }
+    return all;
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const Scaffold(body: Center(child: Text('Not logged in')));
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -133,162 +240,191 @@ class _WorkerNotificationsScreenState extends State<WorkerNotificationsScreen> {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Text(
-                        'Notifications',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _markAllAsRead,
-                      child: const Text(
-                        'Mark all read',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          child: StreamBuilder<DatabaseEvent>(
+            stream: _notifRef.onValue,
+            builder: (context, snap) {
+              if (snap.hasError) {
+                return Center(child: Text('Firebase error: ${snap.error}'));
+              }
+              if (!snap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-              // Tabs
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _selectedTab = 'all'),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _selectedTab == 'all' 
-                                ? Colors.white 
-                                : Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'All (${_notifications.length})',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: _selectedTab == 'all' 
-                                  ? const Color(0xFF4A7FFF) 
-                                  : Colors.white,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _selectedTab = 'unread'),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _selectedTab == 'unread' 
-                                ? Colors.white 
-                                : Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Unread',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: _selectedTab == 'unread' 
-                                  ? const Color(0xFF4A7FFF) 
-                                  : Colors.white,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              final all = _parseNotifications(snap.data!.snapshot);
+              final filtered = _filteredNotifications(all);
 
-              // Notifications List
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
+              return Column(
+                children: [
+                  // Header (UI unchanged)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Text(
+                            'Notifications',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            try {
+                              await _markAllAsRead(all);
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Failed: $e')),
+                              );
+                            }
+                          },
+                          child: const Text(
+                            'Mark all read',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: _filteredNotifications.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.notifications_none,
-                                size: 64,
-                                color: Colors.grey[400],
+
+                  // Tabs (UI unchanged, just counts from RTDB)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedTab = 'all'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: _selectedTab == 'all'
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No notifications',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'You\'re all caught up!',
+                              child: Text(
+                                'All (${all.length})',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Colors.grey[500],
+                                  fontWeight: FontWeight.w600,
+                                  color: _selectedTab == 'all'
+                                      ? const Color(0xFF4A7FFF)
+                                      : Colors.white,
                                 ),
+                                textAlign: TextAlign.center,
                               ),
-                            ],
+                            ),
                           ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(20),
-                          itemCount: _filteredNotifications.length,
-                          itemBuilder: (context, index) {
-                            final notification = _filteredNotifications[index];
-                            return _buildNotificationCard(notification);
-                          },
                         ),
-                ),
-              ),
-            ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () =>
+                                setState(() => _selectedTab = 'unread'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: _selectedTab == 'unread'
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'Unread',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: _selectedTab == 'unread'
+                                      ? const Color(0xFF4A7FFF)
+                                      : Colors.white,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Notifications List (UI unchanged)
+                  Expanded(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(24),
+                          topRight: Radius.circular(24),
+                        ),
+                      ),
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.notifications_none,
+                                    size: 64,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No notifications',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'You\'re all caught up!',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(20),
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final notification = filtered[index];
+                                return _buildNotificationCard(notification);
+                              },
+                            ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -297,7 +433,19 @@ class _WorkerNotificationsScreenState extends State<WorkerNotificationsScreen> {
 
   Widget _buildNotificationCard(Map<String, dynamic> notification) {
     return GestureDetector(
-      onTap: () => _markAsRead(notification['id']),
+      onTap: () async {
+        final nid = (notification['nid'] ?? '').toString();
+        if (nid.isEmpty) return;
+
+        try {
+          await _markOneRead(nid);
+        } catch (e) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        }
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
@@ -305,8 +453,8 @@ class _WorkerNotificationsScreenState extends State<WorkerNotificationsScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: notification['isRead'] 
-                ? const Color(0xFFE5E7EB) 
+            color: notification['isRead']
+                ? const Color(0xFFE5E7EB)
                 : const Color(0xFF4A7FFF).withOpacity(0.2),
             width: notification['isRead'] ? 1 : 2,
           ),
@@ -346,7 +494,7 @@ class _WorkerNotificationsScreenState extends State<WorkerNotificationsScreen> {
                           ),
                         ),
                       ),
-                      if (!notification['isRead'])
+                      if (notification['isRead'] != true)
                         Container(
                           width: 8,
                           height: 8,
@@ -377,10 +525,7 @@ class _WorkerNotificationsScreenState extends State<WorkerNotificationsScreen> {
                       const SizedBox(width: 4),
                       Text(
                         notification['time'],
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                       ),
                     ],
                   ),

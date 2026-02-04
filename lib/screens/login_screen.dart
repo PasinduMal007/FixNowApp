@@ -74,11 +74,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final args = ModalRoute.of(context)?.settings.arguments;
 
     String? routeRole;
-    if (args is String && (args == 'customer' || args == 'worker')) {
+    if (args is String && (args == 'customer' || args == 'worker' || args == 'admin')) {
       routeRole = args;
     }
 
-    final widgetRole = (widget.role == 'customer' || widget.role == 'worker')
+    final widgetRole = (widget.role == 'customer' || widget.role == 'worker' || widget.role == 'admin')
         ? widget.role
         : null;
 
@@ -152,6 +152,15 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/customer-dashboard',
+          (route) => false,
+        );
+        return;
+      }
+
+      if (userRole == 'admin') {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/admin-dashboard',
           (route) => false,
         );
         return;

@@ -1,9 +1,11 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:fix_now_app/Services/worker_photo_service.dart';
+import 'package:fix_now_app/Services/db.dart';
 
 class WorkerPersonalInfoSettingsScreen extends StatefulWidget {
   const WorkerPersonalInfoSettingsScreen({super.key});
@@ -102,6 +104,11 @@ class _WorkerPersonalInfoSettingsScreenState
         aboutMe: aboutMe.isEmpty ? null : aboutMe,
       );
 
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await _updateWorkersPublicAboutMe(uid: user.uid, aboutMe: aboutMe);
+      }
+
       setState(() {
         _isEditing = false;
         _workerName = (updatedProfile['fullName'] ?? fullName).toString();
@@ -125,6 +132,16 @@ class _WorkerPersonalInfoSettingsScreenState
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
+  }
+
+  Future<void> _updateWorkersPublicAboutMe({
+    required String uid,
+    required String aboutMe,
+  }) async {
+    await DB.ref().child('workersPublic').child(uid).update({
+      'aboutMe': aboutMe,
+      'updatedAt': ServerValue.timestamp,
+    });
   }
 
   Future<void> _changePhoto() async {

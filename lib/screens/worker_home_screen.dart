@@ -51,6 +51,12 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
     return DB.ref().child('userBookings/workers/$uid').onValue;
   }
 
+  Stream<DatabaseEvent> get _notifStream {
+    final uid = _workerId;
+    if (uid.isEmpty) return const Stream.empty();
+    return DB.instance.ref('notifications').child(uid).onValue;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -581,64 +587,76 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                               ),
                             ),
                             // Notification button
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const WorkerNotificationsScreen(),
-                                  ),
-                                );
-                              },
-                              child: Stack(
-                                children: [
-                                  Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.3),
-                                        width: 1,
+                            StreamBuilder<DatabaseEvent>(
+                              stream: _notifStream,
+                              builder: (context, snapshot) {
+                                bool hasUnread = false;
+
+                                final raw = snapshot.data?.snapshot.value;
+                                if (raw != null && raw is Map) {
+                                  final map = Map<dynamic, dynamic>.from(raw);
+
+                                  for (final n in map.values) {
+                                    if (n is Map) {
+                                      final isRead = n['isRead'];
+                                      if (isRead != true &&
+                                          isRead.toString() != 'true') {
+                                        hasUnread = true;
+                                        break;
+                                      }
+                                    }
+                                  }
+                                }
+
+                                return GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const WorkerNotificationsScreen(),
                                       ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.notifications_outlined,
-                                      color: Colors.white,
-                                      size: 22,
-                                    ),
-                                  ),
-                                  if (_dashboardNewRequests > 0)
-                                    Positioned(
-                                      top: 0,
-                                      right: 0,
-                                      child: Container(
-                                        width: 24,
-                                        height: 24,
+                                    );
+                                  },
+                                  child: Stack(
+                                    children: [
+                                      Container(
+                                        width: 48,
+                                        height: 48,
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFFF6B6B),
+                                          color: Colors.white.withOpacity(0.2),
                                           shape: BoxShape.circle,
                                           border: Border.all(
-                                            color: Colors.white,
-                                            width: 2,
+                                            color: Colors.white.withOpacity(
+                                              0.3,
+                                            ),
+                                            width: 1,
                                           ),
                                         ),
-                                        child: Center(
-                                          child: Text(
-                                            '$_dashboardNewRequests',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
+                                        child: const Icon(
+                                          Icons.notifications_outlined,
+                                          color: Colors.white,
+                                          size: 22,
+                                        ),
+                                      ),
+
+                                      if (hasUnread)
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: Container(
+                                            width: 8,
+                                            height: 8,
+                                            decoration: const BoxDecoration(
+                                              color: Color(0xFFEF4444),
+                                              shape: BoxShape.circle,
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
