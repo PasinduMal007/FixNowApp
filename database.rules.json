@@ -1,0 +1,21 @@
+{
+    "rules": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "bookings": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            ".indexOn": [
+                "status",
+                "workerId",
+                "customerId"
+            ]
+        },
+        "users": {
+            "$uid": {
+                ".read": "auth != null && ($uid === auth.uid || root.child('users/workers/' + auth.uid).exists())",
+                ".write": "$uid === auth.uid"
+            }
+        }
+    }
+}

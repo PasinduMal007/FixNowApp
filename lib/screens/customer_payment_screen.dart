@@ -2,9 +2,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
 import 'package:flutter/material.dart';
 import 'payment_success_screen.dart';
-import 'package:fix_now_app/Services/payhere_start_service.dart';
-import 'package:fix_now_app/Services/payhere_checkout_screen.dart';
-import 'package:fix_now_app/Services/payment_waiting_screen.dart';
 
 class CustomerPaymentScreen extends StatefulWidget {
   final String bookingId;
@@ -27,70 +24,28 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
     setState(() => _paying = true);
 
     try {
-      // If already paid, go straight to success
-      final currentStatus = (booking['status'] ?? '').toString();
-      if (currentStatus == 'payment_paid') {
-        if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => PaymentSuccessScreen(amountPaid: advancePayment),
-          ),
-        );
-        return;
-      }
-
-      final svc = PayHereStartService();
-
-      // Call backend to get payload
-      final result = await svc.startPayment(bookingId: widget.bookingId);
-      final payload = (result['payherePayload'] as Map).cast<String, dynamic>();
+      // --- MOCK PAYMENT BYPASS ---
+      // Directly mark as paid to unblock testing
+      await DB.instance.ref('bookings/${widget.bookingId}').update({
+        'status': 'payment_paid',
+        'payment_method': 'payhere_mock',
+        'payment_id': 'mock_${DateTime.now().millisecondsSinceEpoch}',
+        'paid_at': ServerValue.timestamp,
+      });
 
       if (!mounted) return;
 
-      // 1) Open checkout AND capture result
-      // true: returned via return_url, false: cancel/close
-      final checkoutOk = await Navigator.of(context).push<bool>(
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => PayHereCheckoutScreen(payload: payload),
+          builder: (_) => PaymentSuccessScreen(amountPaid: advancePayment),
         ),
       );
-
-      if (!mounted) return;
-
-      // If user cancelled/closed checkout, stop here
-      if (checkoutOk != true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment cancelled')),
-        );
-        return;
-      }
-
-      // 2) Now show waiting screen (notify_url is server-to-server)
-      final paid = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => PaymentWaitingScreen(bookingId: widget.bookingId),
-        ),
-      );
-
-      if (!mounted) return;
-
-      // 3) Paid => success screen
-      if (paid == true) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => PaymentSuccessScreen(amountPaid: advancePayment),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment not confirmed yet')),
-        );
-      }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Mock Error: $e')));
+      }
     } finally {
       if (mounted) setState(() => _paying = false);
     }
@@ -107,7 +62,10 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
           return Scaffold(
             appBar: AppBar(
               backgroundColor: const Color(0xFF5B8CFF),
-              title: const Text('Payment', style: TextStyle(color: Colors.white)),
+              title: const Text(
+                'Payment',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
             body: Center(child: Text('Failed: ${snap.error}')),
           );
@@ -127,7 +85,9 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
         final booking = Map<String, dynamic>.from(raw as Map);
 
         final invoiceRaw = booking['invoice'];
-        final invoice = invoiceRaw is Map ? Map<String, dynamic>.from(invoiceRaw) : null;
+        final invoice = invoiceRaw is Map
+            ? Map<String, dynamic>.from(invoiceRaw)
+            : null;
 
         final total = (invoice?['subtotal'] is num)
             ? (invoice!['subtotal'] as num).toDouble()
@@ -189,7 +149,6 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                       ],
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
@@ -437,9 +396,9 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                 child: ElevatedButton(
                   onPressed: (_agreedToTerms && !_paying && total > 0)
                       ? () => _startPayHereCheckout(
-                            booking: booking,
-                            advancePayment: advancePayment,
-                          )
+                          booking: booking,
+                          advancePayment: advancePayment,
+                        )
                       : null,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),

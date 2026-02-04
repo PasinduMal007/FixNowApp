@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
 import 'package:intl/intl.dart';
-import 'worker_bank_details_screen.dart';
+import 'worker_bank_details_screen.dart'; // Keeping just in case user wants to restore bank details later, otherwise can be removed.
 import 'dart:async';
 
 class WorkerEarningsScreen extends StatefulWidget {
@@ -13,9 +13,7 @@ class WorkerEarningsScreen extends StatefulWidget {
   State<WorkerEarningsScreen> createState() => _WorkerEarningsScreenState();
 }
 
-class _WorkerEarningsScreenState extends State<WorkerEarningsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> {
   StreamSubscription? _subscription;
   bool _isLoading = true;
 
@@ -34,7 +32,6 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _setupStreamListener();
   }
 
@@ -166,7 +163,7 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen>
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _subscription?.cancel();
     super.dispose();
   }
 
@@ -256,36 +253,6 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen>
                           letterSpacing: -0.5,
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const WorkerBankDetailsScreen(),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4A7FFF),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: const Text(
-                            'Withdraw Funds',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -298,44 +265,34 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TabBar(
-                        controller: _tabController,
-                        labelColor: const Color(0xFF4A7FFF),
-                        unselectedLabelColor: const Color(0xFF6B7280),
-                        indicatorColor: const Color(0xFF4A7FFF),
-                        indicatorWeight: 3,
-                        labelStyle: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
+                        child: Text(
+                          'History',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2937),
+                          ),
                         ),
-                        tabs: const [
-                          Tab(text: 'Earnings'),
-                          Tab(text: 'Payouts'),
-                        ],
                       ),
                       Expanded(
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            // Earnings List
-                            _earnings.isEmpty
-                                ? _buildEmptyState('No earnings yet')
-                                : ListView.separated(
-                                    padding: const EdgeInsets.all(24),
-                                    itemCount: _earnings.length,
-                                    separatorBuilder: (context, index) =>
-                                        const SizedBox(height: 16),
-                                    itemBuilder: (context, index) {
-                                      return _buildTransactionCard(
-                                        _earnings[index],
-                                      );
-                                    },
-                                  ),
-
-                            // Payouts List (Empty for now)
-                            _buildEmptyState('No payouts yet'),
-                          ],
-                        ),
+                        child: _earnings.isEmpty
+                            ? _buildEmptyState('No earnings yet')
+                            : ListView.separated(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 8,
+                                ),
+                                itemCount: _earnings.length,
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 16),
+                                itemBuilder: (context, index) {
+                                  return _buildTransactionCard(
+                                    _earnings[index],
+                                  );
+                                },
+                              ),
                       ),
                     ],
                   ),
