@@ -12,7 +12,8 @@ class LoginResult {
 class AuthLoginService {
   final FirebaseAuth _auth;
 
-  AuthLoginService({FirebaseAuth? auth}) : _auth = auth ?? FirebaseAuth.instance;
+  AuthLoginService({FirebaseAuth? auth})
+    : _auth = auth ?? FirebaseAuth.instance;
 
   Future<LoginResult> loginWithEmail({
     required String email,
@@ -30,13 +31,37 @@ class AuthLoginService {
     }
 
     try {
-      final data = await BackendAuthService().loginInfo(expectedRole: expectedRole);
+      final data = await BackendAuthService().loginInfo(
+        expectedRole: expectedRole,
+      );
 
       final role = (data['role'] as String?) ?? 'customer';
-      final profile = (data['profile'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+      final profile =
+          (data['profile'] as Map?)?.cast<String, dynamic>() ??
+          <String, dynamic>{};
 
       return LoginResult(uid: user.uid, role: role, profile: profile);
     } catch (e) {
+      // ⚠️ FALLBACK: If login failed, it often means Role Mismatch (e.g. Admin logs in as Customer).
+      // We try fetching info *without* asserting a role. If that returns 'admin', we allow it.
+      try {
+        final fallbackData = await BackendAuthService().loginInfo(
+          expectedRole: null,
+        );
+        final actualRole = fallbackData['role'] as String?;
+        if (actualRole == 'admin') {
+          return LoginResult(
+            uid: user.uid,
+            role: 'admin',
+            profile:
+                (fallbackData['profile'] as Map?)?.cast<String, dynamic>() ??
+                {},
+          );
+        }
+      } catch (_) {
+        // Fallback also failed, ignore it
+      }
+
       await _auth.signOut();
       rethrow;
     }

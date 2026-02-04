@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fix_now_app/Services/auth_login_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'admin/admin_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? role; // 'worker' or 'customer'
@@ -134,8 +135,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // ✅ Route based on role and onboarding
-      if (result.role == 'customer') {
+      // ✅ Route based on role
+      final userRole =
+          result.role; // Use the actual role from DB, not just the toggle
+
+      if (userRole == 'admin') {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+          (route) => false,
+        );
+        return;
+      }
+
+      if (userRole == 'customer') {
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/customer-dashboard',
