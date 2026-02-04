@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fix_now_app/services/db.dart';
-import 'customer_chat_conversation_screen.dart'; // Ensure this exists or adapt
 import 'package:fix_now_app/Services/chat_service.dart';
-import 'package:fix_now_app/Services/customer_profile_service.dart';
+import 'customer_chat_conversation_screen.dart'; // Ensure this exists or adapt
 
 class CustomerBookingsScreen extends StatefulWidget {
   const CustomerBookingsScreen({super.key});
@@ -15,11 +14,13 @@ class CustomerBookingsScreen extends StatefulWidget {
 class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late final ChatService _chat;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _chat = ChatService();
   }
 
   @override
@@ -63,6 +64,13 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
     });
   }
 
+  // Helper to generate consistent thread ID
+  String _getThreadId(String myUid, String otherUid) {
+    return (myUid.compareTo(otherUid) < 0)
+        ? '${myUid}_$otherUid'
+        : '${otherUid}_$myUid';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -88,6 +96,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
                 return [
                   'pending',
                   'invoice_sent',
+                  'quote_accepted',
                   'confirmed',
                   'started',
                 ].contains(s);
@@ -267,6 +276,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
       'pending',
       'confirmed',
       'invoice_sent',
+      'quote_accepted',
       'started',
     ].contains(status);
 
@@ -467,48 +477,91 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  final workerId = booking['workerId'];
-                  final workerName = booking['workerName'];
-                  final myUid = FirebaseAuth.instance.currentUser?.uid;
+                onPressed: () async {
+                  final chat = ChatService();
+                  final db = DB.instance;
 
-                  if (workerId != null && myUid != null) {
-                    final chat = ChatService();
-                    final profileService = CustomerProfileService();
+                  try {
+                    // bookingOrId is whatever you have in your card (Map or String)
+                    final dynamic bookingOrId =
+                        booking; // <-- keep YOUR variable name here
 
-                    profileService.getCustomerName().then((myName) async {
-                      String threadId;
-                      try {
-                        threadId = await chat
-                            .createOrGetThread(
-                              otherUid: workerId.toString(),
-                              otherName: workerName?.toString() ?? 'Worker',
-                              otherRole: 'worker',
-                              myRole: 'customer',
-                              myName: myName.isNotEmpty ? myName : 'Customer',
-                            )
-                            .timeout(const Duration(seconds: 2));
-                      } catch (e) {
-                        debugPrint(
-                          'DEBUG: createOrGetThread timeout/error: $e',
-                        );
-                        threadId = 'mock_${workerId}';
-                      }
+                    Map<String, dynamic> bookingData;
 
-                      if (!context.mounted) return;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CustomerChatConversationScreen(
-                            threadId: threadId,
-                            otherUid: workerId.toString(),
-                            otherName: workerName?.toString() ?? 'Worker',
-                          ),
-                        ),
+                    if (bookingOrId is Map) {
+                      bookingData = Map<String, dynamic>.from(
+                        bookingOrId as Map,
                       );
-                    });
+                    } else if (bookingOrId is String) {
+                      final bookingId = bookingOrId.trim();
+                      if (bookingId.isEmpty)
+                        throw Exception('Missing bookingId');
+
+                      final snap = await db.ref('bookings/$bookingId').get();
+                      if (!snap.exists || snap.value is! Map) {
+                        throw Exception('Booking not found or invalid');
+                      }
+                      bookingData = Map<String, dynamic>.from(
+                        snap.value as Map,
+                      );
+                    } else {
+                      throw Exception('Invalid booking object');
+                    }
+
+                    final workerId = (bookingData['workerId'] ?? '')
+                        .toString()
+                        .trim();
+                    if (workerId.isEmpty)
+                      throw Exception('Missing workerId in booking');
+
+                    // Customer cannot read users/workers/$uid (your rules block that).
+                    // Use workersPublic which is readable.
+                    String workerName = 'Worker';
+                    final wsnap = await db
+                        .ref('workersPublic/$workerId/fullName')
+                        .get();
+                    if (wsnap.exists && wsnap.value is String) {
+                      final name = (wsnap.value as String).trim();
+                      if (name.isNotEmpty) workerName = name;
+                    }
+
+                    final customerName =
+                        (bookingData['customerName'] ?? 'Customer')
+                            .toString()
+                            .trim()
+                            .isNotEmpty
+                        ? (bookingData['customerName'] ?? 'Customer')
+                              .toString()
+                              .trim()
+                        : 'Customer';
+
+                    final threadId = await chat.createOrGetThread(
+                      otherUid: workerId,
+                      myRole: 'customer',
+                      otherRole: 'worker',
+                      otherName: workerName,
+                      myName: customerName,
+                    );
+
+                    if (!context.mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CustomerChatConversationScreen(
+                          threadId: threadId,
+                          otherUid: workerId,
+                          otherName: workerName,
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Message failed: $e')),
+                    );
                   }
                 },
+
                 icon: const Icon(Icons.chat_bubble_outline, size: 18),
                 label: const Text('Message'),
                 style: ElevatedButton.styleFrom(

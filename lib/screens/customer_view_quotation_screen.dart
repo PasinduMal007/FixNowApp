@@ -2,11 +2,16 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:fix_now_app/Services/db.dart';
 import 'customer_payment_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fix_now_app/Services/chat_service.dart';
+import 'customer_chat_conversation_screen.dart';
 
 class CustomerViewQuotationScreen extends StatelessWidget {
   final String bookingId;
 
   const CustomerViewQuotationScreen({super.key, required this.bookingId});
+
+  static final ChatService _chat = ChatService();
 
   int _asInt(dynamic v) {
     if (v is int) return v;
@@ -353,16 +358,67 @@ class CustomerViewQuotationScreen extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Opening chat with $workerName...',
+                          onPressed: () async {
+                            final chat = ChatService();
+                            final db = DB.instance;
+
+                            try {
+                              // You must already know workerId in this screen (from booking/quotation data)
+                              final workerId = (booking['workerId'] ?? '')
+                                  .toString()
+                                  .trim(); // <-- replace 'job' with YOUR map variable
+                              if (workerId.isEmpty)
+                                throw Exception('Missing workerId');
+
+                              // Fetch worker public name
+                              String workerName = 'Worker';
+                              final wsnap = await db
+                                  .ref('workersPublic/$workerId/fullName')
+                                  .get();
+                              if (wsnap.exists && wsnap.value is String) {
+                                final name = (wsnap.value as String).trim();
+                                if (name.isNotEmpty) workerName = name;
+                              }
+
+                              final customerName =
+                                  (booking['customerName'] ?? 'Customer')
+                                      .toString()
+                                      .trim()
+                                      .isNotEmpty
+                                  ? (booking['customerName'] ?? 'Customer')
+                                        .toString()
+                                        .trim()
+                                  : 'Customer';
+
+                              final threadId = await chat.createOrGetThread(
+                                otherUid: workerId,
+                                myRole: 'customer',
+                                otherRole: 'worker',
+                                otherName: workerName,
+                                myName: customerName,
+                              );
+
+                              if (!context.mounted) return;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      CustomerChatConversationScreen(
+                                        threadId: threadId,
+                                        otherUid: workerId,
+                                        otherName:
+                                            workerName, // ✅ now real name
+                                      ),
                                 ),
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
+                              );
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Message failed: $e')),
+                              );
+                            }
                           },
+
                           icon: const Icon(Icons.chat_bubble_outline, size: 18),
                           label: const Text('Message Worker'),
                           style: OutlinedButton.styleFrom(

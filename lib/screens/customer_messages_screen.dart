@@ -13,7 +13,7 @@ class CustomerMessagesScreen extends StatefulWidget {
 
 class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
   late final ChatService _chat;
-  bool useMock = true; // Set to true to see mock data
+  bool useMock = false; // Set to true to see mock data
 
   final List<Map<String, dynamic>> _mockThreads = [
     {
@@ -122,23 +122,13 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                   // Header
                   Padding(
                     padding: const EdgeInsets.all(20),
-                    child: StreamBuilder<DatabaseEvent>(
-                      stream: _chat.inboxQuery().onValue,
+                    child: StreamBuilder<List<InboxThread>>(
+                      stream: _chat.inboxStream(),
                       builder: (context, snapshot) {
                         int unreadTotal = 0;
-
-                        if (snapshot.hasData) {
-                          final data = snapshot.data?.snapshot.value;
-                          if (data != null) {
-                            final map = Map<String, dynamic>.from(data as Map);
-                            for (final e in map.entries) {
-                              final t = Map<String, dynamic>.from(
-                                e.value as Map,
-                              );
-                              final u = t['unreadCount'];
-                              if (u is int) unreadTotal += u;
-                            }
-                          }
+                        final threads = snapshot.data ?? const <InboxThread>[];
+                        for (final t in threads) {
+                          unreadTotal += t.unreadCount;
                         }
 
                         return Column(
@@ -206,8 +196,8 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                           topRight: Radius.circular(24),
                         ),
                       ),
-                      child: StreamBuilder<DatabaseEvent>(
-                        stream: _chat.inboxQuery().onValue,
+                      child: StreamBuilder<List<InboxThread>>(
+                        stream: _chat.inboxStream(),
                         builder: (context, snap) {
                           if (snap.connectionState == ConnectionState.waiting) {
                             return const Center(
@@ -221,46 +211,26 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                             );
                           }
 
-                          final data = snap.data?.snapshot.value;
-                          if (data == null) {
+                          final list = snap.data ?? const <InboxThread>[];
+                          if (list.isEmpty) {
                             return const Center(
                               child: Text('No conversations yet'),
                             );
                           }
 
-                          final map = Map<String, dynamic>.from(data as Map);
-
-                          final threads = map.entries.map((e) {
-                            final t = Map<String, dynamic>.from(e.value as Map);
-
-                            final unread = (t['unreadCount'] is int)
-                                ? t['unreadCount'] as int
-                                : int.tryParse('${t['unreadCount'] ?? 0}') ?? 0;
-
-                            final lastAt = (t['lastMessageAt'] is int)
-                                ? t['lastMessageAt'] as int
-                                : int.tryParse('${t['lastMessageAt'] ?? 0}') ??
-                                      0;
-
-                            return {
-                              'threadId': e.key,
-                              'otherUid': (t['otherUid'] ?? '').toString(),
-                              'otherName': (t['otherName'] ?? 'User')
-                                  .toString(),
-                              'otherPhotoUrl': (t['otherPhotoUrl'] ?? '')
-                                  .toString(),
-                              'lastMessageText': (t['lastMessageText'] ?? '')
-                                  .toString(),
-                              'unreadCount': unread,
-                              'lastMessageAt': lastAt,
-                            };
-                          }).toList();
-
-                          threads.sort((a, b) {
-                            final aa = (a['lastMessageAt'] as int?) ?? 0;
-                            final bb = (b['lastMessageAt'] as int?) ?? 0;
-                            return bb.compareTo(aa);
-                          });
+                          final threads = list
+                              .map(
+                                (t) => {
+                                  'threadId': t.threadId,
+                                  'otherUid': t.otherUid,
+                                  'otherName': t.otherName,
+                                  'otherPhotoUrl': t.otherPhotoUrl,
+                                  'lastMessageText': t.lastMessageText,
+                                  'unreadCount': t.unreadCount,
+                                  'lastMessageAt': t.lastMessageAt,
+                                },
+                              )
+                              .toList();
 
                           return ListView.builder(
                             padding: const EdgeInsets.all(20),
