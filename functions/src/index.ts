@@ -78,7 +78,7 @@ async function verifyFirebaseToken(
 }
 
 async function getRoleAndProfile(uid: string): Promise<{
-  role: "customer" | "worker" | "admin" | null;
+  role: "customer" | "worker" | null;
   profile: Record<string, unknown> | null;
 }> {
   const db = admin.database();
@@ -96,14 +96,6 @@ async function getRoleAndProfile(uid: string): Promise<{
     const profile = (workerSnap.val() ?? {}) as Record<string, unknown>;
     const roleValue = profile["role"];
     const role = roleValue === "worker" ? "worker" : "worker";
-    return {role, profile};
-  }
-
-  const adminSnap = await db.ref(`users/admin/${uid}`).get();
-  if (adminSnap.exists()) {
-    const profile = (adminSnap.val() ?? {}) as Record<string, unknown>;
-    const roleValue = profile["role"];
-    const role = roleValue === "admin" ? "admin" : "admin";
     return {role, profile};
   }
 
