@@ -259,6 +259,9 @@ class _CustomerChatConversationScreenState
         if (val == null) {
           return const Center(child: Text('Start a conversation'));
         }
+        if (val is! Map) {
+          return const Center(child: Text('Start a conversation'));
+        }
 
         final map = Map<String, dynamic>.from(val as Map);
         final list = map.entries.map((e) {
@@ -267,9 +270,13 @@ class _CustomerChatConversationScreenState
         }).toList();
 
         list.sort((a, b) {
-          final aa = (a['createdAt'] ?? 0) as int;
-          final bb = (b['createdAt'] ?? 0) as int;
-          return aa.compareTo(bb);
+          int toInt(dynamic v) {
+            if (v is int) return v;
+            if (v is num) return v.toInt();
+            return int.tryParse(v?.toString() ?? '') ?? 0;
+          }
+
+          return toInt(a['createdAt']).compareTo(toInt(b['createdAt']));
         });
 
         _scrollToBottom();

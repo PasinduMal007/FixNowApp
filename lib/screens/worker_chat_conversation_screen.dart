@@ -348,6 +348,11 @@ class _WorkerChatConversationScreenState
                                 child: Text('No messages yet'),
                               );
                             }
+                            if (val is! Map) {
+                              return const Center(
+                                child: Text('No messages yet'),
+                              );
+                            }
 
                             final raw = Map<dynamic, dynamic>.from(val as Map);
                             final list = raw.entries.map((e) {

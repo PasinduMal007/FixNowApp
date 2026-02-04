@@ -421,7 +421,9 @@ class ChatService {
           if (v is Map) {
             final m = Map<String, dynamic>.from(v as Map);
             for (final e in m.entries) {
-              if (e.value == true) ids.add(e.key);
+              // Accept any non-null entry (some writers store booleans,
+              // others store an object with lastMessage fields).
+              if (e.value != null) ids.add(e.key);
             }
           }
 
