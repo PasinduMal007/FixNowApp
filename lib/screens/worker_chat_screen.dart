@@ -15,41 +15,9 @@ class WorkerChatScreen extends StatefulWidget {
 
 class _WorkerChatScreenState extends State<WorkerChatScreen> {
   final _chat = ChatService();
-  bool useMock = false; // Enabled by default for bypass
-
-  final List<Map<String, dynamic>> _mockThreads = [
-    {
-      'threadId': 'mock_customer_1',
-      'otherUid': 'cust1',
-      'otherName': 'Chethiya Fernando',
-      'otherPhotoUrl': '',
-      'lastMessageText': 'Can you come at 10 AM?',
-      'unreadCount': 2,
-      'lastMessageAt': DateTime.now().millisecondsSinceEpoch,
-      'service': 'Electrical Repair',
-      'rating': 4.5,
-      'isOnline': true,
-    },
-    {
-      'threadId': 'mock_customer_2',
-      'otherUid': 'cust2',
-      'otherName': 'Amila Perera',
-      'otherPhotoUrl': '',
-      'lastMessageText': 'Quote accepted. Please start.',
-      'unreadCount': 0,
-      'lastMessageAt': DateTime.now()
-          .subtract(const Duration(hours: 2))
-          .millisecondsSinceEpoch,
-      'service': 'Plumbing',
-      'rating': 4.8,
-      'isOnline': false,
-    },
-  ];
 
   @override
   Widget build(BuildContext context) {
-    if (useMock) return _buildMockView();
-
     return Scaffold(
       body: StreamBuilder(
         stream: _chat.connectedRef().onValue,
@@ -68,35 +36,6 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
             child: SafeArea(
               child: Column(
                 children: [
-                  if (!isConnected)
-                    Container(
-                      color: Colors.orange.withOpacity(0.8),
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        'Connecting... (UID: $myUid)',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                        ),
-                      ),
-                    )
-                  else
-                    Container(
-                      color: Colors.green.withOpacity(0.6),
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Text(
-                        'Checking inbox... (UID: $myUid)',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-
                   // Header + Search (static UI)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
@@ -129,11 +68,6 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                               color: Colors.white,
                             ),
                           ),
-                        ),
-                        Switch(
-                          value: useMock,
-                          onChanged: (v) => setState(() => useMock = v),
-                          activeColor: Colors.white,
                         ),
                       ],
                     ),
@@ -319,121 +253,6 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildMockView() {
-    int unreadTotal = 0;
-    for (var t in _mockThreads) {
-      unreadTotal += (t['unreadCount'] as int);
-    }
-
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.topRight,
-            colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-                child: Row(
-                  children: [
-                    if (widget.showBackButton)
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    if (widget.showBackButton) const SizedBox(width: 16),
-                    const Expanded(
-                      child: Text(
-                        'Messages (MOCK)',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    Switch(
-                      value: useMock,
-                      onChanged: (v) => setState(() => useMock = v),
-                      activeColor: Colors.white,
-                    ),
-                  ],
-                ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '$unreadTotal unread messages',
-                    style: const TextStyle(fontSize: 13, color: Colors.white70),
-                  ),
-                ),
-              ),
-
-              // Conversations List
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                  ),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(24, 10, 24, 100),
-                    itemCount: _mockThreads.length,
-                    itemBuilder: (context, index) {
-                      final conv = _mockThreads[index];
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => WorkerChatConversationScreen(
-                                threadId: conv['threadId'] as String,
-                                otherUid: conv['otherUid'] as String,
-                                otherName: conv['otherName'] as String,
-                                customerName: conv['otherName'] as String,
-                                service: (conv['service'] as String?) ?? '',
-                                isOnline: (conv['isOnline'] as bool?) ?? false,
-                              ),
-                            ),
-                          );
-                        },
-                        child: _buildConversationCard(conv),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

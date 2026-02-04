@@ -363,42 +363,40 @@ class CustomerViewQuotationScreen extends StatelessWidget {
                             final db = DB.instance;
 
                             try {
-                              // You must already know workerId in this screen (from booking/quotation data)
                               final workerId = (booking['workerId'] ?? '')
                                   .toString()
-                                  .trim(); // <-- replace 'job' with YOUR map variable
-                              if (workerId.isEmpty)
+                                  .trim();
+                              if (workerId.isEmpty) {
                                 throw Exception('Missing workerId');
+                              }
 
-                              // Fetch worker public name
-                              String workerName = 'Worker';
+                              // Resolve worker name from workersPublic
+                              String workerNameResolved = workerName;
                               final wsnap = await db
                                   .ref('workersPublic/$workerId/fullName')
                                   .get();
                               if (wsnap.exists && wsnap.value is String) {
-                                final name = (wsnap.value as String).trim();
-                                if (name.isNotEmpty) workerName = name;
+                                final n = (wsnap.value as String).trim();
+                                if (n.isNotEmpty) workerNameResolved = n;
                               }
 
                               final customerName =
                                   (booking['customerName'] ?? 'Customer')
                                       .toString()
-                                      .trim()
-                                      .isNotEmpty
-                                  ? (booking['customerName'] ?? 'Customer')
-                                        .toString()
-                                        .trim()
-                                  : 'Customer';
+                                      .trim();
 
                               final threadId = await chat.createOrGetThread(
                                 otherUid: workerId,
                                 myRole: 'customer',
                                 otherRole: 'worker',
-                                otherName: workerName,
-                                myName: customerName,
+                                otherName: workerNameResolved,
+                                myName: customerName.isNotEmpty
+                                    ? customerName
+                                    : 'Customer',
                               );
 
                               if (!context.mounted) return;
+
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -406,8 +404,7 @@ class CustomerViewQuotationScreen extends StatelessWidget {
                                       CustomerChatConversationScreen(
                                         threadId: threadId,
                                         otherUid: workerId,
-                                        otherName:
-                                            workerName, // ✅ now real name
+                                        otherName: workerNameResolved,
                                       ),
                                 ),
                               );

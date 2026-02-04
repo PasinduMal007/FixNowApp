@@ -13,63 +13,15 @@ class CustomerMessagesScreen extends StatefulWidget {
 
 class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
   late final ChatService _chat;
-  bool useMock = false; // Set to true to see mock data
-
-  final List<Map<String, dynamic>> _mockThreads = [
-    {
-      'threadId': 'mock_1',
-      'otherUid': 'worker_1',
-      'otherName': 'Nimal Perera',
-      'otherPhotoUrl': '',
-      'lastMessageText': 'I can come at 10 AM tomorrow.',
-      'unreadCount': 2,
-      'lastMessageAt': DateTime.now().millisecondsSinceEpoch,
-    },
-    {
-      'threadId': 'mock_2',
-      'otherUid': 'worker_2',
-      'otherName': 'Sunil Shantha',
-      'otherPhotoUrl': '',
-      'lastMessageText': 'Quote accepted. Starting work.',
-      'unreadCount': 0,
-      'lastMessageAt': DateTime.now()
-          .subtract(const Duration(hours: 2))
-          .millisecondsSinceEpoch,
-    },
-    {
-      'threadId': 'mock_3',
-      'otherUid': 'worker_3',
-      'otherName': 'Kamal Addararachchi',
-      'otherPhotoUrl': '',
-      'lastMessageText': 'Thanks for the payment!',
-      'unreadCount': 0,
-      'lastMessageAt': DateTime.now()
-          .subtract(const Duration(days: 1))
-          .millisecondsSinceEpoch,
-    },
-  ];
 
   @override
   void initState() {
     super.initState();
     _chat = ChatService();
-    try {
-      debugPrint(
-        'DEBUG: Messages initialized for UID: ${_chat.connectedRef().parent?.key}',
-      );
-      // Note: connectedRef is .info/connected, its parent is .info.
-      // To get UID, I should just print what ChatService has.
-    } catch (e) {
-      debugPrint('DEBUG: ChatService init error: $e');
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (useMock) {
-      return _buildMockView();
-    }
-
     return Scaffold(
       body: StreamBuilder(
         stream: _chat.connectedRef().onValue,
@@ -101,20 +53,12 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                         ),
                       ),
                     ),
-                  // Small diagnostic text below Header if still loading
                   StreamBuilder<User?>(
                     stream: FirebaseAuth.instance.authStateChanges(),
                     builder: (context, authSnap) {
                       final uid = authSnap.data?.uid ?? 'None';
                       return Container(
                         padding: const EdgeInsets.all(4),
-                        child: Text(
-                          'DEBUG UID: $uid',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.blueGrey,
-                          ),
-                        ),
                       );
                     },
                   ),
@@ -248,116 +192,6 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildMockView() {
-    int unreadTotal = 0;
-    for (var t in _mockThreads) {
-      unreadTotal += (t['unreadCount'] as int);
-    }
-
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.topRight,
-            colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Messages (MOCK)',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Switch(
-                          value: useMock,
-                          onChanged: (v) => setState(() => useMock = v),
-                          activeColor: Colors.white,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '$unreadTotal unread',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.search,
-                            color: Color(0xFF9CA3AF),
-                            size: 20,
-                          ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Search conversations...',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF9CA3AF),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Conversations List
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                  ),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: _mockThreads.length,
-                    itemBuilder: (context, index) {
-                      return _buildConversationCard(_mockThreads[index]);
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
