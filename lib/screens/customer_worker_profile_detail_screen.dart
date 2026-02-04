@@ -114,13 +114,27 @@ class _CustomerWorkerProfileDetailScreenState
                             ),
                           ),
                           const SizedBox(height: 16),
-                          Text(
-                            widget.worker['name'],
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                widget.worker['name'],
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              if (widget.worker['status'] == 'approved' ||
+                                  widget.worker['status'] == 'verified') ...[
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.verified,
+                                  size: 24,
+                                  color: Colors.white,
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(

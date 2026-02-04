@@ -1204,15 +1204,31 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               child: const Icon(Icons.person, color: Color(0xFF4A7FFF)),
             ),
             const SizedBox(height: 8),
-            Text(
-              worker['name'].toString(),
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1F2937),
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    worker['name'].toString(),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1F2937),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (worker['status'] == 'approved' ||
+                    worker['status'] == 'verified') ...[
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.verified,
+                    size: 12,
+                    color: Color(0xFF4A7FFF),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 4),
             Row(
@@ -1326,16 +1342,32 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              worker['name'].toString(),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1F2937),
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    worker['name'].toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F2937),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (worker['status'] == 'approved' ||
+                    worker['status'] == 'verified') ...[
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.verified,
+                    size: 14,
+                    color: Color(0xFF4A7FFF),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 4),
             Text(

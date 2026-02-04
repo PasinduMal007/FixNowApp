@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import 'admin_verification_screen.dart';
 import 'admin_earnings_screen.dart';
+import '../../Services/mock_data_service.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -33,6 +34,31 @@ class AdminDashboardScreen extends StatelessWidget {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report, color: Colors.grey),
+            tooltip: 'Seed Mock Data',
+            onPressed: () async {
+              try {
+                // Lazy load mock service
+                final mockService = MockDataService();
+                await mockService.seedPendingWorkers();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Mock workers added!')),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: Color(0xFFEF4444)),
             onPressed: () async {
@@ -68,8 +94,8 @@ class AdminDashboardScreen extends StatelessWidget {
                   child: StreamBuilder<DatabaseEvent>(
                     stream: db
                         .ref('workers')
-                        .orderByChild('verificationStatus')
-                        .equalTo('pending')
+                        .orderByChild('status')
+                        .equalTo('pending_verification')
                         .onValue,
                     builder: (context, snapshot) {
                       String count = '0';

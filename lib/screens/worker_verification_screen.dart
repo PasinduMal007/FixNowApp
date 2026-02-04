@@ -51,9 +51,9 @@ class _WorkerVerificationScreenState extends State<WorkerVerificationScreen> {
   }
 
   bool _canProceed() {
-    // TEMPORARY: Allow skipping for testing (remove in production)
-    return true;
-    // Production code: return _profilePhoto != null && _idFrontPhoto != null && _idBackPhoto != null;
+    return _profilePhoto != null &&
+        _idFrontPhoto != null &&
+        _idBackPhoto != null;
   }
 
   Future<void> _handleNext() async {

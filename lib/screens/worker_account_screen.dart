@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'worker_personal_info_settings_screen.dart';
 import 'worker_bank_details_screen.dart';
 
+import 'worker_verification_screen.dart';
+
 class WorkerAccountScreen extends StatefulWidget {
   final ValueChanged<String>? onNameChanged;
   final bool showBackButton;
@@ -27,6 +29,7 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
   String _workerPhone = '';
   String _workerLocation = '';
   String _photoUrl = '';
+  String _verificationStatus = 'pending_verification';
   double _rating = 4.8;
   int _reviewCount = 0;
 
@@ -61,6 +64,7 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
           .toString();
 
       final photoUrl = (profile['photoUrl'] ?? '').toString().trim();
+      final status = (profile['status'] ?? 'pending_verification').toString();
 
       // Optional: if you later store these:
       final rating = (profile['rating'] is num)
@@ -77,6 +81,7 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
         _workerPhone = displayPhone;
         _workerLocation = locationText;
         _photoUrl = photoUrl;
+        _verificationStatus = status;
         _rating = rating;
         _reviewCount = reviewCount;
         _loading = false;
@@ -273,6 +278,16 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                             color: Color(0xFF1F2937),
                                           ),
                                         ),
+                                        if (_verificationStatus == 'approved' ||
+                                            _verificationStatus ==
+                                                'verified') ...[
+                                          const SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.verified,
+                                            size: 18,
+                                            color: Color(0xFF4A7FFF),
+                                          ),
+                                        ],
                                         const SizedBox(height: 4),
                                         Row(
                                           children: [
@@ -321,19 +336,6 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                       ],
                                     ),
                                   ),
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFE8F0FF),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.edit,
-                                      color: Color(0xFF4A7FFF),
-                                      size: 18,
-                                    ),
-                                  ),
                                 ],
                               ),
                               const SizedBox(height: 16),
@@ -349,6 +351,156 @@ class _WorkerAccountScreenState extends State<WorkerAccountScreen> {
                                 _workerLocation,
                               ),
                             ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Verification Status Section
+                        const Text(
+                          'Verification Status',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () {
+                            // Only allow navigation if rejected
+                            if (_verificationStatus == 'rejected') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const WorkerVerificationScreen(),
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: _verificationStatus == 'rejected'
+                                    ? const Color(0xFFEF4444)
+                                    : _verificationStatus == 'approved' ||
+                                          _verificationStatus == 'verified'
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFFFBBF24),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: _verificationStatus == 'rejected'
+                                        ? const Color(0xFFFEE2E2)
+                                        : _verificationStatus == 'approved' ||
+                                              _verificationStatus == 'verified'
+                                        ? const Color(0xFFD1FAE5)
+                                        : const Color(0xFFFEF3C7),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    _verificationStatus == 'rejected'
+                                        ? Icons.close
+                                        : _verificationStatus == 'approved' ||
+                                              _verificationStatus == 'verified'
+                                        ? Icons.check
+                                        : Icons.access_time_filled,
+                                    size: 20,
+                                    color: _verificationStatus == 'rejected'
+                                        ? const Color(0xFFEF4444)
+                                        : _verificationStatus == 'approved' ||
+                                              _verificationStatus == 'verified'
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFFD97706),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _verificationStatus == 'rejected'
+                                            ? 'Verification Rejected'
+                                            : _verificationStatus ==
+                                                      'approved' ||
+                                                  _verificationStatus ==
+                                                      'verified'
+                                            ? 'Account Verified'
+                                            : 'Verification Pending',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          color:
+                                              _verificationStatus == 'rejected'
+                                              ? const Color(0xFFEF4444)
+                                              : _verificationStatus ==
+                                                        'approved' ||
+                                                    _verificationStatus ==
+                                                        'verified'
+                                              ? const Color(0xFF059669)
+                                              : const Color(0xFFD97706),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      if (_verificationStatus == 'rejected')
+                                        const Text(
+                                          'Tap to re-upload documents',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFFEF4444),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        )
+                                      else if (_verificationStatus ==
+                                              'approved' ||
+                                          _verificationStatus == 'verified')
+                                        const Text(
+                                          'You can now accept bookings',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF059669),
+                                          ),
+                                        )
+                                      else
+                                        const Text(
+                                          'Admin is reviewing your details',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFFD97706),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                if (_verificationStatus == 'rejected')
+                                  const Icon(
+                                    Icons.chevron_right,
+                                    color: Color(0xFF9CA3AF),
+                                    size: 20,
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 24),

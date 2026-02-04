@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
+import 'admin_worker_detail_screen.dart';
 
 class AdminVerificationScreen extends StatefulWidget {
   const AdminVerificationScreen({super.key});
@@ -29,8 +30,8 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen> {
       body: StreamBuilder<DatabaseEvent>(
         stream: _db
             .ref('workers')
-            .orderByChild('verificationStatus')
-            .equalTo('pending')
+            .orderByChild('status')
+            .equalTo('pending_verification')
             .onValue,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -62,139 +63,69 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen> {
   }
 
   Widget _buildWorkerCard(Map<String, dynamic> worker) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AdminWorkerDetailScreen(worker: worker),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: const Color(0xFFE8F0FF),
-                backgroundImage: worker['profileImage'] != null
-                    ? NetworkImage(worker['profileImage'])
-                    : null,
-                child: worker['profileImage'] == null
-                    ? const Icon(Icons.person, color: Color(0xFF4A7FFF))
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      worker['name'] ?? 'Unknown',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Text(
-                      worker['email'] ?? '',
-                      style: const TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'NIC Document:',
-            style: TextStyle(fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 8),
-          if (worker['nicImage'] != null)
-            GestureDetector(
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (_) =>
-                      Dialog(child: Image.network(worker['nicImage'])),
-                );
-              },
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  worker['nicImage'],
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 150,
-                    color: Colors.grey[200],
-                    child: const Center(child: Icon(Icons.broken_image)),
-                  ),
-                ),
-              ),
-            )
-          else
-            const Text(
-              'No NIC image uploaded',
-              style: TextStyle(color: Colors.red),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _updateStatus(worker['uid'], 'rejected'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
+          ],
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: const Color(0xFFE8F0FF),
+              backgroundImage: worker['photoUrl'] != null
+                  ? NetworkImage(worker['photoUrl'])
+                  : null,
+              child: worker['photoUrl'] == null
+                  ? const Icon(Icons.person, color: Color(0xFF4A7FFF))
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    worker['fullName'] ?? 'Unknown User',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Color(0xFF1F2937),
+                    ),
                   ),
-                  child: const Text('Reject'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => _updateStatus(worker['uid'], 'verified'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
+                  const SizedBox(height: 4),
+                  Text(
+                    worker['email'] ?? '',
+                    style: const TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 14,
+                    ),
                   ),
-                  child: const Text('Approve'),
-                ),
+                ],
               ),
-            ],
-          ),
-        ],
+            ),
+            const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
+          ],
+        ),
       ),
     );
-  }
-
-  Future<void> _updateStatus(String uid, String status) async {
-    try {
-      await _db.ref('workers/$uid').update({'verificationStatus': status});
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Worker $status successfully')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    }
   }
 }

@@ -76,17 +76,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 32),
 
                       // Title
-                      const Text(
-                        'Create Account',
-                        style: TextStyle(
-                          fontSize: 32,
+                      Text(
+                        widget.role == 'worker'
+                            ? 'Worker Create Account'
+                            : 'Customer Create Account',
+                        style: const TextStyle(
+                          fontSize: 28, // Slightly smaller to fit
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Sign up to get started with FixNow',
+                        widget.role == 'worker'
+                            ? 'Sign up to start earning with FixNow'
+                            : 'Sign up to get services with FixNow',
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.white.withOpacity(0.9),

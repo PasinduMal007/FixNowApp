@@ -169,6 +169,7 @@ class WorkerOnboardingService {
 
     await _workerRef.update({
       "idType": idType,
+      "status": "pending_verification", // Reset status so admin sees it again
       "verification": {
         "profilePhotoPending": hasProfilePhoto,
         "idFrontPending": hasIdFront,
