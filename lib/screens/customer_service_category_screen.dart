@@ -27,57 +27,85 @@ class _CustomerServiceCategoryScreenState
   Stream<DatabaseEvent> get _workersStream =>
       DB.ref().child('workersPublic').onValue;
 
-  // ✅ Robust: use snapshot.children, not snapshot.value
+  int _toInt(dynamic v, {int fallback = 0}) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v?.toString() ?? '') ?? fallback;
+  }
+
+  double _toDouble(dynamic v, {double fallback = 0.0}) {
+    if (v is double) return v;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v?.toString() ?? '') ?? fallback;
+  }
+
+  bool _toBool(dynamic v, {bool fallback = false}) {
+    if (v is bool) return v;
+    final s = (v ?? '').toString().toLowerCase().trim();
+    if (s == 'true' || s == '1' || s == 'yes') return true;
+    if (s == 'false' || s == '0' || s == 'no') return false;
+    return fallback;
+  }
+
+  Widget _statusBadge(String text, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg),
+      ),
+    );
+  }
+
   List<Map<String, dynamic>> _mapWorkersFromSnapshot(DataSnapshot snap) {
     final list = <Map<String, dynamic>>[];
 
     for (final child in snap.children) {
       final key = (child.key ?? '').toString();
-
       if (child.value is! Map) continue;
 
       final data = Map<String, dynamic>.from(child.value as Map);
 
+      // rules require uid exists and equals auth.uid for writes,
+      // but for reads, we still want a stable uid
+      final uid = (data['uid'] ?? key).toString().trim();
+      if (uid.isEmpty) continue;
+
       final fullName = (data['fullName'] ?? '').toString().trim();
       final profession = (data['profession'] ?? '').toString().trim();
 
-      final ratingVal = data['rating'];
-      final reviewsVal = data['reviews'];
-      final hourlyVal = data['hourlyRate'];
+      final locationText = (data['locationText'] ?? '').toString().trim();
+      final photoUrl = (data['photoUrl'] ?? '').toString().trim();
+      final aboutMe = (data['aboutMe'] ?? '').toString().trim();
 
-      final rating = (ratingVal is num)
-          ? ratingVal.toDouble()
-          : double.tryParse(ratingVal?.toString() ?? '') ?? 0.0;
+      final rating = _toDouble(data['rating'], fallback: 0.0);
+      final reviews = _toInt(data['reviews'], fallback: 0);
+      final isAvailable = _toBool(data['isAvailable'], fallback: false);
 
-      final reviews = (reviewsVal is num)
-          ? reviewsVal.toInt()
-          : int.tryParse(reviewsVal?.toString() ?? '') ?? 0;
+      final experience = (data['experience'] ?? '').toString().trim();
 
-      final hourlyRate = (hourlyVal is num)
-          ? hourlyVal.toInt()
-          : int.tryParse(hourlyVal?.toString() ?? '') ?? 2500;
-
-      final isAvailableVal = data['isAvailable'];
-      final isAvailable = isAvailableVal is bool ? isAvailableVal : false;
+      // You did not include status in workersPublic rules, so treat as optional display-only
+      final status = (data['status'] ?? '').toString().trim();
 
       list.add(<String, dynamic>{
-        'uid': (data['uid'] ?? key).toString(),
+        'uid': uid,
         'name': fullName.isEmpty ? 'Worker' : fullName,
         'type': profession.isEmpty ? widget.categoryName : profession,
+
+        'locationText': locationText,
+        'photoUrl': photoUrl,
+        'aboutMe': aboutMe,
+
         'rating': rating,
         'reviews': reviews,
-        'hourlyRate': hourlyRate,
-
-        // If you later store these in workersPublic, map them here
-        'distance': (data['distance'] is num)
-            ? (data['distance'] as num).toDouble()
-            : 0.0,
-        'experience': (data['experience'] ?? 0),
-        'description': (data['description'] ?? '').toString(),
-
         'isAvailable': isAvailable,
-        'photoUrl': (data['photoUrl'] ?? '').toString(),
-        'locationText': (data['locationText'] ?? '').toString(),
+
+        'experienceLabel': experience,
+        'status': status,
       });
     }
 
@@ -87,14 +115,14 @@ class _CustomerServiceCategoryScreenState
   List<Map<String, dynamic>> _applyFilterSort(List<Map<String, dynamic>> list) {
     var out = List<Map<String, dynamic>>.from(list);
 
-    // Filter by Category Name (Profession)
+    // Filter by Profession == categoryName
     out = out.where((w) {
       final type = (w['type'] ?? '').toString().toLowerCase();
       final target = widget.categoryName.toLowerCase();
-      // Simple exact match or contains if you want looser matching
       return type == target;
     }).toList();
 
+    // Filter chips
     switch (_selectedFilter) {
       case 'Top Rated':
         out.sort(
@@ -102,20 +130,22 @@ class _CustomerServiceCategoryScreenState
         );
         out = out.take(20).toList();
         break;
+
       case 'Nearby':
-        // only works if distance is stored
-        out.sort(
-          (a, b) => (a['distance'] as num).compareTo((b['distance'] as num)),
-        );
+        // workersPublic rules do not include distance, so do not sort by it.
+        // You can later add distance to workersPublic safely, then implement sorting.
         break;
+
       case 'Available Now':
         out = out.where((w) => w['isAvailable'] == true).toList();
         break;
+
       case 'All':
       default:
         break;
     }
 
+    // Sort dropdown
     switch (_selectedSort) {
       case 'Top Rated':
         out.sort(
@@ -243,7 +273,6 @@ class _CustomerServiceCategoryScreenState
                   ],
                 ),
               ),
-
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -253,55 +282,38 @@ class _CustomerServiceCategoryScreenState
                       topRight: Radius.circular(24),
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: StreamBuilder<DatabaseEvent>(
-                          stream: _workersStream,
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
-                            }
+                  child: StreamBuilder<DatabaseEvent>(
+                    stream: _workersStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                            if (snapshot.hasError) {
-                              return Center(
-                                child: Text('Error: ${snapshot.error}'),
-                              );
-                            }
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
 
-                            final snap = snapshot.data?.snapshot;
-                            if (snap == null) {
-                              return const Center(
-                                child: Text('No workers found'),
-                              );
-                            }
+                      final snap = snapshot.data?.snapshot;
+                      if (snap == null) {
+                        return const Center(child: Text('No workers found'));
+                      }
 
-                            final workers = _applyFilterSort(
-                              _mapWorkersFromSnapshot(snap),
-                            );
+                      final workers = _applyFilterSort(
+                        _mapWorkersFromSnapshot(snap),
+                      );
 
-                            if (workers.isEmpty) {
-                              return const Center(
-                                child: Text('No workers found'),
-                              );
-                            }
+                      if (workers.isEmpty) {
+                        return const Center(child: Text('No workers found'));
+                      }
 
-                            return ListView.builder(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              itemCount: workers.length,
-                              itemBuilder: (context, index) {
-                                return _buildWorkerCard(workers[index]);
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ],
+                      return ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: workers.length,
+                        itemBuilder: (context, index) {
+                          return _buildWorkerCard(workers[index]);
+                        },
+                      );
+                    },
                   ),
                 ),
               ),
@@ -373,10 +385,24 @@ class _CustomerServiceCategoryScreenState
                     ),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(
-                    Icons.person,
-                    color: Color(0xFF4A7FFF),
-                    size: 32,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child:
+                        (worker['photoUrl'] ?? '').toString().trim().isNotEmpty
+                        ? Image.network(
+                            worker['photoUrl'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.person,
+                              color: Color(0xFF4A7FFF),
+                              size: 32,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person,
+                            color: Color(0xFF4A7FFF),
+                            size: 32,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -418,6 +444,7 @@ class _CustomerServiceCategoryScreenState
                         ],
                       ),
                       const SizedBox(height: 4),
+
                       Text(
                         (worker['type'] ?? '').toString(),
                         style: const TextStyle(
@@ -425,6 +452,41 @@ class _CustomerServiceCategoryScreenState
                           color: Color(0xFF9CA3AF),
                         ),
                       ),
+
+                      // Optional status badge if you store it in workersPublic
+                      Builder(
+                        builder: (_) {
+                          final status = (worker['status'] ?? '')
+                              .toString()
+                              .trim();
+                          if (status.isEmpty) return const SizedBox();
+
+                          if (status == 'verified') {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: _statusBadge(
+                                'Verified',
+                                const Color(0xFFD1FAE5),
+                                const Color(0xFF059669),
+                              ),
+                            );
+                          }
+
+                          if (status == 'pending_verification') {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: _statusBadge(
+                                'Pending',
+                                const Color(0xFFFEF3C7),
+                                const Color(0xFF92400E),
+                              ),
+                            );
+                          }
+
+                          return const SizedBox();
+                        },
+                      ),
+
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -460,13 +522,17 @@ class _CustomerServiceCategoryScreenState
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              (worker['description'] ?? '').toString(),
-              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
-            ),
+
+            if ((worker['aboutMe'] ?? '').toString().trim().isNotEmpty)
+              Text(
+                (worker['aboutMe'] ?? '').toString(),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+              ),
+
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 12),
+
             Row(
               children: [
                 const Icon(
@@ -475,14 +541,29 @@ class _CustomerServiceCategoryScreenState
                   color: Color(0xFF9CA3AF),
                 ),
                 const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    (worker['locationText'] ?? '').toString().trim().isNotEmpty
+                        ? (worker['locationText'] ?? '').toString()
+                        : 'Location not set',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF6B7280),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Text(
-                  '${worker['distance']} km away',
+                  (worker['experienceLabel'] ?? '').toString().trim().isNotEmpty
+                      ? (worker['experienceLabel'] ?? '').toString()
+                      : '',
                   style: const TextStyle(
                     fontSize: 13,
                     color: Color(0xFF6B7280),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 10),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(

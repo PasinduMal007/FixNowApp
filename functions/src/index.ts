@@ -78,7 +78,7 @@ async function verifyFirebaseToken(
 }
 
 async function getRoleAndProfile(uid: string): Promise<{
-  role: "customer" | "worker" | null;
+  role: "customer" | "worker" | "admin" | null;
   profile: Record<string, unknown> | null;
 }> {
   const db = admin.database();
@@ -96,6 +96,14 @@ async function getRoleAndProfile(uid: string): Promise<{
     const profile = (workerSnap.val() ?? {}) as Record<string, unknown>;
     const roleValue = profile["role"];
     const role = roleValue === "worker" ? "worker" : "worker";
+    return {role, profile};
+  }
+
+  const adminSnap = await db.ref(`users/admin/${uid}`).get();
+  if (adminSnap.exists()) {
+    const profile = (adminSnap.val() ?? {}) as Record<string, unknown>;
+    const roleValue = profile["role"];
+    const role = roleValue === "admin" ? "admin" : "admin";
     return {role, profile};
   }
 
@@ -866,6 +874,11 @@ export const createBookingRequest = onCall(
       throw new HttpsError("not-found", "Worker not found.");
     }
 
+    const adminSnap = await db.ref(`users/admin/${workerId}`).get();
+    if (!adminSnap.exists()) {
+      throw new HttpsError("not-found", "Admin not found.");
+    }
+
     const bookingRef = db.ref("bookings").push();
     const bookingId = bookingRef.key;
     if (!bookingId) {
@@ -916,7 +929,7 @@ export const createBookingRequest = onCall(
         isRead: false, // boolean
         type: "booking_request", // string
         title: "New booking request", // string
-        message: `You have a new request for ${serviceName}.`,
+        message: `You have a new request for ${serviceName} from ${customerName}.`,
         bookingId, // string
       };
     }
