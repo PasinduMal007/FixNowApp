@@ -9,7 +9,6 @@ import 'package:fix_now_app/Services/chat_service.dart';
 class WorkerChatConversationScreen extends StatefulWidget {
   final String customerName; // keep for UI fallback
   final String service;
-  final bool isOnline;
 
   final String threadId;
   final String otherUid;
@@ -19,7 +18,6 @@ class WorkerChatConversationScreen extends StatefulWidget {
     super.key,
     required this.customerName,
     required this.service,
-    this.isOnline = false,
     required this.threadId,
     required this.otherUid,
     required this.otherName,
@@ -281,23 +279,22 @@ class _WorkerChatConversationScreenState
                             size: 24,
                           ),
                         ),
-                        if (widget.isOnline)
-                          Positioned(
-                            bottom: 2,
-                            right: 2,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
+                        Positioned(
+                          bottom: 2,
+                          right: 2,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 2,
                               ),
                             ),
                           ),
+                        ),
                       ],
                     ),
                     const SizedBox(width: 12),
@@ -314,7 +311,7 @@ class _WorkerChatConversationScreenState
                             ),
                           ),
                           Text(
-                            widget.isOnline ? 'Online' : 'Offline',
+                            'Online',
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.white.withOpacity(0.8),

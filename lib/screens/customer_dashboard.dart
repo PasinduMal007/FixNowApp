@@ -207,25 +207,15 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           ),
           if (badge != null && badge > 0)
             Positioned(
-              top: -4,
-              right: -4,
+              top: 0,
+              right: -2,
               child: Container(
-                width: 20,
-                height: 20,
+                width: 10,
+                height: 10,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF6B6B),
+                  color: const Color(0xFFEF4444),
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    '$badge',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
                 ),
               ),
             ),

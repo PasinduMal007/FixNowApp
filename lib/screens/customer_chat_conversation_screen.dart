@@ -29,8 +29,14 @@ class _CustomerChatConversationScreenState
   final _scrollController = ScrollController();
   final _chat = ChatService();
 
+  late final String threadId;
+  late final String otherUid;
+
+  late final bool useMock;
+
   final List<Map<String, dynamic>> _mockMessages = [
     {
+      'id': 'm1',
       'senderId': 'other',
       'text': 'Hi there! How can I help you today?',
       'createdAt': DateTime.now()
@@ -38,6 +44,7 @@ class _CustomerChatConversationScreenState
           .millisecondsSinceEpoch,
     },
     {
+      'id': 'm2',
       'senderId': 'me',
       'text': 'I need some help with my plumbing.',
       'createdAt': DateTime.now()
@@ -45,6 +52,7 @@ class _CustomerChatConversationScreenState
           .millisecondsSinceEpoch,
     },
     {
+      'id': 'm3',
       'senderId': 'other',
       'text': 'Sure, what seems to be the problem?',
       'createdAt': DateTime.now()
@@ -52,6 +60,7 @@ class _CustomerChatConversationScreenState
           .millisecondsSinceEpoch,
     },
     {
+      'id': 'm4',
       'senderId': 'me',
       'text': 'The kitchen sink is leaking.',
       'createdAt': DateTime.now()
@@ -63,21 +72,34 @@ class _CustomerChatConversationScreenState
   @override
   void initState() {
     super.initState();
-    if (!widget.threadId.startsWith('mock_')) {
-      _chat.markThreadRead(threadId: widget.threadId);
+
+    threadId = widget.threadId;
+    otherUid = widget.otherUid;
+    useMock = threadId.startsWith('mock_');
+
+    // Mark as read when opening
+    if (!useMock) {
+      _chat.markThreadRead(threadId: threadId).catchError((e) {
+        debugPrint('DEBUG: markThreadRead error: $e');
+      });
     }
-    _scrollToBottom();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom(animated: false);
+    });
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    });
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  int _toInt(dynamic v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v?.toString() ?? '') ?? 0;
   }
 
   bool _isNearBottom() {
@@ -87,30 +109,45 @@ class _CustomerChatConversationScreenState
     return (max - current) < 120;
   }
 
-  void _sendMessage() async {
+  void _scrollToBottom({required bool animated}) {
+    if (!_scrollController.hasClients) return;
+    final target = _scrollController.position.maxScrollExtent;
+    if (animated) {
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _scrollController.jumpTo(target);
+    }
+  }
+
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    if (widget.threadId.startsWith('mock_')) {
+    _messageController.clear();
+
+    if (useMock) {
       setState(() {
         _mockMessages.add({
+          'id': DateTime.now().millisecondsSinceEpoch.toString(),
           'senderId': 'me',
           'text': text,
           'createdAt': DateTime.now().millisecondsSinceEpoch,
         });
       });
-      _messageController.clear();
-      if (_isNearBottom()) _scrollToBottom();
-      return;
+    } else {
+      await _chat.sendTextMessage(
+        threadId: threadId,
+        text: text,
+        otherUid: otherUid,
+      );
     }
 
-    _messageController.clear();
-    await _chat.sendTextMessage(
-      threadId: widget.threadId,
-      text: text,
-      otherUid: widget.otherUid,
-    );
-    if (_isNearBottom()) _scrollToBottom();
+    if (!mounted) return;
+    if (_isNearBottom()) _scrollToBottom(animated: true);
   }
 
   Future<void> _pickImage() async {
@@ -118,8 +155,8 @@ class _CustomerChatConversationScreenState
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile == null) return;
 
-    File file = File(pickedFile.path);
-    _sendAttachment(file, 'image');
+    final file = File(pickedFile.path);
+    await _sendAttachment(file, 'image');
   }
 
   Future<void> _pickDocument() async {
@@ -131,8 +168,8 @@ class _CustomerChatConversationScreenState
 
     if (result == null || result.files.single.path == null) return;
 
-    File file = File(result.files.single.path!);
-    _sendAttachment(file, 'file', fileName: result.files.single.name);
+    final file = File(result.files.single.path!);
+    await _sendAttachment(file, 'file', fileName: result.files.single.name);
   }
 
   Future<void> _sendAttachment(
@@ -141,321 +178,443 @@ class _CustomerChatConversationScreenState
     String? fileName,
   }) async {
     try {
-      // Show "uploading..." state or a simple snackbar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Sending ${type}...'),
+          content: Text('Sending $type...'),
           duration: const Duration(seconds: 1),
         ),
       );
 
-      if (widget.threadId.startsWith('mock_')) {
+      if (useMock) {
         setState(() {
           _mockMessages.add({
+            'id': DateTime.now().millisecondsSinceEpoch.toString(),
             'senderId': 'me',
-            'text': (type == 'image') ? "Photo" : "Document",
+            'text': (type == 'image') ? 'Photo' : 'Document',
             'type': type,
-            'fileUrl': file.path,
+            'fileUrl': file.path, // local path for mock
             'fileName': fileName,
             'createdAt': DateTime.now().millisecondsSinceEpoch,
           });
         });
       } else {
-        final url = await _chat.uploadAttachment(file, widget.threadId);
+        final url = await _chat.uploadAttachment(file, threadId);
         await _chat.sendAttachmentMessage(
-          threadId: widget.threadId,
-          otherUid: widget.otherUid,
+          threadId: threadId,
+          otherUid: otherUid,
           fileUrl: url,
           type: type,
           fileName: fileName,
         );
       }
 
-      if (_isNearBottom()) _scrollToBottom();
+      if (_isNearBottom()) _scrollToBottom(animated: true);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error sending attachment: $e')));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error sending attachment: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    final titleName = widget.otherName.isNotEmpty ? widget.otherName : 'Worker';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
-          onPressed: () => Navigator.pop(context),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.topRight,
+            colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+          ),
         ),
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header (same style as worker screen)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
-                borderRadius: BorderRadius.circular(10),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Stack(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            color: Color(0xFF4A7FFF),
+                            size: 24,
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 2,
+                          right: 2,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            titleName + (useMock ? ' (MOCK)' : ''),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            'Online',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ),
               ),
-              child: const Icon(
-                Icons.person,
-                color: Color(0xFF4A7FFF),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.otherName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
+
+              // Chat area
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
                     ),
                   ),
-                  const Text(
-                    'Online',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF10B981)),
-                  ),
-                ],
+                  child: useMock
+                      ? _buildMockListView()
+                      : StreamBuilder<DatabaseEvent>(
+                          stream: _chat.messagesQuery(threadId).onValue,
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+
+                            final val = snapshot.data!.snapshot.value;
+                            if (val == null || val is! Map) {
+                              return const Center(
+                                child: Text('No messages yet'),
+                              );
+                            }
+
+                            final raw = Map<dynamic, dynamic>.from(val as Map);
+                            final list = raw.entries.map((e) {
+                              final m = Map<String, dynamic>.from(
+                                e.value as Map,
+                              );
+                              return {'id': e.key.toString(), ...m};
+                            }).toList();
+
+                            list.sort(
+                              (a, b) => _toInt(
+                                a['createdAt'],
+                              ).compareTo(_toInt(b['createdAt'])),
+                            );
+
+                            if (_isNearBottom()) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                _scrollToBottom(animated: false);
+                              });
+                            }
+
+                            final myUid =
+                                FirebaseAuth.instance.currentUser?.uid;
+
+                            return ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.all(16),
+                              itemCount: list.length,
+                              itemBuilder: (context, index) {
+                                final message = list[index];
+                                final isMine =
+                                    message['senderId']?.toString() == myUid;
+
+                                return _buildMessageBubble(
+                                  text: (message['text'] ?? '').toString(),
+                                  isSent: isMine,
+                                  type: (message['type'] ?? 'text').toString(),
+                                  fileUrl: message['fileUrl']?.toString(),
+                                  fileName: message['fileName']?.toString(),
+                                  timestamp: '',
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
               ),
-            ),
-          ],
+
+              // Input area (same style as worker screen)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: _pickDocument,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.attach_file,
+                            color: Color(0xFF6B7280),
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.image_outlined,
+                            color: Color(0xFF6B7280),
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF9FAFB),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: TextField(
+                            controller: _messageController,
+                            decoration: const InputDecoration(
+                              hintText: 'Type a message...',
+                              hintStyle: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
+                            ),
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _sendMessage(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _sendMessage,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF4A7FFF), Color(0xFF6B9FFF)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.send,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: widget.threadId.startsWith('mock_')
-                ? _buildMockListView(myUid)
-                : _buildFirebaseListView(myUid),
-          ),
-          _buildInputArea(),
-        ],
-      ),
     );
   }
 
-  Widget _buildMockListView(String? myUid) {
+  Widget _buildMockListView() {
+    if (_isNearBottom()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom(animated: false);
+      });
+    }
+
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       itemCount: _mockMessages.length,
       itemBuilder: (context, index) {
-        final m = _mockMessages[index];
-        final isMe = m['senderId'] == 'me';
-        return _buildMessageBubble({
-          'text': m['text'],
-          'isMine': isMe,
-          'type': (m['type'] ?? 'text').toString(),
-          'fileUrl': m['fileUrl']?.toString(),
-          'fileName': m['fileName']?.toString(),
-          'timestamp': '',
-          'isRead': true,
-        });
-      },
-    );
-  }
+        final message = _mockMessages[index];
 
-  Widget _buildFirebaseListView(String? myUid) {
-    return StreamBuilder<DatabaseEvent>(
-      stream: _chat.messagesQuery(widget.threadId).onValue,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final val = snap.data?.snapshot.value;
-        if (val == null) {
-          return const Center(child: Text('Start a conversation'));
-        }
-        if (val is! Map) {
-          return const Center(child: Text('Start a conversation'));
-        }
+        final sender = (message['senderId'] ?? '').toString();
+        final isMine = sender == 'me' || (myUid != null && sender == myUid);
 
-        final map = Map<String, dynamic>.from(val as Map);
-        final list = map.entries.map((e) {
-          final m = Map<String, dynamic>.from(e.value as Map);
-          return {'id': e.key, ...m};
-        }).toList();
-
-        list.sort((a, b) {
-          int toInt(dynamic v) {
-            if (v is int) return v;
-            if (v is num) return v.toInt();
-            return int.tryParse(v?.toString() ?? '') ?? 0;
-          }
-
-          return toInt(a['createdAt']).compareTo(toInt(b['createdAt']));
-        });
-
-        if (_isNearBottom()) _scrollToBottom();
-
-        return ListView.builder(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(20),
-          itemCount: list.length,
-          itemBuilder: (context, index) {
-            final m = list[index];
-            final isMine = (m['senderId']?.toString() == myUid);
-            return _buildMessageBubble({
-              'text': (m['text'] ?? '').toString(),
-              'isMine': isMine,
-              'type': (m['type'] ?? 'text').toString(),
-              'fileUrl': m['fileUrl']?.toString(),
-              'fileName': m['fileName']?.toString(),
-              'timestamp': '',
-              'isRead': true,
-            });
-          },
+        return _buildMessageBubble(
+          text: (message['text'] ?? '').toString(),
+          isSent: isMine,
+          type: (message['type'] ?? 'text').toString(),
+          fileUrl: message['fileUrl']?.toString(),
+          fileName: message['fileName']?.toString(),
+          timestamp: 'Mock Time',
         );
       },
     );
   }
 
-  Widget _buildInputArea() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(
-                Icons.photo_library_outlined,
-                color: Color(0xFF6B7280),
-                size: 22,
-              ),
-              onPressed: _pickImage,
-            ),
-            IconButton(
-              icon: const Icon(
-                Icons.attach_file,
-                color: Color(0xFF6B7280),
-                size: 22,
-              ),
-              onPressed: _pickDocument,
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: TextField(
-                  controller: _messageController,
-                  decoration: const InputDecoration(
-                    hintText: 'Type a message...',
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 48,
-              height: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4A7FFF),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.white, size: 20),
-                onPressed: _sendMessage,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMessageBubble(Map<String, dynamic> message) {
-    final bool isMine = message['isMine'] ?? false;
-
+  Widget _buildMessageBubble({
+    required String text,
+    required bool isSent,
+    required String timestamp,
+    String type = 'text',
+    String? fileUrl,
+    String? fileName,
+  }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment: isMine
+        mainAxisAlignment: isSent
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!isMine) ...[
+          if (!isSent)
             Container(
               width: 32,
               height: 32,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE5E7EB),
-                borderRadius: BorderRadius.circular(8),
+              margin: const EdgeInsets.only(right: 8),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+                ),
+                shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.person,
-                size: 20,
-                color: Color(0xFF9CA3AF),
+                color: Color(0xFF4A7FFF),
+                size: 18,
               ),
             ),
-            const SizedBox(width: 8),
-          ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isMine ? const Color(0xFF4A7FFF) : Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isMine ? 16 : 4),
-                  bottomRight: Radius.circular(isMine ? 4 : 16),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+            child: Column(
+              crossAxisAlignment: isSent
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
-                ],
-              ),
-              child: _buildMessageContent(message),
+                  decoration: BoxDecoration(
+                    color: isSent ? const Color(0xFF4A7FFF) : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isSent ? 16 : 4),
+                      bottomRight: Radius.circular(isSent ? 4 : 16),
+                    ),
+                  ),
+                  child: _buildMessageContent(
+                    text: text,
+                    isSent: isSent,
+                    type: type,
+                    fileUrl: fileUrl,
+                    fileName: fileName,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  timestamp,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+              ],
             ),
           ),
-          if (isMine) const SizedBox(width: 40),
         ],
       ),
     );
   }
 
-  Widget _buildMessageContent(Map<String, dynamic> message) {
-    final bool isMine = message['isMine'] ?? false;
-    final String type = message['type'] ?? 'text';
-
-    if (type == 'image') {
-      final fileUrl = message['fileUrl']?.toString() ?? '';
-      final isLocal = fileUrl.isNotEmpty && !fileUrl.startsWith('http');
+  Widget _buildMessageContent({
+    required String text,
+    required bool isSent,
+    required String type,
+    String? fileUrl,
+    String? fileName,
+  }) {
+    if (type == 'image' && (fileUrl ?? '').isNotEmpty) {
+      final url = fileUrl!;
+      final isLocal = !url.startsWith('http');
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -464,13 +623,13 @@ class _CustomerChatConversationScreenState
             borderRadius: BorderRadius.circular(12),
             child: isLocal
                 ? Image.file(
-                    File(fileUrl),
+                    File(url),
                     width: 200,
                     errorBuilder: (context, error, stackTrace) =>
                         const Icon(Icons.error),
                   )
                 : Image.network(
-                    fileUrl,
+                    url,
                     width: 200,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
@@ -484,15 +643,14 @@ class _CustomerChatConversationScreenState
                         const Icon(Icons.error),
                   ),
           ),
-          if ((message['text'] ?? '').isNotEmpty &&
-              message['text'] != 'Photo')
+          if (text.isNotEmpty && text != 'Photo')
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                message['text'],
+                text,
                 style: TextStyle(
-                  color: isMine ? Colors.white : const Color(0xFF1F2937),
                   fontSize: 14,
+                  color: isSent ? Colors.white : const Color(0xFF1F2937),
                 ),
               ),
             ),
@@ -506,16 +664,16 @@ class _CustomerChatConversationScreenState
         children: [
           Icon(
             Icons.insert_drive_file,
-            color: isMine ? Colors.white70 : const Color(0xFF4A7FFF),
+            color: isSent ? Colors.white70 : const Color(0xFF4A7FFF),
             size: 24,
           ),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              message['fileName'] ?? 'Document',
+              fileName ?? 'Document',
               style: TextStyle(
-                color: isMine ? Colors.white : const Color(0xFF1F2937),
                 fontSize: 14,
+                color: isSent ? Colors.white : const Color(0xFF1F2937),
                 decoration: TextDecoration.underline,
               ),
               overflow: TextOverflow.ellipsis,
@@ -526,18 +684,11 @@ class _CustomerChatConversationScreenState
     }
 
     return Text(
-      message['text'] ?? '',
+      text,
       style: TextStyle(
-        color: isMine ? Colors.white : const Color(0xFF1F2937),
         fontSize: 14,
+        color: isSent ? Colors.white : const Color(0xFF1F2937),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
   }
 }

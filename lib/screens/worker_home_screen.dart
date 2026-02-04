@@ -548,7 +548,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                           otherName: customerName.toString(),
                           customerName: customerName.toString(),
                           service: job['service'].toString(),
-                          isOnline: true,
                         ),
                       ),
                     );
@@ -1141,7 +1140,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                                       customerName:
                                                           customerName,
                                                       service: serviceType,
-                                                      isOnline: true,
                                                     ),
                                               ),
                                             );

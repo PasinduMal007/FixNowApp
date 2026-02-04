@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
 import 'dart:async';
+import 'package:fix_now_app/Services/chat_service.dart';
+import 'worker_chat_conversation_screen.dart';
 
 class WorkerBookingsScreen extends StatefulWidget {
   const WorkerBookingsScreen({super.key});
@@ -713,7 +715,61 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () async {
+                      final customerId = (booking['customerId'] ?? '')
+                          .toString()
+                          .trim();
+                      final customerName =
+                          (booking['customerName'] ?? 'Customer')
+                              .toString()
+                              .trim();
+                      final service =
+                          (booking['serviceName'] ??
+                                  booking['service'] ??
+                                  'Service')
+                              .toString()
+                              .trim();
+
+                      if (customerId.isEmpty) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Missing customerId for this booking',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
+                      final me = FirebaseAuth.instance.currentUser;
+                      final myName = (me?.displayName ?? 'Worker').toString();
+
+                      final chat = ChatService();
+                      final threadId = await chat.createOrGetThread(
+                        otherUid: customerId,
+                        otherName: customerName,
+                        otherRole: 'customer',
+                        myRole: 'worker',
+                        myName: myName,
+                      );
+
+                      if (!mounted) return;
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => WorkerChatConversationScreen(
+                            threadId: threadId,
+                            otherUid: customerId,
+                            otherName: customerName,
+                            customerName: customerName,
+                            service: service,
+                          ),
+                        ),
+                      );
+                    },
+
                     icon: const Icon(Icons.chat_bubble_outline, size: 18),
                     label: const Text('Chat'),
                     style: OutlinedButton.styleFrom(

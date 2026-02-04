@@ -154,7 +154,6 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                                   // extra fields expected by existing UI
                                   'service': '',
                                   'rating': 0.0,
-                                  'isOnline': false,
                                 },
                               )
                               .toList();
@@ -229,10 +228,6 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                                                       (conv['service']
                                                           as String?) ??
                                                       '',
-                                                  isOnline:
-                                                      (conv['isOnline']
-                                                          as bool?) ??
-                                                      false,
                                                 ),
                                           ),
                                         );
