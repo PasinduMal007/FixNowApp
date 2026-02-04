@@ -123,7 +123,7 @@ class _WorkerChatConversationScreenState
     }
 
     if (!mounted) return;
-    _scrollToBottom(animated: true);
+    if (_isNearBottom()) _scrollToBottom(animated: true);
   }
 
   Future<void> _pickImage() async {
@@ -168,7 +168,7 @@ class _WorkerChatConversationScreenState
           _mockMessages.add({
             'id': DateTime.now().millisecondsSinceEpoch.toString(),
             'senderId': FirebaseAuth.instance.currentUser?.uid,
-            'text': (type == 'image') ? "📷 Photo" : "📄 Document",
+            'text': (type == 'image') ? "Photo" : "Document",
             'type': type,
             'fileUrl': url,
             'fileName': fileName,
@@ -185,7 +185,7 @@ class _WorkerChatConversationScreenState
         );
       }
 
-      _scrollToBottom(animated: true);
+      if (_isNearBottom()) _scrollToBottom(animated: true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -198,7 +198,7 @@ class _WorkerChatConversationScreenState
   void _scrollToBottom({required bool animated}) {
     if (!_scrollController.hasClients) return;
 
-    final target = _scrollController.position.maxScrollExtent + 200;
+    final target = _scrollController.position.maxScrollExtent;
     if (animated) {
       _scrollController.animateTo(
         target,
@@ -208,6 +208,13 @@ class _WorkerChatConversationScreenState
     } else {
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     }
+  }
+
+  bool _isNearBottom() {
+    if (!_scrollController.hasClients) return true;
+    final max = _scrollController.position.maxScrollExtent;
+    final current = _scrollController.position.pixels;
+    return (max - current) < 120;
   }
 
   int _toInt(dynamic v) {
@@ -369,9 +376,11 @@ class _WorkerChatConversationScreenState
                             });
 
                             // After rebuild, scroll to bottom if user is already near bottom
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              _scrollToBottom(animated: false);
-                            });
+                            if (_isNearBottom()) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                _scrollToBottom(animated: false);
+                              });
+                            }
 
                             return ListView.builder(
                               controller: _scrollController,
@@ -505,10 +514,12 @@ class _WorkerChatConversationScreenState
   }
 
   Widget _buildMockListView() {
-    // After rebuild, scroll to bottom
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToBottom(animated: false);
-    });
+    // After rebuild, scroll to bottom if user is already near bottom
+    if (_isNearBottom()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom(animated: false);
+      });
+    }
 
     return ListView.builder(
       controller: _scrollController,
@@ -636,7 +647,7 @@ class _WorkerChatConversationScreenState
                   const Icon(Icons.error),
             ),
           ),
-          if (text.isNotEmpty && text != '📷 Photo')
+          if (text.isNotEmpty && text != 'Photo')
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(

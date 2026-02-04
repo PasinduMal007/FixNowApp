@@ -70,15 +70,21 @@ class _CustomerChatConversationScreenState
   }
 
   void _scrollToBottom() {
-    if (!_scrollController.hasClients) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent + 200,
+        _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
     });
+  }
+
+  bool _isNearBottom() {
+    if (!_scrollController.hasClients) return true;
+    final max = _scrollController.position.maxScrollExtent;
+    final current = _scrollController.position.pixels;
+    return (max - current) < 120;
   }
 
   void _sendMessage() async {
@@ -94,7 +100,7 @@ class _CustomerChatConversationScreenState
         });
       });
       _messageController.clear();
-      _scrollToBottom();
+      if (_isNearBottom()) _scrollToBottom();
       return;
     }
 
@@ -104,7 +110,7 @@ class _CustomerChatConversationScreenState
       text: text,
       otherUid: widget.otherUid,
     );
-    _scrollToBottom();
+    if (_isNearBottom()) _scrollToBottom();
   }
 
   Future<void> _pickImage() async {
@@ -143,17 +149,29 @@ class _CustomerChatConversationScreenState
         ),
       );
 
-      final url = await _chat.uploadAttachment(file, widget.threadId);
+      if (widget.threadId.startsWith('mock_')) {
+        setState(() {
+          _mockMessages.add({
+            'senderId': 'me',
+            'text': (type == 'image') ? "Photo" : "Document",
+            'type': type,
+            'fileUrl': file.path,
+            'fileName': fileName,
+            'createdAt': DateTime.now().millisecondsSinceEpoch,
+          });
+        });
+      } else {
+        final url = await _chat.uploadAttachment(file, widget.threadId);
+        await _chat.sendAttachmentMessage(
+          threadId: widget.threadId,
+          otherUid: widget.otherUid,
+          fileUrl: url,
+          type: type,
+          fileName: fileName,
+        );
+      }
 
-      await _chat.sendAttachmentMessage(
-        threadId: widget.threadId,
-        otherUid: widget.otherUid,
-        fileUrl: url,
-        type: type,
-        fileName: fileName,
-      );
-
-      _scrollToBottom();
+      if (_isNearBottom()) _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -240,7 +258,9 @@ class _CustomerChatConversationScreenState
         return _buildMessageBubble({
           'text': m['text'],
           'isMine': isMe,
-          'type': 'text',
+          'type': (m['type'] ?? 'text').toString(),
+          'fileUrl': m['fileUrl']?.toString(),
+          'fileName': m['fileName']?.toString(),
           'timestamp': '',
           'isRead': true,
         });
@@ -279,7 +299,7 @@ class _CustomerChatConversationScreenState
           return toInt(a['createdAt']).compareTo(toInt(b['createdAt']));
         });
 
-        _scrollToBottom();
+        if (_isNearBottom()) _scrollToBottom();
 
         return ListView.builder(
           controller: _scrollController,
@@ -434,28 +454,38 @@ class _CustomerChatConversationScreenState
     final String type = message['type'] ?? 'text';
 
     if (type == 'image') {
+      final fileUrl = message['fileUrl']?.toString() ?? '';
+      final isLocal = fileUrl.isNotEmpty && !fileUrl.startsWith('http');
+
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              message['fileUrl'],
-              width: 200,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return const SizedBox(
-                  width: 200,
-                  height: 200,
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.error),
-            ),
+            child: isLocal
+                ? Image.file(
+                    File(fileUrl),
+                    width: 200,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.error),
+                  )
+                : Image.network(
+                    fileUrl,
+                    width: 200,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const SizedBox(
+                        width: 200,
+                        height: 200,
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.error),
+                  ),
           ),
           if ((message['text'] ?? '').isNotEmpty &&
-              message['text'] != '📷 Photo')
+              message['text'] != 'Photo')
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(

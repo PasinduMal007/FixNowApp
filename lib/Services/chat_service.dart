@@ -260,7 +260,7 @@ class ChatService {
     final messageId = msgRef.key;
     if (messageId == null) throw Exception('Failed to create message id');
 
-    final displayLabel = (type == 'image') ? "📷 Photo" : "📄 Document";
+    final displayLabel = (type == 'image') ? "Photo" : "Document";
 
     await msgRef.set({
       'senderId': me,
@@ -290,18 +290,24 @@ class ChatService {
       'lastMessageText': lastText,
     });
 
-    // Ensure both users have this thread in their list
+    // Ensure current user has this thread in their list
     await _userThreadsRef.child(me).child(threadId).set(true);
-    await _userThreadsRef.child(other).child(threadId).set(true);
 
-    // Sender unread is always 0
+    // Sender unread is always 0 (safe for own uid)
     await _threadUnreadRef.child(me).child(threadId).set(0);
 
-    // Receiver unread increments
-    await _threadUnreadRef.child(other).child(threadId).runTransaction((curr) {
-      final n = (curr is int) ? curr : int.tryParse('$curr') ?? 0;
-      return Transaction.success(n + 1);
-    });
+    // Best-effort: receiver updates are handled by Cloud Function.
+    // Avoid throwing permission-denied if client rules block cross-user writes.
+    try {
+      await _userThreadsRef.child(other).child(threadId).set(true);
+    } catch (_) {}
+
+    try {
+      await _threadUnreadRef.child(other).child(threadId).runTransaction((curr) {
+        final n = (curr is int) ? curr : int.tryParse('$curr') ?? 0;
+        return Transaction.success(n + 1);
+      });
+    } catch (_) {}
   }
 
   /// Uploads a file to Firebase Storage and returns the download URL

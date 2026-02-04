@@ -342,6 +342,33 @@ class _CustomerMessagesScreenState extends State<CustomerMessagesScreen> {
                         ),
                     ],
                   ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: hasUnread
+                              ? const Color(0xFFFFE4E6)
+                              : const Color(0xFFF3F4F6),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          hasUnread ? 'Unread' : 'Read',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: hasUnread
+                                ? const Color(0xFFEF4444)
+                                : const Color(0xFF9CA3AF),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

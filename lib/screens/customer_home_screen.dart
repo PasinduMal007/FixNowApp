@@ -92,8 +92,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
         final status = (b['status'] ?? '').toString();
 
-        // Include both 'invoice_sent' (Quotation Ready) and 'started' (In Progress)
-        if (status != 'invoice_sent' && status != 'started') return;
+        // Include 'invoice_sent' (Quotation Ready), 'started' (In Progress),
+        // and 'quote_accepted' (Quotation Accepted)
+        if (status != 'invoice_sent' &&
+            status != 'started' &&
+            status != 'quote_accepted') {
+          return;
+        }
 
         b['id'] = bookingId.toString();
         b['updatedAt'] = _asInt(b['updatedAt']);
