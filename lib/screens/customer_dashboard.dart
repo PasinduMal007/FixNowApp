@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/customer_profile_service.dart';
 import 'package:flutter/material.dart';
 import 'customer_home_screen.dart';
@@ -22,6 +26,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   late List<Widget> _screens;
 
+  StreamSubscription<DatabaseEvent>? _unreadSub;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +47,13 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       ),
     ];
     _loadName();
+    _listenUnreadBadge();
+  }
+
+  @override
+  void dispose() {
+    _unreadSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadName() async {
@@ -62,6 +75,46 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
         _loadingName = false;
       });
     }
+  }
+
+  void _listenUnreadBadge() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final ref = FirebaseDatabase.instance.ref('threadUnread/$uid');
+
+    _unreadSub = ref.onValue.listen(
+      (event) {
+        final v = event.snapshot.value;
+
+        int total = 0;
+
+        if (v is Map) {
+          final m = Map<dynamic, dynamic>.from(v as Map);
+          for (final entry in m.entries) {
+            final val = entry.value;
+            if (val is int) {
+              total += val;
+            } else if (val is num) {
+              total += val.toInt();
+            } else if (val is String) {
+              total += int.tryParse(val) ?? 0;
+            }
+          }
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _unreadMessages = total;
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _unreadMessages = 0;
+        });
+      },
+    );
   }
 
   @override

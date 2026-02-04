@@ -119,15 +119,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       final all = Map<dynamic, dynamic>.from(raw as Map);
       final List<Map<String, dynamic>> active = [];
 
-      print('=== DEBUG: Found ${all.length} total bookings for customer ===');
-
       all.forEach((bookingId, value) {
         if (value is! Map) return;
 
         final b = Map<String, dynamic>.from(value as Map);
 
         final status = (b['status'] ?? '').toString();
-        print('Booking $bookingId: status = $status');
 
         // Include both 'invoice_sent' (Quotation Ready) and 'started' (In Progress)
         if (status != 'invoice_sent' && status != 'started') return;
@@ -136,10 +133,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         b['updatedAt'] = _asInt(b['updatedAt']);
         active.add(b);
       });
-
-      print(
-        '=== DEBUG: Found ${active.length} active bookings (invoice_sent or started) ===',
-      );
 
       // --- DEMO MODE: Injecting a fake 'started' booking to visualize the card ---
       /*
@@ -271,45 +264,77 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                           ),
                         ),
 
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const CustomerNotificationsScreen(),
+                        StreamBuilder<DatabaseEvent>(
+                          stream: DB.instance
+                              .ref('notifications')
+                              .child(FirebaseAuth.instance.currentUser!.uid)
+                              .onValue,
+                          builder: (context, snapshot) {
+                            bool hasUnread = false;
+
+                            if (snapshot.hasData &&
+                                snapshot.data!.snapshot.value != null) {
+                              final raw = snapshot.data!.snapshot.value;
+
+                              if (raw is Map) {
+                                final map = Map<dynamic, dynamic>.from(raw);
+
+                                for (final n in map.values) {
+                                  if (n is Map) {
+                                    final isRead = n['isRead'];
+                                    if (isRead != true &&
+                                        isRead.toString() != 'true') {
+                                      hasUnread = true;
+                                      break;
+                                    }
+                                  }
+                                }
+                              }
+                            }
+
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const CustomerNotificationsScreen(),
+                                  ),
+                                );
+                              },
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.notifications_outlined,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+
+                                  if (hasUnread)
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFFEF4444),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             );
                           },
-                          child: Stack(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.notifications_outlined,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFEF4444),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
                       ],
                     ),

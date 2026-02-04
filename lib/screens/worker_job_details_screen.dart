@@ -78,7 +78,7 @@ class _WorkerJobDetailsScreenState extends State<WorkerJobDetailsScreen> {
                 .toString();
 
         final serviceName = _pickFirstNonEmpty([
-          (booking['serviceName'] ?? '').toString(),
+          (quotationRequest['requestNote'] ?? '').toString(),
           (booking['serviceType'] ?? '').toString(),
           (booking['service'] ?? '').toString(),
           (quotationRequest['serviceName'] ?? '').toString(),

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/worker_profile_service.dart';
 import 'package:flutter/material.dart';
 import 'worker_home_screen.dart';
@@ -14,10 +17,12 @@ class WorkerDashboard extends StatefulWidget {
 
 class _WorkerDashboardState extends State<WorkerDashboard> {
   int _currentIndex = 0;
-  final int _unreadMessages = 3;
+  int _unreadMessages = 0;
 
   String _workerName = "Worker";
   bool _loadingName = true;
+
+  StreamSubscription<DatabaseEvent>? _unreadSub;
 
   List<Widget> get _screens => [
     WorkerHomeScreen(workerName: _workerName, unreadMessages: _unreadMessages),
@@ -36,6 +41,13 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
   void initState() {
     super.initState();
     _loadName();
+    _listenUnreadBadge();
+  }
+
+  @override
+  void dispose() {
+    _unreadSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadName() async {
@@ -45,13 +57,53 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
 
       if (!mounted) return;
       setState(() {
-        _workerName = name;
+        _workerName = name.isNotEmpty ? name : 'Worker';
         _loadingName = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadingName = false);
     }
+  }
+
+  void _listenUnreadBadge() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final ref = FirebaseDatabase.instance.ref('threadUnread/$uid');
+
+    _unreadSub = ref.onValue.listen(
+      (event) {
+        final v = event.snapshot.value;
+
+        int total = 0;
+
+        if (v is Map) {
+          final m = Map<dynamic, dynamic>.from(v as Map);
+          for (final entry in m.entries) {
+            final val = entry.value;
+            if (val is int) {
+              total += val;
+            } else if (val is num) {
+              total += val.toInt();
+            } else if (val is String) {
+              total += int.tryParse(val) ?? 0;
+            }
+          }
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _unreadMessages = total;
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _unreadMessages = 0;
+        });
+      },
+    );
   }
 
   @override
@@ -83,7 +135,7 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
                     _buildNavItem(Icons.calendar_today, 'Bookings', 1),
                     _buildNavItem(
                       Icons.chat_bubble_outline,
-                      'Chat',
+                      'Messages',
                       2,
                       badge: _unreadMessages,
                     ),
