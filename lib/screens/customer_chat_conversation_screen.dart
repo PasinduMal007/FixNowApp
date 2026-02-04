@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:fix_now_app/Services/chat_service.dart';
 
 class CustomerChatConversationScreen extends StatefulWidget {
@@ -104,6 +107,62 @@ class _CustomerChatConversationScreenState
     _scrollToBottom();
   }
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    File file = File(pickedFile.path);
+    _sendAttachment(file, 'image');
+  }
+
+  Future<void> _pickDocument() async {
+    const allowedExtensions = ['pdf', 'doc', 'docx', 'txt'];
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: allowedExtensions,
+    );
+
+    if (result == null || result.files.single.path == null) return;
+
+    File file = File(result.files.single.path!);
+    _sendAttachment(file, 'file', fileName: result.files.single.name);
+  }
+
+  Future<void> _sendAttachment(
+    File file,
+    String type, {
+    String? fileName,
+  }) async {
+    try {
+      // Show "uploading..." state or a simple snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sending ${type}...'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+
+      final url = await _chat.uploadAttachment(file, widget.threadId);
+
+      await _chat.sendAttachmentMessage(
+        threadId: widget.threadId,
+        otherUid: widget.otherUid,
+        fileUrl: url,
+        type: type,
+        fileName: fileName,
+      );
+
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error sending attachment: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final myUid = FirebaseAuth.instance.currentUser?.uid;
@@ -181,6 +240,7 @@ class _CustomerChatConversationScreenState
         return _buildMessageBubble({
           'text': m['text'],
           'isMine': isMe,
+          'type': 'text',
           'timestamp': '',
           'isRead': true,
         });
@@ -224,6 +284,9 @@ class _CustomerChatConversationScreenState
             return _buildMessageBubble({
               'text': (m['text'] ?? '').toString(),
               'isMine': isMine,
+              'type': (m['type'] ?? 'text').toString(),
+              'fileUrl': m['fileUrl']?.toString(),
+              'fileName': m['fileName']?.toString(),
               'timestamp': '',
               'isRead': true,
             });
@@ -249,11 +312,28 @@ class _CustomerChatConversationScreenState
       child: SafeArea(
         child: Row(
           children: [
+            IconButton(
+              icon: const Icon(
+                Icons.photo_library_outlined,
+                color: Color(0xFF6B7280),
+                size: 22,
+              ),
+              onPressed: _pickImage,
+            ),
+            IconButton(
+              icon: const Icon(
+                Icons.attach_file,
+                color: Color(0xFF6B7280),
+                size: 22,
+              ),
+              onPressed: _pickDocument,
+            ),
+            const SizedBox(width: 4),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 8,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF3F4F6),
@@ -333,17 +413,86 @@ class _CustomerChatConversationScreenState
                   ),
                 ],
               ),
+              child: _buildMessageContent(message),
+            ),
+          ),
+          if (isMine) const SizedBox(width: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageContent(Map<String, dynamic> message) {
+    final bool isMine = message['isMine'] ?? false;
+    final String type = message['type'] ?? 'text';
+
+    if (type == 'image') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              message['fileUrl'],
+              width: 200,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return const SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.error),
+            ),
+          ),
+          if ((message['text'] ?? '').isNotEmpty &&
+              message['text'] != '📷 Photo')
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
-                message['text'] ?? '',
+                message['text'],
                 style: TextStyle(
                   color: isMine ? Colors.white : const Color(0xFF1F2937),
                   fontSize: 14,
                 ),
               ),
             ),
-          ),
-          if (isMine) const SizedBox(width: 40),
         ],
+      );
+    }
+
+    if (type == 'file') {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.insert_drive_file,
+            color: isMine ? Colors.white70 : const Color(0xFF4A7FFF),
+            size: 24,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              message['fileName'] ?? 'Document',
+              style: TextStyle(
+                color: isMine ? Colors.white : const Color(0xFF1F2937),
+                fontSize: 14,
+                decoration: TextDecoration.underline,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Text(
+      message['text'] ?? '',
+      style: TextStyle(
+        color: isMine ? Colors.white : const Color(0xFF1F2937),
+        fontSize: 14,
       ),
     );
   }

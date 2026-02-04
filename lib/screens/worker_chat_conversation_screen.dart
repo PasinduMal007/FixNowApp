@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:fix_now_app/Services/chat_service.dart';
 
 class WorkerChatConversationScreen extends StatefulWidget {
@@ -121,6 +124,75 @@ class _WorkerChatConversationScreenState
 
     if (!mounted) return;
     _scrollToBottom(animated: true);
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    File file = File(pickedFile.path);
+    _sendAttachment(file, 'image');
+  }
+
+  Future<void> _pickDocument() async {
+    const allowedExtensions = ['pdf', 'doc', 'docx', 'txt'];
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: allowedExtensions,
+    );
+
+    if (result == null || result.files.single.path == null) return;
+
+    File file = File(result.files.single.path!);
+    _sendAttachment(file, 'file', fileName: result.files.single.name);
+  }
+
+  Future<void> _sendAttachment(
+    File file,
+    String type, {
+    String? fileName,
+  }) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sending ${type}...'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+
+      final url = await _chat.uploadAttachment(file, threadId);
+
+      if (useMock) {
+        setState(() {
+          _mockMessages.add({
+            'id': DateTime.now().millisecondsSinceEpoch.toString(),
+            'senderId': FirebaseAuth.instance.currentUser?.uid,
+            'text': (type == 'image') ? "📷 Photo" : "📄 Document",
+            'type': type,
+            'fileUrl': url,
+            'fileName': fileName,
+            'createdAt': DateTime.now().millisecondsSinceEpoch,
+          });
+        });
+      } else {
+        await _chat.sendAttachmentMessage(
+          threadId: threadId,
+          otherUid: otherUid,
+          fileUrl: url,
+          type: type,
+          fileName: fileName,
+        );
+      }
+
+      _scrollToBottom(animated: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error sending attachment: $e')));
+      }
+    }
   }
 
   void _scrollToBottom({required bool animated}) {
@@ -244,33 +316,7 @@ class _WorkerChatConversationScreenState
                         ],
                       ),
                     ),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.phone,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
                     const SizedBox(width: 8),
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.more_vert,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -335,8 +381,10 @@ class _WorkerChatConversationScreenState
                                 return _buildMessageBubble(
                                   text: (message['text'] ?? '').toString(),
                                   isSent: isMine,
-                                  timestamp:
-                                      '', // format createdAt later if you want
+                                  type: (message['type'] ?? 'text').toString(),
+                                  fileUrl: message['fileUrl']?.toString(),
+                                  fileName: message['fileName']?.toString(),
+                                  timestamp: '',
                                 );
                               },
                             );
@@ -362,31 +410,37 @@ class _WorkerChatConversationScreenState
                   top: false,
                   child: Row(
                     children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.attach_file,
-                          color: Color(0xFF6B7280),
-                          size: 20,
+                      GestureDetector(
+                        onTap: _pickDocument,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.attach_file,
+                            color: Color(0xFF6B7280),
+                            size: 20,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.image_outlined,
-                          color: Color(0xFF6B7280),
-                          size: 20,
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.image_outlined,
+                            color: Color(0xFF6B7280),
+                            size: 20,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -463,6 +517,9 @@ class _WorkerChatConversationScreenState
         return _buildMessageBubble(
           text: (message['text'] ?? '').toString(),
           isSent: isMine,
+          type: (message['type'] ?? 'text').toString(),
+          fileUrl: message['fileUrl']?.toString(),
+          fileName: message['fileName']?.toString(),
           timestamp: 'Mock Time',
         );
       },
@@ -473,6 +530,9 @@ class _WorkerChatConversationScreenState
     required String text,
     required bool isSent,
     required String timestamp,
+    String type = 'text',
+    String? fileUrl,
+    String? fileName,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -519,12 +579,12 @@ class _WorkerChatConversationScreenState
                       bottomRight: Radius.circular(isSent ? 4 : 16),
                     ),
                   ),
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isSent ? Colors.white : const Color(0xFF1F2937),
-                    ),
+                  child: _buildMessageContent(
+                    text: text,
+                    isSent: isSent,
+                    type: type,
+                    fileUrl: fileUrl,
+                    fileName: fileName,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -539,6 +599,83 @@ class _WorkerChatConversationScreenState
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMessageContent({
+    required String text,
+    required bool isSent,
+    required String type,
+    String? fileUrl,
+    String? fileName,
+  }) {
+    if (type == 'image' && fileUrl != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              fileUrl,
+              width: 200,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return const SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.error),
+            ),
+          ),
+          if (text.isNotEmpty && text != '📷 Photo')
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isSent ? Colors.white : const Color(0xFF1F2937),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
+    if (type == 'file') {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.insert_drive_file,
+            color: isSent ? Colors.white70 : const Color(0xFF4A7FFF),
+            size: 24,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              fileName ?? 'Document',
+              style: TextStyle(
+                fontSize: 14,
+                color: isSent ? Colors.white : const Color(0xFF1F2937),
+                decoration: TextDecoration.underline,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 14,
+        color: isSent ? Colors.white : const Color(0xFF1F2937),
       ),
     );
   }

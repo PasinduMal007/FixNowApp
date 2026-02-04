@@ -42,6 +42,7 @@ dependencies:
   payhere_mobilesdk_flutter: ^3.2.2
   flutter_animate: ^4.5.0
   image_picker: ^1.2.1
+  file_picker: ^8.0.0
   google_maps_flutter: ^2.5.0
   geolocator: ^10.1.0
   flutter_polyline_points: ^2.0.0

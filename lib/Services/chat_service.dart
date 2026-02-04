@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:fix_now_app/Services/db.dart';
 
 class InboxThread {
@@ -28,10 +30,15 @@ class InboxThread {
 class ChatService {
   final FirebaseAuth _auth;
   final FirebaseDatabase _db;
+  final FirebaseStorage _storage;
 
-  ChatService({FirebaseAuth? auth, FirebaseDatabase? db})
-    : _auth = auth ?? FirebaseAuth.instance,
-      _db = db ?? DB.instance;
+  ChatService({
+    FirebaseAuth? auth,
+    FirebaseDatabase? db,
+    FirebaseStorage? storage,
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _db = db ?? DB.instance,
+       _storage = storage ?? FirebaseStorage.instance;
 
   String get _uid {
     final u = _auth.currentUser;
@@ -80,7 +87,7 @@ class ChatService {
     required String myName,
   }) async {
     final me = _uid;
-    final other = otherUid.trim(); 
+    final other = otherUid.trim();
     if (other.isEmpty) throw Exception('Missing otherUid');
 
     final threadId = _threadIdForPair(me, other);
@@ -229,13 +236,61 @@ class ChatService {
       'type': 'text',
     });
 
-    // Update thread last message fields (required by validate)
-    await threadRef.update({
-      'lastMessageAt': ServerValue.timestamp,
-      'lastMessageText': msg,
+    await _afterMessageSent(threadId, otherUid, msg);
+  }
+
+  /// Specialized logic for photo/document attachments
+  Future<void> sendAttachmentMessage({
+    required String threadId,
+    required String otherUid,
+    required String fileUrl,
+    required String type, // 'image' or 'file'
+    String? fileName,
+  }) async {
+    final me = _uid;
+    final other = otherUid.trim();
+
+    final threadRef = _threadsRef.child(threadId);
+    final threadSnap = await threadRef.get();
+    if (!threadSnap.exists) throw Exception('Thread not found');
+
+    await _ensureThreadMessagesNodeIsMap(threadId);
+
+    final msgRef = _msgsRef.child(threadId).push();
+    final messageId = msgRef.key;
+    if (messageId == null) throw Exception('Failed to create message id');
+
+    final displayLabel = (type == 'image') ? "📷 Photo" : "📄 Document";
+
+    await msgRef.set({
+      'senderId': me,
+      'fileUrl': fileUrl,
+      'fileName': fileName,
+      'createdAt': ServerValue.timestamp,
+      'type': type,
+      'text': displayLabel, // fallback for inbox preview
     });
 
-    // Ensure both users have this thread in their list (boolean true)
+    await _afterMessageSent(threadId, other, displayLabel);
+  }
+
+  /// Common logic after sending ANY message (text or attachment)
+  Future<void> _afterMessageSent(
+    String threadId,
+    String otherUid,
+    String lastText,
+  ) async {
+    final me = _uid;
+    final other = otherUid.trim();
+    final threadRef = _threadsRef.child(threadId);
+
+    // Update thread last message fields
+    await threadRef.update({
+      'lastMessageAt': ServerValue.timestamp,
+      'lastMessageText': lastText,
+    });
+
+    // Ensure both users have this thread in their list
     await _userThreadsRef.child(me).child(threadId).set(true);
     await _userThreadsRef.child(other).child(threadId).set(true);
 
@@ -247,6 +302,19 @@ class ChatService {
       final n = (curr is int) ? curr : int.tryParse('$curr') ?? 0;
       return Transaction.success(n + 1);
     });
+  }
+
+  /// Uploads a file to Firebase Storage and returns the download URL
+  Future<String> uploadAttachment(File file, String folder) async {
+    final fileName =
+        '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+    final ref = _storage
+        .ref()
+        .child('chat_attachments')
+        .child(folder)
+        .child(fileName);
+    final uploadTask = await ref.putFile(file);
+    return await uploadTask.ref.getDownloadURL();
   }
 
   /// When opening a conversation, mark unread as 0 for current user
