@@ -27,6 +27,7 @@ class WorkerHomeScreen extends StatefulWidget {
 
 class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   bool _isAvailable = true;
+  bool _availabilitySaving = false;
 
   static const Set<String> _newRequestStatuses = {'pending', 'quote_requested'};
   static const Set<String> _activeStatuses = {'confirmed'};
@@ -39,6 +40,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
 
   StreamSubscription? _bookingsSubscription;
   StreamSubscription? _reviewsSubscription;
+  StreamSubscription? _availabilitySubscription;
 
   String get _workerId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
@@ -61,13 +63,64 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   void initState() {
     super.initState();
     _setupDashboardListeners();
+    _startAvailabilityListener();
   }
 
   @override
   void dispose() {
     _bookingsSubscription?.cancel();
     _reviewsSubscription?.cancel();
+    _availabilitySubscription?.cancel();
     super.dispose();
+  }
+
+  void _startAvailabilityListener() {
+    final uid = _workerId;
+    if (uid.isEmpty) return;
+
+    _availabilitySubscription = DB.instance
+        .ref('users/workers/$uid/isAvailable')
+        .onValue
+        .listen((event) {
+      final raw = event.snapshot.value;
+      final isAvailable = raw is bool
+          ? raw
+          : (raw is String ? raw.toLowerCase() == 'true' : false);
+
+      if (mounted) {
+        setState(() => _isAvailable = isAvailable);
+      }
+    });
+  }
+
+  Future<void> _updateAvailability(bool value) async {
+    final uid = _workerId;
+    if (uid.isEmpty) return;
+    if (_availabilitySaving) return;
+
+    setState(() => _availabilitySaving = true);
+
+    try {
+      final updates = <String, Object?>{
+        'users/workers/$uid/isAvailable': value,
+        'users/workers/$uid/updatedAt': ServerValue.timestamp,
+        'workersPublic/$uid/isAvailable': value,
+        'workersPublic/$uid/updatedAt': ServerValue.timestamp,
+      };
+
+      await DB.instance.ref().update(updates);
+
+      if (mounted) {
+        setState(() => _isAvailable = value);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update availability: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _availabilitySaving = false);
+    }
   }
 
   void _setupDashboardListeners() {
@@ -714,9 +767,9 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                 ),
                               ),
                               GestureDetector(
-                                onTap: () => setState(
-                                  () => _isAvailable = !_isAvailable,
-                                ),
+                                onTap: _availabilitySaving
+                                    ? null
+                                    : () => _updateAvailability(!_isAvailable),
                                 child: Container(
                                   width: 56,
                                   height: 32,

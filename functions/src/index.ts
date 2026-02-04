@@ -472,6 +472,39 @@ function md5Hex(s: string) {
   return crypto.createHash("md5").update(s, "utf8").digest("hex");
 }
 
+function normalizeMerchantSecret(rawSecret: string): {
+  used: string;
+  mode: "plain" | "base64";
+} {
+  const trimmed = (rawSecret ?? "").toString().trim();
+  if (!trimmed) {
+    return {used: "", mode: "plain"};
+  }
+
+  // Heuristic: if it looks like base64 and decodes to mostly-printable text,
+  // treat it as base64. Otherwise, use as-is.
+  const looksBase64 =
+    /^[A-Za-z0-9+/=]+$/.test(trimmed) && trimmed.length % 4 === 0;
+
+  if (looksBase64) {
+    try {
+      const decoded = Buffer.from(trimmed, "base64").toString("utf8").trim();
+      if (decoded.length >= 6) {
+        const printable = decoded.replace(/[ -~]/g, "").length;
+        const printableRatio =
+          decoded.length === 0 ? 0 : (decoded.length - printable) / decoded.length;
+        if (printableRatio > 0.9) {
+          return {used: decoded, mode: "base64"};
+        }
+      }
+    } catch {
+      // fall through to plain
+    }
+  }
+
+  return {used: trimmed, mode: "plain"};
+}
+
 app.post("/payhere/notify", async (req: Request, res: Response) => {
   try {
     const body = (req.body ?? {}) as Record<string, any>;
@@ -486,8 +519,10 @@ app.post("/payhere/notify", async (req: Request, res: Response) => {
 
     if (!orderId) return res.status(400).send("Missing order_id");
 
-    const merchantSecret = PAYHERE_MERCHANT_SECRET.value();
-    if (!merchantSecret) return res.status(500).send("Secret missing");
+    const rawSecret = PAYHERE_MERCHANT_SECRET.value();
+    if (!rawSecret) return res.status(500).send("Secret missing");
+    const {used: merchantSecret, mode} = normalizeMerchantSecret(rawSecret);
+    if (!merchantSecret) return res.status(500).send("Secret invalid");
 
     // Verify signature
     const secretHash = md5Hex(merchantSecret);
@@ -498,7 +533,7 @@ app.post("/payhere/notify", async (req: Request, res: Response) => {
         payhereCurrency +
         statusCode +
         secretHash,
-    );
+    ).toUpperCase();
 
     const isValid = localSig === md5sig;
     const isSuccess = statusCode === "2";
@@ -509,6 +544,7 @@ app.post("/payhere/notify", async (req: Request, res: Response) => {
     await bookingRef.child("payhereNotifies").push({
       receivedAt: admin.database.ServerValue.TIMESTAMP,
       isValid,
+      secretMode: mode,
       merchant_id: merchantId,
       order_id: orderId,
       payment_id: paymentId,
@@ -603,17 +639,23 @@ function payhereCheckoutHash(params: {
   currency: string; // "LKR"
   merchantSecret: string;
 }): string {
-  const decodedSecret = Buffer.from(params.merchantSecret, "base64").toString(
-    "utf8",
+  const merchantId = params.merchantId.trim();
+  const orderId = params.orderId.trim();
+  const amount = params.amount.trim();
+  const currency = params.currency.trim();
+
+  const {used: merchantSecret, mode} = normalizeMerchantSecret(
+    params.merchantSecret,
   );
-  const secretHash = md5Hex(decodedSecret).toUpperCase();
-  const preHash = `${params.merchantId}${params.orderId}${params.amount}${params.currency}${secretHash}`;
+  const secretHash = md5Hex(merchantSecret).toUpperCase();
+  const preHash = `${merchantId}${orderId}${amount}${currency}${secretHash}`;
 
   console.log("PayHere Hash Debug (masked):", {
-    merchantId: params.merchantId.trim(),
-    orderId: params.orderId.trim(),
-    amount: params.amount.trim(),
-    currency: params.currency.trim(),
+    merchantId,
+    orderId,
+    amount,
+    currency,
+    secretMode: mode,
     secretHashMasked: secretHash.substring(0, 4) + "...",
     fullPreHashMasked: preHash.substring(0, 10) + "...",
   });
@@ -703,9 +745,15 @@ app.post(
         return;
       }
 
-      const merchantSecret = PAYHERE_MERCHANT_SECRET.value();
-      if (!merchantSecret) {
+      const rawSecret = PAYHERE_MERCHANT_SECRET.value();
+      if (!rawSecret) {
         res.status(500).json({ok: false, message: "Secret missing"});
+        return;
+      }
+      const {used: merchantSecret, mode: secretMode} =
+        normalizeMerchantSecret(rawSecret);
+      if (!merchantSecret) {
+        res.status(500).json({ok: false, message: "Secret invalid"});
         return;
       }
 
@@ -739,6 +787,7 @@ app.post(
 
       console.log("Merchant ID:", merchantId);
       console.log("Secret length:", merchantSecret.length);
+      console.log("Secret mode:", secretMode);
 
       console.log("PayHere Checkout Start Payload:", {
         bookingId,
@@ -771,7 +820,6 @@ app.post(
 
       // Build payload the app will post to PayHere checkout
       const payherePayload = {
-        sandbox: true, // set false for live
         checkoutUrl: "https://sandbox.payhere.lk/pay/checkout",
 
         merchant_id: merchantId,

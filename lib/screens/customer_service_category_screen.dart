@@ -115,6 +115,9 @@ class _CustomerServiceCategoryScreenState
   List<Map<String, dynamic>> _applyFilterSort(List<Map<String, dynamic>> list) {
     var out = List<Map<String, dynamic>>.from(list);
 
+    // Only show available workers
+    out = out.where((w) => w['isAvailable'] == true).toList();
+
     // Filter by Profession == categoryName
     out = out.where((w) {
       final type = (w['type'] ?? '').toString().toLowerCase();
