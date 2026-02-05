@@ -32,27 +32,49 @@ class _WorkerPaymentDetailsScreenState
   }
 
   Future<void> _loadCustomerData() async {
-    try {
-      final ref = FirebaseDatabase.instance.ref('users/${widget.customerId}');
-      final snapshot = await ref.get();
+    debugPrint(
+      'DEBUG: _loadCustomerData started for id: "${widget.customerId}"',
+    );
 
-      if (snapshot.exists) {
-        final data = snapshot.value as Map?;
+    if (widget.customerId.isEmpty) {
+      if (mounted) {
         setState(() {
-          _customerName = data?['name']?.toString() ?? 'Unknown Customer';
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _customerName = 'Unknown Customer';
+          _customerName = 'Unknown (No ID)';
           _isLoading = false;
         });
       }
+      return;
+    }
+
+    try {
+      final ref = FirebaseDatabase.instance.ref('users/${widget.customerId}');
+      final snapshot = await ref.get();
+      debugPrint('DEBUG: Snapshot exists: ${snapshot.exists}');
+
+      if (snapshot.exists) {
+        final data = snapshot.value as Map?;
+        if (mounted) {
+          setState(() {
+            _customerName = data?['name']?.toString() ?? 'Unknown Customer';
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _customerName = 'Unknown Customer';
+            _isLoading = false;
+          });
+        }
+      }
     } catch (e) {
-      setState(() {
-        _customerName = 'Error loading name';
-        _isLoading = false;
-      });
+      debugPrint('DEBUG: Error fetching customer: $e');
+      if (mounted) {
+        setState(() {
+          _customerName = 'Error loading name';
+          _isLoading = false;
+        });
+      }
     }
   }
 

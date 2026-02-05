@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
+import 'package:fix_now_app/Services/chat_service.dart';
 
 class WorkerHomeScreen extends StatefulWidget {
   final String workerName;
@@ -82,15 +83,15 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
         .ref('users/workers/$uid/isAvailable')
         .onValue
         .listen((event) {
-      final raw = event.snapshot.value;
-      final isAvailable = raw is bool
-          ? raw
-          : (raw is String ? raw.toLowerCase() == 'true' : false);
+          final raw = event.snapshot.value;
+          final isAvailable = raw is bool
+              ? raw
+              : (raw is String ? raw.toLowerCase() == 'true' : false);
 
-      if (mounted) {
-        setState(() => _isAvailable = isAvailable);
-      }
-    });
+          if (mounted) {
+            setState(() => _isAvailable = isAvailable);
+          }
+        });
   }
 
   Future<void> _updateAvailability(bool value) async {
@@ -568,21 +569,37 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
 
   // Fetch confirmed booking for the card
   Future<Map<String, dynamic>> _fetchConfirmedBooking() async {
-    // For now, return demo data. Later, fetch from Firebase bookings with status 'confirmed'
-    // TODO: Query Firebase for bookings where status == 'confirmed' for this worker
+    final uid = _workerId;
+    if (uid.isEmpty) return {};
 
-    // Simulate delay
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      // 1. Get all booking IDs from userBookings
+      final snap = await DB.ref().child('userBookings/workers/$uid').get();
+      if (!snap.exists || snap.value == null) return {};
 
-    return {
-      'bookingId': 'BK001',
-      'customerId': 'CUST12345',
-      'customerName': 'Chethiya Fernando',
-      'serviceType': 'Electrical Repair',
-      'location': 'Colombo 03, Sri Lanka',
-      'quotedAmount': 3500.0,
-      'advanceAmount': 700.0, // 20% of 3500
-    };
+      final raw = snap.value;
+      if (raw is! Map) return {};
+
+      final ids = raw.keys.map((k) => k.toString()).toList();
+
+      // 2. Fetch full booking details
+      final bookings = await _fetchBookingsForIds(ids);
+
+      // 3. Find latest confirmed/active booking
+      final active = bookings.where((b) {
+        final s = (b['status'] ?? '').toString();
+        // Statuses that should show in "Booking Confirmed" card
+        return s == 'confirmed' || s == 'started' || s == 'invoice_sent';
+      }).toList();
+
+      if (active.isEmpty) return {};
+
+      // Return the newest one (bookings are already sorted by _fetchBookingsForIds)
+      return active.first;
+    } catch (e) {
+      debugPrint('Error fetching confirmed booking: $e');
+      return {};
+    }
   }
 
   @override
@@ -947,7 +964,9 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                 booking['serviceType'] ?? 'Service';
                             final location = booking['location'] ?? 'Location';
                             final quotedAmount =
-                                booking['quotedAmount'] ?? 3500.0;
+                                (booking['quotedAmount'] is num)
+                                ? (booking['quotedAmount'] as num).toDouble()
+                                : 3500.0;
                             final customerId = booking['customerId'] ?? '';
                             final bookingId = booking['bookingId'] ?? '';
 
@@ -1126,14 +1145,33 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                                           ),
                                         ),
                                         child: IconButton(
-                                          onPressed: () {
+                                          onPressed: () async {
+                                            final chatService = ChatService();
+                                            final myUid = FirebaseAuth
+                                                .instance
+                                                .currentUser
+                                                ?.uid;
+                                            if (myUid == null) return;
+
+                                            // Create or get real thread
+                                            final threadId = await chatService
+                                                .createOrGetThread(
+                                                  otherUid: customerId
+                                                      .toString(),
+                                                  myRole: 'worker',
+                                                  otherRole: 'customer',
+                                                  otherName: customerName,
+                                                  myName: widget.workerName,
+                                                );
+
+                                            if (!context.mounted) return;
+
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) =>
                                                     WorkerChatConversationScreen(
-                                                      threadId:
-                                                          'mock_$customerId',
+                                                      threadId: threadId,
                                                       otherUid: customerId
                                                           .toString(),
                                                       otherName: customerName,
