@@ -919,11 +919,6 @@ export const createBookingRequest = onCall(
       throw new HttpsError("not-found", "Worker not found.");
     }
 
-    const adminSnap = await db.ref(`users/admin/${workerId}`).get();
-    if (!adminSnap.exists()) {
-      throw new HttpsError("not-found", "Admin not found.");
-    }
-
     const bookingRef = db.ref("bookings").push();
     const bookingId = bookingRef.key;
     if (!bookingId) {

@@ -1239,18 +1239,38 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             ),
             const SizedBox(height: 4),
             IconButton(
-              onPressed: () {
-                final workerId = worker['uid'] ?? worker['id'];
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CustomerChatConversationScreen(
-                      threadId: 'mock_$workerId',
-                      otherUid: workerId.toString(),
-                      otherName: worker['name'] ?? 'Worker',
+              onPressed: () async {
+                final workerId =
+                    (worker['uid'] ?? worker['id']).toString().trim();
+                final workerName =
+                    (worker['name'] ?? 'Worker').toString().trim();
+                final myUid = FirebaseAuth.instance.currentUser?.uid;
+
+                if (workerId.isEmpty || myUid == null) return;
+
+                try {
+                  final chat = ChatService();
+                  final threadId = await chat.createOrGetThread(
+                    otherUid: workerId,
+                    otherName: workerName,
+                    otherRole: 'worker',
+                    myRole: 'customer',
+                    myName: widget.customerName,
+                  );
+
+                  if (!context.mounted) return;
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CustomerChatConversationScreen(
+                        threadId: threadId,
+                        otherUid: workerId,
+                        otherName: workerName,
+                      ),
                     ),
-                  ),
-                );
+                  );
+                } catch (_) {}
               },
               icon: const Icon(
                 Icons.chat_bubble_outline,

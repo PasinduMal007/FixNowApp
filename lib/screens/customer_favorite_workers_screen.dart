@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
+import 'customer_request_quote_screen.dart';
 import 'customer_worker_profile_detail_screen.dart';
 
 class CustomerFavoriteWorkersScreen extends StatefulWidget {
@@ -9,46 +13,63 @@ class CustomerFavoriteWorkersScreen extends StatefulWidget {
 }
 
 class _CustomerFavoriteWorkersScreenState extends State<CustomerFavoriteWorkersScreen> {
-  final List<Map<String, dynamic>> _favoriteWorkers = [
-    {
-      'id': 1,
-      'name': 'Kasun Perera',
-      'type': 'Expert Electrician',
-      'rating': 4.9,
-      'reviews': 450,
-      'hourlyRate': 2500,
-      'lastService': 'Dec 15, 2024',
-      'experience': 8,
-      'description': 'Specialized in residential and commercial wiring',
-      'isAvailable': true,
-    },
-    {
-      'id': 2,
-      'name': 'Nimal Silva',
-      'type': 'Master Plumber',
-      'rating': 4.7,
-      'reviews': 320,
-      'hourlyRate': 2200,
-      'lastService': 'Nov 28, 2024',
-      'experience': 6,
-      'description': 'Expert in plumbing installations',
-      'isAvailable': true,
-    },
-    {
-      'id': 3,
-      'name': 'Saman Fernando',
-      'type': 'Professional Carpenter',
-      'rating': 4.8,
-      'reviews': 280,
-      'hourlyRate': 2000,
-      'lastService': 'Oct 10, 2024',
-      'experience': 5,
-      'description': 'Quality carpentry work',
-      'isAvailable': false,
-    },
-  ];
+  final _auth = FirebaseAuth.instance;
+  final _db = DB.instance;
 
   String _selectedFilter = 'All';
+
+  String? get _uid => _auth.currentUser?.uid;
+
+  Stream<DatabaseEvent> _favoritesStream() {
+    final uid = _uid;
+    if (uid == null) return const Stream<DatabaseEvent>.empty();
+    return _db.ref('users/customers/$uid').onValue;
+  }
+
+  List<String> _extractFavoriteIds(dynamic userValue) {
+    if (userValue is! Map) return [];
+    final data = Map<String, dynamic>.from(userValue as Map);
+    final favRaw =
+        (data['favoriteWorkers'] ?? data['favorites'] ?? data['favourites']);
+    if (favRaw is! Map) return [];
+    final favMap = Map<String, dynamic>.from(favRaw as Map);
+    return favMap.entries
+        .where((e) => e.value != null)
+        .map((e) => e.key.toString())
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchWorkers(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    final futures = ids.map((id) async {
+      final snap = await _db.ref('workersPublic/$id').get();
+      if (!snap.exists || snap.value is! Map) return null;
+      final m = Map<String, dynamic>.from(snap.value as Map);
+      return {
+        'uid': id,
+        'name': (m['fullName'] ?? 'Worker').toString(),
+        'type': (m['profession'] ?? 'Service').toString(),
+        'rating': (m['rating'] is num) ? m['rating'] : 0,
+        'reviews': (m['reviews'] is num) ? m['reviews'] : 0,
+        'experience': (m['experience'] ?? '').toString(),
+        'aboutMe': (m['aboutMe'] ?? '').toString(),
+        'photoUrl': m['photoUrl']?.toString(),
+        'isAvailable': m['isAvailable'] == true,
+      };
+    }).toList();
+
+    final results = await Future.wait(futures);
+    return results.whereType<Map<String, dynamic>>().toList();
+  }
+
+  List<Map<String, dynamic>> _applyFilter(List<Map<String, dynamic>> workers) {
+    if (_selectedFilter == 'All') return workers;
+    final needle = _selectedFilter.toLowerCase();
+    return workers.where((w) {
+      final type = (w['type'] ?? '').toString().toLowerCase();
+      return type.contains(needle);
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,12 +119,20 @@ class _CustomerFavoriteWorkersScreenState extends State<CustomerFavoriteWorkersS
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      '${_favoriteWorkers.length} saved professionals',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
-                      ),
+                    StreamBuilder<DatabaseEvent>(
+                      stream: _favoritesStream(),
+                      builder: (context, snap) {
+                        final ids = _extractFavoriteIds(
+                          snap.data?.snapshot.value,
+                        );
+                        return Text(
+                          '${ids.length} saved professionals',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.white70,
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     // Filter Chips
@@ -135,15 +164,53 @@ class _CustomerFavoriteWorkersScreenState extends State<CustomerFavoriteWorkersS
                       topRight: Radius.circular(24),
                     ),
                   ),
-                  child: _favoriteWorkers.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(20),
-                          itemCount: _favoriteWorkers.length,
-                          itemBuilder: (context, index) {
-                            return _buildWorkerCard(_favoriteWorkers[index]);
-                          },
-                        ),
+                  child: StreamBuilder<DatabaseEvent>(
+                    stream: _favoritesStream(),
+                    builder: (context, snap) {
+                      if (_uid == null) {
+                        return const Center(child: Text('Please sign in'));
+                      }
+
+                      if (snap.hasError) {
+                        return Center(
+                          child: Text(
+                            'Failed to load favorites: ${snap.error}',
+                          ),
+                        );
+                      }
+
+                      final ids = _extractFavoriteIds(
+                        snap.data?.snapshot.value,
+                      );
+
+                      if (ids.isEmpty) {
+                        return _buildEmptyState();
+                      }
+
+                      return FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _fetchWorkers(ids),
+                        builder: (context, workersSnap) {
+                          if (!workersSnap.hasData) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          final workers =
+                              _applyFilter(workersSnap.data ?? []);
+                          if (workers.isEmpty) return _buildEmptyState();
+
+                          return ListView.builder(
+                            padding: const EdgeInsets.all(20),
+                            itemCount: workers.length,
+                            itemBuilder: (context, index) {
+                              return _buildWorkerCard(workers[index]);
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
               ),
             ],
@@ -237,8 +304,24 @@ class _CustomerFavoriteWorkersScreenState extends State<CustomerFavoriteWorkersS
                           IconButton(
                             icon: const Icon(Icons.favorite, color: Color(0xFFEF4444)),
                             iconSize: 20,
-                            onPressed: () {
-                              setState(() => _favoriteWorkers.remove(worker));
+                            onPressed: () async {
+                              final uid = _uid;
+                              if (uid == null) return;
+                              final workerId =
+                                  (worker['uid'] ?? worker['id']).toString();
+                              await _db
+                                  .ref(
+                                    'users/customers/$uid/favoriteWorkers/$workerId',
+                                  )
+                                  .remove();
+                              await _db
+                                  .ref('users/customers/$uid/favorites/$workerId')
+                                  .remove();
+                              await _db
+                                  .ref(
+                                    'users/customers/$uid/favourites/$workerId',
+                                  )
+                                  .remove();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Removed from favorites')),
                               );
@@ -247,7 +330,7 @@ class _CustomerFavoriteWorkersScreenState extends State<CustomerFavoriteWorkersS
                         ],
                       ),
                       Text(
-                        worker['type'],
+                        (worker['type'] ?? 'Service').toString(),
                         style: const TextStyle(
                           fontSize: 13,
                           color: Color(0xFF9CA3AF),
@@ -259,14 +342,14 @@ class _CustomerFavoriteWorkersScreenState extends State<CustomerFavoriteWorkersS
                           const Icon(Icons.star, size: 14, color: Color(0xFFFBBF24)),
                           const SizedBox(width: 4),
                           Text(
-                            '${worker['rating']} (${worker['reviews']})',
+                            '${worker['rating'] ?? 0} (${worker['reviews'] ?? 0})',
                             style: const TextStyle(
                               fontSize: 12,
                               color: Color(0xFF6B7280),
                             ),
                           ),
                           const SizedBox(width: 12),
-                          if (worker['isAvailable'])
+                          if (worker['isAvailable'] == true)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
@@ -290,25 +373,32 @@ class _CustomerFavoriteWorkersScreenState extends State<CustomerFavoriteWorkersS
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.history, size: 14, color: Color(0xFF9CA3AF)),
-                const SizedBox(width: 6),
-                Text(
-                  'Last service: ${worker['lastService']}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF9CA3AF),
+            if ((worker['aboutMe'] ?? '').toString().isNotEmpty)
+              Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 14, color: Color(0xFF9CA3AF)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      (worker['aboutMe'] ?? '').toString(),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF9CA3AF),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    'LKR ${worker['hourlyRate']}/hr',
+                    worker['experience'] != null &&
+                            worker['experience'].toString().isNotEmpty
+                        ? 'Experience: ${worker['experience']}'
+                        : 'Rate: negotiable',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -318,8 +408,14 @@ class _CustomerFavoriteWorkersScreenState extends State<CustomerFavoriteWorkersS
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Opening quick booking...')),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CustomerRequestQuoteScreen(
+                          worker: worker,
+                          categoryName: (worker['type'] ?? 'Service').toString(),
+                        ),
+                      ),
                     );
                   },
                   style: ElevatedButton.styleFrom(

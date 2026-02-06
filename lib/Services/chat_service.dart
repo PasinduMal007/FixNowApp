@@ -51,6 +51,13 @@ class ChatService {
   DatabaseReference get _userThreadsRef => _db.ref('userThreads');
   DatabaseReference get _threadUnreadRef => _db.ref('threadUnread');
 
+  bool _isTrue(dynamic v) {
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    if (v is String) return v.toLowerCase() == 'true' || v == '1';
+    return false;
+  }
+
   /// Used by your screens for connection indicator
   DatabaseReference connectedRef() => _db.ref('.info/connected');
 
@@ -132,25 +139,27 @@ class ChatService {
             ? Map<String, dynamic>.from(tmap['participants'] as Map)
             : <String, dynamic>{};
 
-        if (parts[me] != true) {
+        if (!_isTrue(parts[me])) {
           throw Exception('Not a participant of this thread');
         }
 
         // Ensure both users have list/unread nodes
         await _userThreadsRef.child(me).child(threadId).set(true);
-        await _userThreadsRef.child(other).child(threadId).set(true);
+        try {
+          await _userThreadsRef.child(other).child(threadId).set(true);
+        } catch (_) {}
 
         final myUnread = await _threadUnreadRef.child(me).child(threadId).get();
         if (!myUnread.exists) {
           await _threadUnreadRef.child(me).child(threadId).set(0);
         }
-        final otherUnread = await _threadUnreadRef
-            .child(other)
-            .child(threadId)
-            .get();
-        if (!otherUnread.exists) {
-          await _threadUnreadRef.child(other).child(threadId).set(0);
-        }
+        try {
+          final otherUnread =
+              await _threadUnreadRef.child(other).child(threadId).get();
+          if (!otherUnread.exists) {
+            await _threadUnreadRef.child(other).child(threadId).set(0);
+          }
+        } catch (_) {}
 
         return threadId;
       }
@@ -171,10 +180,14 @@ class ChatService {
     await threadRef.set(buildThreadPayload());
 
     await _userThreadsRef.child(me).child(threadId).set(true);
-    await _userThreadsRef.child(other).child(threadId).set(true);
+    try {
+      await _userThreadsRef.child(other).child(threadId).set(true);
+    } catch (_) {}
 
     await _threadUnreadRef.child(me).child(threadId).set(0);
-    await _threadUnreadRef.child(other).child(threadId).set(0);
+    try {
+      await _threadUnreadRef.child(other).child(threadId).set(0);
+    } catch (_) {}
 
     return threadId;
   }
@@ -217,7 +230,7 @@ class ChatService {
     final parts = (tmap['participants'] is Map)
         ? Map<String, dynamic>.from(tmap['participants'] as Map)
         : <String, dynamic>{};
-    if (parts[me] != true || parts[other] != true) {
+    if (!_isTrue(parts[me]) || !_isTrue(parts[other])) {
       throw Exception('Invalid participants for this thread');
     }
 

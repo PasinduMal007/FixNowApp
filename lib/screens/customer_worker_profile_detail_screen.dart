@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
+import 'package:fix_now_app/Services/chat_service.dart';
 import 'customer_request_quote_screen.dart';
 import 'customer_chat_conversation_screen.dart';
 
@@ -16,6 +20,8 @@ class _CustomerWorkerProfileDetailScreenState
     extends State<CustomerWorkerProfileDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _auth = FirebaseAuth.instance;
+  final _db = DB.instance;
 
   final List<Map<String, dynamic>> _reviews = [
     {
@@ -40,6 +46,14 @@ class _CustomerWorkerProfileDetailScreenState
 
   @override
   Widget build(BuildContext context) {
+    final workerId = (widget.worker['uid'] ?? widget.worker['id'])
+        .toString()
+        .trim();
+    final uid = _auth.currentUser?.uid;
+    final favRef = (uid != null && workerId.isNotEmpty)
+        ? _db.ref('users/customers/$uid/favoriteWorkers/$workerId')
+        : null;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -73,14 +87,44 @@ class _CustomerWorkerProfileDetailScreenState
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.favorite_border,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () {},
-                    ),
+                    child: favRef == null
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.favorite_border,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please sign in'),
+                                ),
+                              );
+                            },
+                          )
+                        : StreamBuilder<DatabaseEvent>(
+                            stream: favRef.onValue,
+                            builder: (context, snap) {
+                              final isFav =
+                                  snap.data?.snapshot.value != null;
+                              return IconButton(
+                                icon: Icon(
+                                  isFav
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                onPressed: () async {
+                                  if (isFav) {
+                                    await favRef.remove();
+                                  } else {
+                                    await favRef.set(true);
+                                  }
+                                },
+                              );
+                            },
+                          ),
                   ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
@@ -271,17 +315,37 @@ class _CustomerWorkerProfileDetailScreenState
                     ),
                     onPressed: () {
                       final workerId =
-                          widget.worker['uid'] ?? widget.worker['id'];
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CustomerChatConversationScreen(
-                            threadId: 'mock_$workerId',
-                            otherUid: workerId.toString(),
-                            otherName: widget.worker['name'] ?? 'Worker',
-                          ),
-                        ),
-                      );
+                          (widget.worker['uid'] ?? widget.worker['id'])
+                              .toString()
+                              .trim();
+                      final workerName =
+                          (widget.worker['name'] ?? 'Worker').toString().trim();
+                      final myUid = _auth.currentUser?.uid;
+                      if (workerId.isEmpty || myUid == null) return;
+
+                      final chat = ChatService();
+                      chat
+                          .createOrGetThread(
+                            otherUid: workerId,
+                            otherName: workerName,
+                            otherRole: 'worker',
+                            myRole: 'customer',
+                            myName: 'Customer',
+                          )
+                          .then((threadId) {
+                            if (!context.mounted) return;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    CustomerChatConversationScreen(
+                                      threadId: threadId,
+                                      otherUid: workerId,
+                                      otherName: workerName,
+                                    ),
+                              ),
+                            );
+                          });
                     },
                   ),
                 ),

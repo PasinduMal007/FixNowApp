@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'customer_worker_profile_detail_screen.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class CustomerServiceCategoryScreen extends StatefulWidget {
   final String categoryName;
@@ -23,6 +24,13 @@ class _CustomerServiceCategoryScreenState
     extends State<CustomerServiceCategoryScreen> {
   String _selectedFilter = 'All';
   String _selectedSort = 'Top Rated';
+  String _customerDistrict = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomerDistrict();
+  }
 
   Stream<DatabaseEvent> get _workersStream =>
       DB.ref().child('workersPublic').onValue;
@@ -45,6 +53,19 @@ class _CustomerServiceCategoryScreenState
     if (s == 'true' || s == '1' || s == 'yes') return true;
     if (s == 'false' || s == '0' || s == 'no') return false;
     return fallback;
+  }
+
+  Future<void> _loadCustomerDistrict() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final snap = await DB.instance.ref('users/customers/$uid/district').get();
+      final v = snap.value;
+      if (!mounted) return;
+      setState(() => _customerDistrict = (v ?? '').toString().trim());
+    } catch (_) {
+      // no-op
+    }
   }
 
   Widget _statusBadge(String text, Color bg, Color fg) {
@@ -87,6 +108,7 @@ class _CustomerServiceCategoryScreenState
       final isAvailable = _toBool(data['isAvailable'], fallback: false);
 
       final experience = (data['experience'] ?? '').toString().trim();
+      final district = (data['district'] ?? '').toString().trim();
 
       // You did not include status in workersPublic rules, so treat as optional display-only
       final status = (data['status'] ?? '').toString().trim();
@@ -106,6 +128,7 @@ class _CustomerServiceCategoryScreenState
 
         'experienceLabel': experience,
         'status': status,
+        'district': district,
       });
     }
 
@@ -135,8 +158,11 @@ class _CustomerServiceCategoryScreenState
         break;
 
       case 'Nearby':
-        // workersPublic rules do not include distance, so do not sort by it.
-        // You can later add distance to workersPublic safely, then implement sorting.
+        final target = _customerDistrict.toLowerCase();
+        out = out.where((w) {
+          final d = (w['district'] ?? '').toString().toLowerCase();
+          return target.isNotEmpty && d.isNotEmpty && d == target;
+        }).toList();
         break;
 
       case 'Available Now':

@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:fix_now_app/Services/db.dart';
 
 class CustomerRequestQuoteScreen extends StatefulWidget {
   final Map<String, dynamic> worker;
@@ -25,6 +27,7 @@ class _CustomerRequestQuoteScreenState
   final _needController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
+  List<Map<String, dynamic>> _savedAddresses = [];
 
   String _dateMode = 'Today'; // Today, Tomorrow, Custom
   DateTime _selectedDate = DateTime.now();
@@ -58,8 +61,36 @@ class _CustomerRequestQuoteScreenState
   @override
   void initState() {
     super.initState();
-    // Set default location from saved preferences or use placeholder
-    _locationController.text = '123 Galle Rd, Colombo 03';
+    _loadCustomerLocation();
+  }
+
+  Future<void> _loadCustomerLocation() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final snap =
+          await DB.instance.ref('users/customers/${user.uid}').get();
+      final raw = snap.value;
+      if (raw is Map) {
+        final map = Map<dynamic, dynamic>.from(raw);
+        final loc = (map['locationText'] ?? '').toString().trim();
+        if (loc.isNotEmpty) {
+          _locationController.text = loc;
+        }
+        // Cache addresses (if present) for quick picks
+        final addrs = map['addresses'];
+        if (addrs is Map) {
+          final m = Map<dynamic, dynamic>.from(addrs);
+          _savedAddresses = m.values
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+      }
+    } catch (_) {
+      // keep empty on failure
+    }
   }
 
   int get _remainingChars =>
@@ -184,9 +215,17 @@ class _CustomerRequestQuoteScreenState
               style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
             ),
             const SizedBox(height: 8),
-            _buildQuickLocationButton('123 Galle Rd, Colombo 03'),
-            _buildQuickLocationButton('456 Kandy Rd, Kandy'),
-            _buildQuickLocationButton('789 Main St, Galle'),
+            if (_savedAddresses.isEmpty)
+              const Text(
+                'No saved addresses yet.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+              )
+            else
+              ..._savedAddresses.map((a) {
+                final addr = (a['address'] ?? '').toString();
+                if (addr.trim().isEmpty) return const SizedBox.shrink();
+                return _buildQuickLocationButton(addr);
+              }).toList(),
           ],
         ),
         actions: [
