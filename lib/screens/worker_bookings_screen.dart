@@ -99,10 +99,14 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
 
       for (var b in allBookings) {
         final status = (b['status'] ?? 'pending').toString();
-        final startedAtVal = b['startedAt'];
-        final hasStartedAt = (startedAtVal is num) ? startedAtVal > 0 : false;
-
         if ([
+          'started',
+          'arrived',
+          'in_progress',
+          'invoice_sent',
+        ].contains(status)) {
+          inProgress.add(b);
+        } else if ([
           'completed',
           'cancelled',
           'quote_declined',
@@ -110,13 +114,6 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
           'refunded',
         ].contains(status)) {
           past.add(b);
-        } else if ([
-          'started',
-          'arrived',
-          'in_progress',
-          'invoice_sent',
-        ].contains(status) || hasStartedAt) {
-          inProgress.add(b);
         } else {
           upcoming.add(b);
         }
@@ -549,21 +546,28 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                   color: Color(0xFF9CA3AF),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  scheduledDate.isEmpty ? 'Date TBD' : scheduledDate,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
+                Expanded(
+                  child: Text(
+                    scheduledDate.isEmpty ? 'Date TBD' : scheduledDate,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF6B7280),
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 const Icon(Icons.schedule, size: 16, color: Color(0xFF9CA3AF)),
                 const SizedBox(width: 8),
-                Text(
-                  scheduledTime,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
+                Expanded(
+                  child: Text(
+                    scheduledTime,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF6B7280),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
                   ),
                 ),
               ],
@@ -572,55 +576,68 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
             const SizedBox(height: 12),
 
             // Date and Time
-            Row(
-              children: [
-                const Icon(
-                  Icons.calendar_today,
-                  size: 14,
-                  color: Color(0xFF9CA3AF),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Date',
-                  style: const TextStyle(
-                    fontSize: 12,
+            if (!isPast)
+              Row(
+                children: [
+                  const Icon(
+                    Icons.calendar_today,
+                    size: 14,
                     color: Color(0xFF9CA3AF),
                   ),
-                ),
-                const SizedBox(width: 24),
-                const Icon(
-                  Icons.access_time,
-                  size: 14,
-                  color: Color(0xFF9CA3AF),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Time',
-                  style: const TextStyle(
-                    fontSize: 12,
+                  const SizedBox(width: 6),
+                  Text(
+                    'Date',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF9CA3AF),
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  const Icon(
+                    Icons.access_time,
+                    size: 14,
                     color: Color(0xFF9CA3AF),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Time',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF9CA3AF),
+                    ),
+                  ),
+                ],
+              )
+            else
+              const Text(
+                'Date & Time',
+                style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+              ),
             const SizedBox(height: 4),
             Row(
               children: [
-                Text(
-                  (booking['date'] ?? '').toString(),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF1F2937),
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Text(
+                    (booking['date'] ?? '').toString(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF1F2937),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 40),
-                Text(
-                  (booking['time'] ?? '').toString(),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF1F2937),
-                    fontWeight: FontWeight.w500,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    (booking['time'] ?? '').toString(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF1F2937),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
                   ),
                 ),
               ],
@@ -692,11 +709,21 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
             ],
           ],
 
-          if (isPast) ...[
+          if (isUpcoming) ...[
             const SizedBox(height: 12),
-            const Text(
-              'Description',
-              style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+            Row(
+              children: const [
+                Icon(
+                  Icons.description_outlined,
+                  size: 14,
+                  color: Color(0xFF9CA3AF),
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'Description',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -708,6 +735,41 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                 fontSize: 14,
                 color: Color(0xFF1F2937),
                 fontWeight: FontWeight.w500,
+                height: 1.4,
+              ),
+              softWrap: true,
+            ),
+          ],
+
+          if (isPast) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Color(0xFFE5E7EB)),
+            const SizedBox(height: 12),
+            Row(
+              children: const [
+                Icon(
+                  Icons.description_outlined,
+                  size: 14,
+                  color: Color(0xFF9CA3AF),
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'Description',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              (booking['problemDescription'] ??
+                      booking['description'] ??
+                      'No description')
+                  .toString(),
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF1F2937),
+                fontWeight: FontWeight.w500,
+                height: 1.4,
               ),
               softWrap: true,
             ),
@@ -779,7 +841,6 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                   try {
                     await DB.ref().child('bookings/$bookingId').update({
                       'status': 'started',
-                      'startedAt': DateTime.now().millisecondsSinceEpoch,
                       'updatedAt': DateTime.now().millisecondsSinceEpoch,
                     });
                     if (!mounted) return;
@@ -791,8 +852,6 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                           .toList();
                       final moved = Map<String, dynamic>.from(booking);
                       moved['status'] = 'started';
-                      moved['startedAt'] =
-                          DateTime.now().millisecondsSinceEpoch;
                       _inProgressBookings = [moved, ..._inProgressBookings];
                     });
                   } catch (e) {
