@@ -78,8 +78,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       // Title
                       Text(
                         widget.role == 'worker'
-                            ? 'Worker Create Account'
-                            : 'Customer Create Account',
+                            ? 'Create Worker Account'
+                            : 'Create Customer Account',
                         style: const TextStyle(
                           fontSize: 28, // Slightly smaller to fit
                           fontWeight: FontWeight.bold,

@@ -59,6 +59,7 @@ class WorkerOnboardingService {
     String? locationText,
     String? experience,
     String? description,
+    String? district,
   }) async {
     final updates = <String, Object?>{
       "uid": _uid,
@@ -72,6 +73,7 @@ class WorkerOnboardingService {
     if (locationText != null) updates["locationText"] = locationText;
     if (experience != null) updates["experience"] = experience;
     if (description != null) updates["description"] = description;
+    if (district != null) updates["district"] = district;
 
     // Optional defaults for the UI if you want
     updates.putIfAbsent("rating", () => 0);
@@ -113,6 +115,7 @@ class WorkerOnboardingService {
     required String lastName,
     required String mobileNumber9Digits,
     required String dateOfBirthIso,
+    String? district,
   }) async {
     await ensureBaseProfile();
 
@@ -126,11 +129,12 @@ class WorkerOnboardingService {
       "fullName": fullName, // ✅ helpful for dashboards + queries
       "phoneNumber": mobileNumber9Digits,
       "dateOfBirth": dateOfBirthIso,
+      if (district != null) "district": district,
       "onboarding/step": 3,
       "onboarding/updatedAt": ServerValue.timestamp,
     });
 
-    await _syncPublicProfile(fullName: fullName);
+    await _syncPublicProfile(fullName: fullName, district: district);
   }
 
   Future<void> saveLocationText(String locationText) async {

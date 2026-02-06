@@ -1,5 +1,8 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/backend_auth_service.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fix_now_app/Services/db.dart';
 
 class CustomerLocationSetupScreen extends StatefulWidget {
   final Function(String location)? onNext;
@@ -15,6 +18,35 @@ class _CustomerLocationSetupScreenState
     extends State<CustomerLocationSetupScreen> {
   final _locationController = TextEditingController();
   bool _hasLocation = false;
+  String? _selectedDistrict;
+
+  static const List<String> _districts = [
+    'Ampara',
+    'Anuradhapura',
+    'Badulla',
+    'Batticaloa',
+    'Colombo',
+    'Galle',
+    'Gampaha',
+    'Hambantota',
+    'Jaffna',
+    'Kalutara',
+    'Kandy',
+    'Kegalle',
+    'Kilinochchi',
+    'Kurunegala',
+    'Mannar',
+    'Matale',
+    'Matara',
+    'Monaragala',
+    'Mullaitivu',
+    'Nuwara Eliya',
+    'Polonnaruwa',
+    'Puttalam',
+    'Ratnapura',
+    'Trincomalee',
+    'Vavuniya',
+  ];
 
   @override
   void dispose() {
@@ -32,7 +64,8 @@ class _CustomerLocationSetupScreenState
   }
 
   bool _canProceed() {
-    return _locationController.text.trim().isNotEmpty;
+    return _locationController.text.trim().isNotEmpty &&
+        (_selectedDistrict != null && _selectedDistrict!.trim().isNotEmpty);
   }
 
   Future<void> _handleComplete() async {
@@ -40,7 +73,47 @@ class _CustomerLocationSetupScreenState
     if (location.isEmpty) return;
 
     try {
-      await BackendAuthService().updateCustomerLocation(locationText: location);
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Not signed in');
+      }
+
+      final authSvc = BackendAuthService();
+      await authSvc.ensureCustomerProfile();
+
+      // Always write to RTDB directly (like worker profile screen flow)
+      final customerRef = DB.instance.ref('users/customers/${user.uid}');
+      final snap = await customerRef.get();
+
+      final current = snap.value is Map ? (snap.value as Map) : {};
+      final currentUid = (current['uid'] ?? '').toString();
+      final currentRole = (current['role'] ?? '').toString();
+      final currentCreatedAt = current['createdAt'];
+
+      final baseUpdates = <String, dynamic>{
+        'locationText': location,
+        // Ensure required fields exist for validation
+        'uid': currentUid.isNotEmpty ? currentUid : user.uid,
+        'role': currentRole.isNotEmpty ? currentRole : 'customer',
+        'createdAt':
+            currentCreatedAt is num ? currentCreatedAt : ServerValue.timestamp,
+      };
+
+      // Save location first so it doesn't get blocked by district rule issues
+      await customerRef.update(baseUpdates);
+
+      // Save district separately (only if selected)
+      if (_selectedDistrict != null) {
+        await customerRef.update({'district': _selectedDistrict});
+      }
+
+      // Best-effort backend sync (non-blocking)
+      try {
+        await authSvc.updateCustomerLocation(
+          locationText: location,
+          district: _selectedDistrict,
+        );
+      } catch (_) {}
 
       if (!mounted) return;
 
@@ -187,7 +260,7 @@ class _CustomerLocationSetupScreenState
                             controller: _locationController,
                             onChanged: (_) => setState(() {}),
                             decoration: InputDecoration(
-                              hintText: 'Enter your city or area',
+                              hintText: 'Enter your address',
                               prefixIcon: const Icon(
                                 Icons.location_on_outlined,
                                 size: 20,
@@ -248,6 +321,62 @@ class _CustomerLocationSetupScreenState
                     const Text(
                       'We\'ll show you nearby workers when you search for services',
                       style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // District dropdown
+                    const Text(
+                      'District',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _selectedDistrict,
+                      items: _districts
+                          .map(
+                            (d) => DropdownMenuItem<String>(
+                              value: d,
+                              child: Text(d),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() => _selectedDistrict = value);
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Select your district',
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 18,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                            width: 2,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E7EB),
+                            width: 2,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF5B8CFF),
+                            width: 2,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 32),
 

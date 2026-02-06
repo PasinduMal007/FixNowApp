@@ -15,6 +15,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late final ChatService _chat;
+  final Map<String, Future<Map<String, String>>> _workerPublicCache = {};
 
   @override
   void initState() {
@@ -27,6 +28,22 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<Map<String, String>> _getWorkerPublic(String workerId) {
+    final id = workerId.trim();
+    if (id.isEmpty) return Future.value(const {});
+    return _workerPublicCache.putIfAbsent(id, () async {
+      final snap = await DB.instance.ref('workersPublic/$id').get();
+      if (!snap.exists || snap.value is! Map) return const {};
+      final data = Map<String, dynamic>.from(snap.value as Map);
+      final name = (data['fullName'] ?? '').toString().trim();
+      final profession = (data['profession'] ?? '').toString().trim();
+      return {
+        if (name.isNotEmpty) 'fullName': name,
+        if (profession.isNotEmpty) 'profession': profession,
+      };
+    });
   }
 
   // Fetch bookings for the current customer
@@ -99,6 +116,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
                   'quote_accepted',
                   'confirmed',
                   'started',
+                  'payment_paid',
                 ].contains(s);
               }).toList();
 
@@ -236,6 +254,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
 
   Widget _buildBookingCard(Map<String, dynamic> booking) {
     final status = (booking['status'] ?? '').toString();
+    final workerId = (booking['workerId'] ?? '').toString();
 
     // Status Badge Logic
     Color badgeColor = Colors.grey;
@@ -248,6 +267,11 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
         badgeColor = const Color(0xFFD1FAE5);
         badgeText = const Color(0xFF059669);
         statusLabel = status == 'started' ? 'In Progress' : 'Confirmed';
+        break;
+      case 'payment_paid':
+        badgeColor = const Color(0xFFE0F2FE);
+        badgeText = const Color(0xFF0284C7);
+        statusLabel = 'Advance Paid';
         break;
       case 'invoice_sent':
         badgeColor = const Color(0xFFE0F2FE);
@@ -278,6 +302,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
       'invoice_sent',
       'quote_accepted',
       'started',
+      'payment_paid',
     ].contains(status);
 
     return Container(
@@ -360,49 +385,67 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
           const SizedBox(height: 16),
 
           // Worker Info
-          if (booking['workerName'] != null) ...[
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+          if (workerId.isNotEmpty) ...[
+            FutureBuilder<Map<String, String>>(
+              future: _getWorkerPublic(workerId),
+              builder: (context, snap) {
+                final cached = snap.data ?? const {};
+                final name =
+                    (booking['workerName'] ?? cached['fullName'] ?? 'Provider')
+                        .toString()
+                        .trim();
+                final profession =
+                    (booking['workerProfession'] ??
+                            booking['profession'] ??
+                            booking['workerType'] ??
+                            cached['profession'] ??
+                            'Professional')
+                        .toString();
+
+                return Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFE8F0FF), Color(0xFFD0E2FF)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.person,
+                        color: Color(0xFF4A7FFF),
+                        size: 24,
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.person,
-                    color: Color(0xFF4A7FFF),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        (booking['workerName'] ?? 'Pro').toString(),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1F2937),
-                        ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name.isEmpty ? 'Provider' : name,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            profession,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Professional',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF9CA3AF),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 16),
           ],

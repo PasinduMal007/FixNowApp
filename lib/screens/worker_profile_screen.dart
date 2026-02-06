@@ -17,6 +17,35 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
   final _lastNameController = TextEditingController();
   final _mobileController = TextEditingController();
   DateTime? _selectedDate;
+  String? _selectedDistrict;
+
+  static const List<String> _districts = [
+    'Ampara',
+    'Anuradhapura',
+    'Badulla',
+    'Batticaloa',
+    'Colombo',
+    'Galle',
+    'Gampaha',
+    'Hambantota',
+    'Jaffna',
+    'Kalutara',
+    'Kandy',
+    'Kegalle',
+    'Kilinochchi',
+    'Kurunegala',
+    'Mannar',
+    'Matale',
+    'Matara',
+    'Monaragala',
+    'Mullaitivu',
+    'Nuwara Eliya',
+    'Polonnaruwa',
+    'Puttalam',
+    'Ratnapura',
+    'Trincomalee',
+    'Vavuniya',
+  ];
 
   @override
   void dispose() {
@@ -99,6 +128,7 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
         lastName: lastName,
         mobileNumber9Digits: phone9,
         dateOfBirthIso: dobIso,
+        district: _selectedDistrict,
       );
 
       if (!mounted) return;
@@ -442,6 +472,61 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // District
+                      const Text(
+                        'District',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: _selectedDistrict,
+                        items: _districts
+                            .map(
+                              (d) => DropdownMenuItem<String>(
+                                value: d,
+                                child: Text(d),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() => _selectedDistrict = value);
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Select your district',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 18,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                              width: 2,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                              width: 2,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF5B8CFF),
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/services/db.dart';
 import 'customer_notifications_screen.dart';
@@ -51,6 +50,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
   late Stream<DatabaseEvent> _workersStream;
   late Stream<List<Map<String, dynamic>>> _activeServiceStream;
+  StreamSubscription<DatabaseEvent>? _districtSub;
+  String _customerDistrict = '';
 
   @override
   void initState() {
@@ -58,6 +59,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     _workersStream = DB.ref().child('workersPublic').onValue;
     _activeServiceStream = _createActiveServiceStream();
     _startRealTimeUpdates();
+    _listenCustomerDistrict();
   }
 
   Stream<List<Map<String, dynamic>>> _createActiveServiceStream() {
@@ -134,6 +136,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
 
       final isAvailableVal = data['isAvailable'];
       final isAvailable = isAvailableVal is bool ? isAvailableVal : false;
+      final district = (data['district'] ?? '').toString().trim();
 
       final rawLat = (data['lat'] is num)
           ? (data['lat'] as num).toDouble()
@@ -170,6 +173,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         'isAvailable': isAvailable,
         'photoUrl': (data['photoUrl'] ?? '').toString(),
         'locationText': (data['locationText'] ?? '').toString(),
+        'district': district,
         'lat': lat,
         'lng': lng,
       });
@@ -184,17 +188,26 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   int _arrivingMinutes = 15;
   double _distanceKm = 1.3;
 
-  // Google Maps variables
-  GoogleMapController? _mapController;
-  final LatLng _initialPosition = const LatLng(
-    6.9271,
-    79.8612,
-  ); // Colombo, Sri Lanka
-
   @override
   void dispose() {
     _updateTimer?.cancel();
+    _districtSub?.cancel();
     super.dispose();
+  }
+
+  void _listenCustomerDistrict() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    _districtSub?.cancel();
+    _districtSub = DB.ref()
+        .child('users/customers/$uid/district')
+        .onValue
+        .listen((event) {
+      final v = event.snapshot.value;
+      final next = (v ?? '').toString().trim();
+      if (!mounted) return;
+      setState(() => _customerDistrict = next);
+    });
   }
 
   void _startRealTimeUpdates() {
@@ -604,11 +617,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                 ),
                               );
                             } else if (_selectedFilter == 'Nearby') {
-                              filteredWorkers.sort(
-                                (a, b) => (a['distance'] as num).compareTo(
-                                  b['distance'] as num,
-                                ),
-                              );
+                              final target = _customerDistrict.toLowerCase();
+                              filteredWorkers = filteredWorkers.where((w) {
+                                final d = (w['district'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                                return target.isNotEmpty && d.isNotEmpty && d == target;
+                              }).toList();
                             } else if (_selectedFilter == 'Available Now') {
                               filteredWorkers = filteredWorkers
                                   .where((w) => w['isAvailable'] == true)
@@ -651,40 +666,39 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  Container(
-                                    margin: const EdgeInsets.symmetric(
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
                                       horizontal: 24,
                                     ),
-                                    height: 400,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(20),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(20),
-                                      child: GoogleMap(
-                                        initialCameraPosition: CameraPosition(
-                                          target: _initialPosition,
-                                          zoom: 13.5,
-                                        ),
-                                        markers: _createMarkersFromList(
-                                          filteredWorkers,
-                                        ),
-                                        onMapCreated:
-                                            (GoogleMapController controller) {
-                                              _mapController = controller;
+                                    child: filteredWorkers.isEmpty
+                                        ? Text(
+                                            _customerDistrict.isEmpty
+                                                ? 'Select your district to see nearby workers.'
+                                                : 'No workers found in your district.',
+                                            style: const TextStyle(
+                                              color: Color(0xFF6B7280),
+                                            ),
+                                          )
+                                        : GridView.builder(
+                                            shrinkWrap: true,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            gridDelegate:
+                                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                              crossAxisCount: 2,
+                                              crossAxisSpacing: 12,
+                                              mainAxisSpacing: 12,
+                                              childAspectRatio: 0.65,
+                                            ),
+                                            itemCount: filteredWorkers.length,
+                                            itemBuilder: (context, index) {
+                                              final worker =
+                                                  filteredWorkers[index];
+                                              return _buildWorkerGridCard(
+                                                worker,
+                                              );
                                             },
-                                        myLocationButtonEnabled: true,
-                                        myLocationEnabled: true,
-                                        zoomControlsEnabled: true,
-                                      ),
-                                    ),
+                                          ),
                                   ),
                                 ],
                               );
@@ -1147,44 +1161,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       ],
     );
   }
-
-  // Create markers for nearby workers
-  Set<Marker> _createMarkersFromList(List<Map<String, dynamic>> workers) {
-    final Set<Marker> markers = {};
-    for (var worker in workers) {
-      final lat = (worker['lat'] is num)
-          ? (worker['lat'] as num).toDouble()
-          : 6.9271;
-      final lng = (worker['lng'] is num)
-          ? (worker['lng'] as num).toDouble()
-          : 79.8612;
-
-      markers.add(
-        Marker(
-          markerId: MarkerId(
-            worker['uid']?.toString() ?? worker['name'].toString(),
-          ),
-          position: LatLng(lat, lng),
-          infoWindow: InfoWindow(
-            title: worker['name'].toString(),
-            snippet: '${worker['type']} ⭐ ${worker['rating']}',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      CustomerWorkerProfileDetailScreen(worker: worker),
-                ),
-              );
-            },
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        ),
-      );
-    }
-    return markers;
-  }
-
   Widget _buildTopRatedProCard(Map<String, dynamic> worker) {
     return GestureDetector(
       onTap: () {
@@ -1483,3 +1459,4 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 }
+

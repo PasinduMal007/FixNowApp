@@ -5,20 +5,19 @@ import express, {
   type Response,
 } from "express";
 import cors from "cors";
-import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
-import { onValueCreated } from "firebase-functions/v2/database";
+import {onRequest, onCall, HttpsError} from "firebase-functions/v2/https";
+import {onValueCreated} from "firebase-functions/v2/database";
 import crypto from "crypto";
 
 
 admin.initializeApp();
 
 
-
 const app = express();
 
-app.use(cors({ origin: true }));
+app.use(cors({origin: true}));
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({extended: false}));
 
 type AuthedRequest = Request & {
   uid?: string;
@@ -58,7 +57,7 @@ async function verifyFirebaseToken(
     if (!match) {
       res
         .status(401)
-        .json({ ok: false, message: "Missing Authorization Bearer token" });
+        .json({ok: false, message: "Missing Authorization Bearer token"});
       return;
     }
 
@@ -71,7 +70,7 @@ async function verifyFirebaseToken(
     next();
     return;
   } catch (_err) {
-    res.status(401).json({ ok: false, message: "Invalid or expired token" });
+    res.status(401).json({ok: false, message: "Invalid or expired token"});
     return;
   }
 }
@@ -87,7 +86,7 @@ async function getRoleAndProfile(uid: string): Promise<{
     const profile = (customerSnap.val() ?? {}) as Record<string, unknown>;
     const roleValue = profile["role"];
     const role = roleValue === "customer" ? "customer" : "customer";
-    return { role, profile };
+    return {role, profile};
   }
 
   const workerSnap = await db.ref(`users/workers/${uid}`).get();
@@ -95,7 +94,7 @@ async function getRoleAndProfile(uid: string): Promise<{
     const profile = (workerSnap.val() ?? {}) as Record<string, unknown>;
     const roleValue = profile["role"];
     const role = roleValue === "worker" ? "worker" : "worker";
-    return { role, profile };
+    return {role, profile};
   }
 
   const adminSnap = await db.ref(`users/admin/${uid}`).get();
@@ -103,10 +102,10 @@ async function getRoleAndProfile(uid: string): Promise<{
     const profile = (adminSnap.val() ?? {}) as Record<string, unknown>;
     const roleValue = profile["role"];
     const role = roleValue === "admin" ? "admin" : "admin";
-    return { role, profile };
+    return {role, profile};
   }
 
-  return { role: null, profile: null };
+  return {role: null, profile: null};
 }
 
 function nowIso(): string {
@@ -144,7 +143,7 @@ async function requireBooking(bookingId: string) {
   const snap = await db.ref(`bookings/${bookingId}`).get();
   if (!snap.exists()) throw new Error("Booking not found");
   const booking = (snap.val() ?? {}) as Record<string, any>;
-  return { db, booking };
+  return {db, booking};
 }
 
 function requireString(v: any, field: string): string {
@@ -166,7 +165,7 @@ app.post(
     try {
       const uid = req.uid;
       if (!uid) {
-        res.status(401).json({ ok: false, message: "Unauthenticated" });
+        res.status(401).json({ok: false, message: "Unauthenticated"});
         return;
       }
 
@@ -183,7 +182,7 @@ app.post(
       if (!result.role || !result.profile) {
         res
           .status(404)
-          .json({ ok: false, message: "No user profile found in database" });
+          .json({ok: false, message: "No user profile found in database"});
         return;
       }
 
@@ -202,7 +201,7 @@ app.post(
         profile: result.profile,
       });
     } catch (_e) {
-      res.status(500).json({ ok: false, message: "Server error" });
+      res.status(500).json({ok: false, message: "Server error"});
     }
   },
 );
@@ -213,7 +212,7 @@ app.post(
   async (req: AuthedRequest, res: Response) => {
     const uid = req.uid;
     if (!uid) {
-      res.status(401).json({ ok: false, message: "Unauthenticated" });
+      res.status(401).json({ok: false, message: "Unauthenticated"});
       return;
     }
 
@@ -232,19 +231,19 @@ app.post(
     if (fullName.length < 2 || fullName.length > 100) {
       res
         .status(400)
-        .json({ ok: false, message: "fullName must be 2 to 100 characters." });
+        .json({ok: false, message: "fullName must be 2 to 100 characters."});
       return;
     }
 
     if (email && !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
-      res.status(400).json({ ok: false, message: "Invalid email format." });
+      res.status(400).json({ok: false, message: "Invalid email format."});
       return;
     }
 
     if (phoneNumber && !/^[0-9]{9}$/.test(phoneNumber)) {
       res
         .status(400)
-        .json({ ok: false, message: "phoneNumber must be exactly 9 digits." });
+        .json({ok: false, message: "phoneNumber must be exactly 9 digits."});
       return;
     }
 
@@ -263,7 +262,7 @@ app.post(
       dob &&
       !/^(19|20)[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(dob)
     ) {
-      res.status(400).json({ ok: false, message: "dob must be YYYY-MM-DD." });
+      res.status(400).json({ok: false, message: "dob must be YYYY-MM-DD."});
       return;
     }
 
@@ -275,13 +274,13 @@ app.post(
     if (!snap.exists()) {
       res
         .status(404)
-        .json({ ok: false, message: "Customer profile not found." });
+        .json({ok: false, message: "Customer profile not found."});
       return;
     }
 
     const current = snap.val() as Record<string, unknown>;
     if (current.role !== "customer" || current.uid !== uid) {
-      res.status(403).json({ ok: false, message: "Not a customer profile." });
+      res.status(403).json({ok: false, message: "Not a customer profile."});
       return;
     }
 
@@ -297,7 +296,7 @@ app.post(
     await ref.update(updates);
 
     const updatedSnap = await ref.get();
-    res.json({ ok: true, profile: updatedSnap.val() });
+    res.json({ok: true, profile: updatedSnap.val()});
   },
 );
 
@@ -307,18 +306,55 @@ app.post(
   async (req: AuthedRequest, res: Response) => {
     const uid = req.uid;
     if (!uid) {
-      res.status(401).json({ ok: false, message: "Unauthenticated" });
+      res.status(401).json({ok: false, message: "Unauthenticated"});
       return;
     }
 
     const body = (req.body ?? {}) as Record<string, unknown>;
     const locationText =
       typeof body.locationText === "string" ? body.locationText.trim() : "";
+    const district =
+      typeof body.district === "string" ? body.district.trim() : "";
 
+    const allowedDistricts = new Set([
+      "Ampara",
+      "Anuradhapura",
+      "Badulla",
+      "Batticaloa",
+      "Colombo",
+      "Galle",
+      "Gampaha",
+      "Hambantota",
+      "Jaffna",
+      "Kalutara",
+      "Kandy",
+      "Kegalle",
+      "Kilinochchi",
+      "Kurunegala",
+      "Mannar",
+      "Matale",
+      "Matara",
+      "Monaragala",
+      "Mullaitivu",
+      "Nuwara Eliya",
+      "Polonnaruwa",
+      "Puttalam",
+      "Ratnapura",
+      "Trincomalee",
+      "Vavuniya",
+    ]);
     if (locationText.length < 2 || locationText.length > 120) {
       res.status(400).json({
         ok: false,
         message: "locationText must be 2 to 120 characters.",
+      });
+      return;
+    }
+
+    if (district && !allowedDistricts.has(district)) {
+      res.status(400).json({
+        ok: false,
+        message: "district must be a valid Sri Lanka district.",
       });
       return;
     }
@@ -330,19 +366,30 @@ app.post(
     if (!snap.exists()) {
       res
         .status(404)
-        .json({ ok: false, message: "Customer profile not found." });
+        .json({ok: false, message: "Customer profile not found."});
       return;
     }
 
     const current = snap.val() as Record<string, unknown>;
-    if (current.role !== "customer" || current.uid !== uid) {
-      res.status(403).json({ ok: false, message: "Not a customer profile." });
+    const currentRole = (current.role ?? "").toString();
+    const currentUid = (current.uid ?? "").toString();
+    if (currentRole && currentRole !== "customer") {
+      res.status(403).json({ok: false, message: "Not a customer profile."});
+      return;
+    }
+    if (currentUid && currentUid !== uid) {
+      res.status(403).json({ok: false, message: "Not a customer profile."});
       return;
     }
 
-    await ref.update({ locationText });
+    const updates: Record<string, unknown> = {locationText};
+    if (!currentUid) updates.uid = uid;
+    if (!currentRole) updates.role = "customer";
+    if (district) updates.district = district;
 
-    res.json({ ok: true, locationText });
+    await ref.update(updates);
+
+    res.json({ok: true, locationText, district: district || null});
   },
 );
 
@@ -352,7 +399,7 @@ app.post(
   async (req: AuthedRequest, res: Response) => {
     const uid = req.uid;
     if (!uid) {
-      res.status(401).json({ ok: false, message: "Unauthenticated" });
+      res.status(401).json({ok: false, message: "Unauthenticated"});
       return;
     }
 
@@ -373,19 +420,19 @@ app.post(
     if (fullName.length < 2 || fullName.length > 100) {
       res
         .status(400)
-        .json({ ok: false, message: "fullName must be 2 to 100 characters." });
+        .json({ok: false, message: "fullName must be 2 to 100 characters."});
       return;
     }
 
     if (email && !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
-      res.status(400).json({ ok: false, message: "Invalid email format." });
+      res.status(400).json({ok: false, message: "Invalid email format."});
       return;
     }
 
     if (phoneNumber && !/^[0-9]{9}$/.test(phoneNumber)) {
       res
         .status(400)
-        .json({ ok: false, message: "phoneNumber must be exactly 9 digits." });
+        .json({ok: false, message: "phoneNumber must be exactly 9 digits."});
       return;
     }
 
@@ -404,14 +451,14 @@ app.post(
     if (profession && (profession.length < 2 || profession.length > 80)) {
       res
         .status(400)
-        .json({ ok: false, message: "profession must be 2 to 80 characters." });
+        .json({ok: false, message: "profession must be 2 to 80 characters."});
       return;
     }
 
     if (aboutMe && aboutMe.length > 500) {
       res
         .status(400)
-        .json({ ok: false, message: "aboutMe must be <= 500 characters." });
+        .json({ok: false, message: "aboutMe must be <= 500 characters."});
       return;
     }
 
@@ -420,13 +467,13 @@ app.post(
 
     const snap = await ref.get();
     if (!snap.exists()) {
-      res.status(404).json({ ok: false, message: "Worker profile not found." });
+      res.status(404).json({ok: false, message: "Worker profile not found."});
       return;
     }
 
     const current = snap.val() as Record<string, unknown>;
     if (current.role !== "worker" || current.uid !== uid) {
-      res.status(403).json({ ok: false, message: "Not a worker profile." });
+      res.status(403).json({ok: false, message: "Not a worker profile."});
       return;
     }
 
@@ -444,7 +491,7 @@ app.post(
 
     const updatedSnap = await ref.get();
 
-    res.json({ ok: true, profile: updatedSnap.val() });
+    res.json({ok: true, profile: updatedSnap.val()});
   },
 );
 
@@ -555,7 +602,7 @@ app.post("/payhere/notify", async (req: Request, res: Response) => {
       if (keys.length > 0) {
         // pick latest by createdAt if possible
         intentKey = keys
-          .map((k) => ({ k, createdAt: Number(intents[k]?.createdAt ?? 0) }))
+          .map((k) => ({k, createdAt: Number(intents[k]?.createdAt ?? 0)}))
           .sort((a, b) => b.createdAt - a.createdAt)[0].k;
       }
     }
@@ -619,7 +666,7 @@ function payhereCheckoutHash(params: {
     amount: params.amount.trim(),
     currency: params.currency.trim(),
     secretHashMasked: secretHash, // Unmask for debug
-    fullPreHashString: preHash,   // Log exact string
+    fullPreHashString: preHash, // Log exact string
   });
 
   return md5(preHash);
@@ -632,13 +679,13 @@ app.post(
     try {
       const uid = req.uid;
       if (!uid) {
-        res.status(401).json({ ok: false, message: "Unauthenticated" });
+        res.status(401).json({ok: false, message: "Unauthenticated"});
         return;
       }
 
       const bookingId = String(req.body?.bookingId ?? "").trim();
       if (!bookingId) {
-        res.status(400).json({ ok: false, message: "bookingId is required" });
+        res.status(400).json({ok: false, message: "bookingId is required"});
         return;
       }
 
@@ -647,7 +694,7 @@ app.post(
       const snap = await bookingRef.get();
 
       if (!snap.exists()) {
-        res.status(404).json({ ok: false, message: "Booking not found" });
+        res.status(404).json({ok: false, message: "Booking not found"});
         return;
       }
 
@@ -655,7 +702,7 @@ app.post(
 
       // Only the booking customer can pay
       if (String(booking.customerId ?? "") !== uid) {
-        res.status(403).json({ ok: false, message: "Not your booking" });
+        res.status(403).json({ok: false, message: "Not your booking"});
         return;
       }
 
@@ -668,14 +715,14 @@ app.post(
       if (!Number.isFinite(subtotal) || subtotal <= 0) {
         res
           .status(400)
-          .json({ ok: false, message: "No valid invoice subtotal" });
+          .json({ok: false, message: "No valid invoice subtotal"});
         return;
       }
 
       // Prevent paying twice
       const status = String(booking.status ?? "");
       if (status === "payment_paid") {
-        res.status(400).json({ ok: false, message: "Already paid" });
+        res.status(400).json({ok: false, message: "Already paid"});
         return;
       }
 
@@ -698,14 +745,14 @@ app.post(
       if (!merchantId) {
         res
           .status(500)
-          .json({ ok: false, message: "Missing PAYHERE_MERCHANT_ID" });
+          .json({ok: false, message: "Missing PAYHERE_MERCHANT_ID"});
         return;
       }
 
       // Hardcoded secret for debugging
       const merchantSecret = "MTY5MzY2ODI3NDE0ODM0NjgzMjYzOTI4MDY0MjEwMjQ5NTEyMDQ0OQ==";
       if (!merchantSecret) {
-        res.status(500).json({ ok: false, message: "Secret missing" });
+        res.status(500).json({ok: false, message: "Secret missing"});
         return;
       }
 
@@ -795,15 +842,15 @@ app.post(
         hash,
       };
 
-      res.json({ ok: true, intentId, payherePayload });
+      res.json({ok: true, intentId, payherePayload});
     } catch (e: any) {
-      res.status(500).json({ ok: false, message: e?.message ?? "Failed" });
+      res.status(500).json({ok: false, message: e?.message ?? "Failed"});
     }
   },
 );
 
 export const createBookingRequest = onCall(
-  { region: "asia-southeast1" }, // keep region consistent with your other exports
+  {region: "asia-southeast1"}, // keep region consistent with your other exports
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Sign in required.");
@@ -903,7 +950,7 @@ export const createBookingRequest = onCall(
       updatedAt: now,
       quotationRequest: {
         requestedAt: now,
-        ...(requestNote ? { requestNote } : {}),
+        ...(requestNote ? {requestNote} : {}),
       },
     };
 
@@ -934,12 +981,12 @@ export const createBookingRequest = onCall(
 
     await db.ref().update(updates);
 
-    return { bookingId };
+    return {bookingId};
   },
 );
 
 export const attachBookingPhotos = onCall(
-  { region: "asia-southeast1" },
+  {region: "asia-southeast1"},
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Sign in required.");
@@ -1015,12 +1062,12 @@ export const attachBookingPhotos = onCall(
 
     await bookingRef.update(photosUpdate);
 
-    return { ok: true, count: cleaned.length };
+    return {ok: true, count: cleaned.length};
   },
 );
 
 export const saveInvoiceDraft = onCall(
-  { region: "asia-southeast1" },
+  {region: "asia-southeast1"},
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Sign in required.");
@@ -1077,12 +1124,12 @@ export const saveInvoiceDraft = onCall(
       updatedAt: now,
     });
 
-    return { ok: true, subtotal };
+    return {ok: true, subtotal};
   },
 );
 
 export const sendInvoice = onCall(
-  { region: "asia-southeast1" },
+  {region: "asia-southeast1"},
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Sign in required.");
@@ -1184,17 +1231,17 @@ export const sendInvoice = onCall(
 
     await db.ref().update(updates);
 
-    return { ok: true, subtotal: Math.round(subtotal), validUntil };
+    return {ok: true, subtotal: Math.round(subtotal), validUntil};
   },
 );
 
 export const api = onRequest(
-  { region: "asia-southeast1" },
+  {region: "asia-southeast1"},
   app,
 );
 
 export const onBookingCreateIndexUsers = onValueCreated(
-  { region: "asia-southeast1", ref: "/bookings/{bookingId}" },
+  {region: "asia-southeast1", ref: "/bookings/{bookingId}"},
   async (event) => {
     const bookingId = (event.params as { bookingId: string }).bookingId;
 
@@ -1240,9 +1287,9 @@ export const onBookingCreateIndexUsers = onValueCreated(
 );
 
 export const onChatMessageCreate = onValueCreated(
-  { region: "asia-southeast1", ref: "/chatMessages/{threadId}/{msgId}" },
+  {region: "asia-southeast1", ref: "/chatMessages/{threadId}/{msgId}"},
   async (event) => {
-    const { threadId } = event.params as { threadId: string; msgId: string };
+    const {threadId} = event.params as { threadId: string; msgId: string };
 
     const msg = event.data.val() as {
       senderId: string;
@@ -1311,11 +1358,11 @@ app.post(
   async (req: AuthedRequest, res: Response) => {
     try {
       const uid = req.uid!;
-      const { role } = await getRoleAndProfile(uid);
+      const {role} = await getRoleAndProfile(uid);
       if (role !== "customer") {
         res
           .status(403)
-          .json({ ok: false, message: "Only customers can request quotes" });
+          .json({ok: false, message: "Only customers can request quotes"});
         return;
       }
 
@@ -1372,11 +1419,11 @@ app.post(
         bookingId,
       });
 
-      res.json({ ok: true, bookingId });
+      res.json({ok: true, bookingId});
     } catch (e: any) {
       res
         .status(400)
-        .json({ ok: false, message: e?.message ?? "Failed to request quote" });
+        .json({ok: false, message: e?.message ?? "Failed to request quote"});
     }
   },
 );
@@ -1387,7 +1434,7 @@ app.post(
   async (req: AuthedRequest, res: Response) => {
     try {
       const uid = req.uid!;
-      const { role } = await getRoleAndProfile(uid);
+      const {role} = await getRoleAndProfile(uid);
       if (role !== "worker") {
         res.status(403).json({
           ok: false,
@@ -1404,7 +1451,7 @@ app.post(
         throw new Error("decision must be accepted or declined");
       }
 
-      const { db, booking } = await requireBooking(bookingId);
+      const {db, booking} = await requireBooking(bookingId);
 
       if (booking.workerId !== uid) throw new Error("Not your booking");
       if (booking.status !== "quote_requested") {
@@ -1417,7 +1464,7 @@ app.post(
         await db.ref(`bookings/${bookingId}`).update({
           status: "quote_declined_by_worker",
           updatedAt: now,
-          workerDecision: { decision: "declined", note, decidedAt: now },
+          workerDecision: {decision: "declined", note, decidedAt: now},
         });
 
         await createNotification({
@@ -1428,7 +1475,7 @@ app.post(
           bookingId,
         });
 
-        res.json({ ok: true });
+        res.json({ok: true});
         return;
       }
 
@@ -1436,7 +1483,7 @@ app.post(
       await db.ref(`bookings/${bookingId}`).update({
         status: "quote_accepted_by_worker",
         updatedAt: now,
-        workerDecision: { decision: "accepted", note, decidedAt: now },
+        workerDecision: {decision: "accepted", note, decidedAt: now},
       });
 
       await createNotification({
@@ -1447,7 +1494,7 @@ app.post(
         bookingId,
       });
 
-      res.json({ ok: true });
+      res.json({ok: true});
     } catch (e: any) {
       res.status(400).json({
         ok: false,
@@ -1463,11 +1510,11 @@ app.post(
   async (req: AuthedRequest, res: Response) => {
     try {
       const uid = req.uid!;
-      const { role, profile } = await getRoleAndProfile(uid);
+      const {role, profile} = await getRoleAndProfile(uid);
       if (role !== "worker") {
         res
           .status(403)
-          .json({ ok: false, message: "Only workers can send invoices" });
+          .json({ok: false, message: "Only workers can send invoices"});
         return;
       }
 
@@ -1486,7 +1533,7 @@ app.post(
       const validDays = Number(req.body.validDays ?? 3);
       const validUntil = Date.now() + validDays * 24 * 60 * 60 * 1000;
 
-      const { db, booking } = await requireBooking(bookingId);
+      const {db, booking} = await requireBooking(bookingId);
       if (booking.workerId !== uid) throw new Error("Not your booking");
       if (booking.status !== "quote_accepted_by_worker") {
         throw new Error(
@@ -1522,11 +1569,11 @@ app.post(
         bookingId,
       });
 
-      res.json({ ok: true, subtotal, validUntil });
+      res.json({ok: true, subtotal, validUntil});
     } catch (e: any) {
       res
         .status(400)
-        .json({ ok: false, message: e?.message ?? "Failed to send invoice" });
+        .json({ok: false, message: e?.message ?? "Failed to send invoice"});
     }
   },
 );
@@ -1537,7 +1584,7 @@ app.post(
   async (req: AuthedRequest, res: Response) => {
     try {
       const uid = req.uid!;
-      const { role } = await getRoleAndProfile(uid);
+      const {role} = await getRoleAndProfile(uid);
       if (role !== "customer") {
         res.status(403).json({
           ok: false,
@@ -1554,7 +1601,7 @@ app.post(
         throw new Error("decision must be accepted or declined");
       }
 
-      const { db, booking } = await requireBooking(bookingId);
+      const {db, booking} = await requireBooking(bookingId);
       if (booking.customerId !== uid) throw new Error("Not your booking");
       if (booking.status !== "invoice_sent") {
         throw new Error(
@@ -1584,7 +1631,7 @@ app.post(
           bookingId,
         });
 
-        res.json({ ok: true });
+        res.json({ok: true});
         return;
       }
 
@@ -1592,7 +1639,7 @@ app.post(
       await db.ref(`bookings/${bookingId}`).update({
         status: "quote_accepted",
         updatedAt: now,
-        quoteResponse: { customerDecision: "accepted", decidedAt: now },
+        quoteResponse: {customerDecision: "accepted", decidedAt: now},
       });
 
       // Matches report :contentReference[oaicite:7]{index=7}
@@ -1604,7 +1651,7 @@ app.post(
         bookingId,
       });
 
-      res.json({ ok: true });
+      res.json({ok: true});
     } catch (e: any) {
       res.status(400).json({
         ok: false,

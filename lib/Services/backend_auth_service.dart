@@ -101,7 +101,11 @@ class BackendAuthService {
     return profile;
   }
 
-  Future<void> updateCustomerLocation({required String locationText}) async {
+  Future<void> updateCustomerLocation({
+    required String locationText,
+    String? district,
+  }) async {
+    await ensureCustomerProfile();
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('Not signed in');
 
@@ -113,7 +117,10 @@ class BackendAuthService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'locationText': locationText.trim()}),
+      body: jsonEncode({
+        'locationText': locationText.trim(),
+        if (district != null) 'district': district.trim(),
+      }),
     );
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -183,9 +190,33 @@ class BackendAuthService {
     final uid = FirebaseAuth.instance.currentUser!.uid;
 
     await _db.child('users/customers/$uid').set({
+      'uid': uid,
+      'role': 'customer',
       'fullName': fullName,
       'email': email,
       'createdAt': ServerValue.timestamp,
     }); 
+  }
+
+  Future<void> ensureCustomerProfile({String? fullName}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    final ref = _db.child('users/customers/${user.uid}');
+    final snap = await ref.get();
+    if (snap.exists) return;
+
+    final name =
+        (fullName ?? user.displayName ?? '').toString().trim().isNotEmpty
+            ? (fullName ?? user.displayName!).toString().trim()
+            : 'Customer';
+
+    await ref.set({
+      'uid': user.uid,
+      'role': 'customer',
+      'fullName': name,
+      'email': user.email,
+      'createdAt': ServerValue.timestamp,
+    });
   }
 }
