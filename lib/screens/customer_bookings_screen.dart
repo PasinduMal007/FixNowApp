@@ -390,7 +390,6 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
               future: _getWorkerPublic(workerId),
               builder: (context, snap) {
                 final cached = snap.data ?? const {};
-<<<<<<< Updated upstream
                 final name =
                     (booking['workerName'] ?? cached['fullName'] ?? 'Provider')
                         .toString()
@@ -402,17 +401,6 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
                             cached['profession'] ??
                             'Professional')
                         .toString();
-=======
-                final name = (booking['workerName'] ?? cached['fullName'] ?? 'Provider')
-                    .toString()
-                    .trim();
-                final profession = (booking['workerProfession'] ??
-                        booking['profession'] ??
-                        booking['workerType'] ??
-                        cached['profession'] ??
-                        'Professional')
-                    .toString();
->>>>>>> Stashed changes
 
                 return Row(
                   children: [

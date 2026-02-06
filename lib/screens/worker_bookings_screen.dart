@@ -28,7 +28,12 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
   Stream<DatabaseEvent> get _workerBookingIdsStream {
     final uid = _workerId;
     if (uid.isEmpty) return const Stream.empty();
-    return DB.ref().child('bookings').orderByChild('workerId').equalTo(uid).onValue;
+    return DB
+        .ref()
+        .child('bookings')
+        .orderByChild('workerId')
+        .equalTo(uid)
+        .onValue;
   }
 
   @override
@@ -79,13 +84,14 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
     try {
       // Sort by newer first
       allBookings.sort((a, b) {
-        final aTs =
-            (a['createdAt'] is num) ? (a['createdAt'] as num).toInt() : 0;
-        final bTs =
-            (b['createdAt'] is num) ? (b['createdAt'] as num).toInt() : 0;
+        final aTs = (a['createdAt'] is num)
+            ? (a['createdAt'] as num).toInt()
+            : 0;
+        final bTs = (b['createdAt'] is num)
+            ? (b['createdAt'] as num).toInt()
+            : 0;
         return bTs.compareTo(aTs);
       });
-
       // Categorize
       final upcoming = <Map<String, dynamic>>[];
       final inProgress = <Map<String, dynamic>>[];
@@ -93,14 +99,10 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
 
       for (var b in allBookings) {
         final status = (b['status'] ?? 'pending').toString();
+        final startedAtVal = b['startedAt'];
+        final hasStartedAt = (startedAtVal is num) ? startedAtVal > 0 : false;
+
         if ([
-          'started',
-          'arrived',
-          'in_progress',
-          'invoice_sent',
-        ].contains(status)) {
-          inProgress.add(b);
-        } else if ([
           'completed',
           'cancelled',
           'quote_declined',
@@ -108,6 +110,13 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
           'refunded',
         ].contains(status)) {
           past.add(b);
+        } else if ([
+          'started',
+          'arrived',
+          'in_progress',
+          'invoice_sent',
+        ].contains(status) || hasStartedAt) {
+          inProgress.add(b);
         } else {
           upcoming.add(b);
         }
@@ -133,15 +142,13 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
       if (!snap.exists || snap.value == null) return null;
       final raw = snap.value;
       if (raw is! Map) return null;
-
       final map = Map<String, dynamic>.fromEntries(
         raw.entries.map((e) => MapEntry(e.key.toString(), e.value)),
       );
-
       // Add ID if missing
-      map['bookingId'] = bookingId; // Ensure ID is consistent
+      map['bookingId'] = bookingId;
+      // Ensure ID is consistent
       map['id'] = bookingId;
-
       // Extract timestamp (scheduledAt or createdAt)
       final tsVal = map['scheduledAt'] ?? map['createdAt'];
       int? timestamp;
@@ -169,10 +176,8 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
           'Nov',
           'Dec',
         ];
-
         // Only set if not already present
         map['date'] ??= '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-
         final hour = dt.hour > 12
             ? dt.hour - 12
             : (dt.hour == 0 ? 12 : dt.hour);
@@ -380,8 +385,8 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
               type == 'upcoming'
                   ? Icons.event_available
                   : type == 'inProgress'
-                  ? Icons.pending_actions
-                  : Icons.history,
+                      ? Icons.pending_actions
+                      : Icons.history,
               size: 64,
               color: const Color(0xFFD1D5DB),
             ),
@@ -390,8 +395,8 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
               type == 'upcoming'
                   ? 'No upcoming bookings'
                   : type == 'inProgress'
-                  ? 'No jobs in progress'
-                  : 'No past bookings',
+                      ? 'No jobs in progress'
+                      : 'No past bookings',
               style: const TextStyle(fontSize: 16, color: Color(0xFF9CA3AF)),
             ),
           ],
@@ -421,7 +426,10 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
     final scheduledTime = (booking['scheduledTime'] ?? booking['time'] ?? '')
         .toString()
         .trim();
-
+    final ratingVal = booking['rating'];
+    final rating = (ratingVal is num)
+        ? ratingVal.toInt()
+        : int.tryParse(ratingVal?.toString() ?? '') ?? 0;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -460,9 +468,9 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
               Expanded(
                 child: Text(
                   ((booking['customerName'] ??
-                                  booking['customer'] ??
-                                  booking['customerFullName'] ??
-                                  'Customer'))
+                          booking['customer'] ??
+                          booking['customerFullName'] ??
+                          'Customer'))
                       .toString(),
                   style: const TextStyle(
                     fontSize: 16,
@@ -619,68 +627,89 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
             ),
             const SizedBox(height: 12),
 
-            // Location
-            Row(
-              children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 14,
-                  color: Color(0xFFFF6B6B),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Location',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF9CA3AF),
+            if (!isPast) ...[
+              // Location
+              Row(
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 14,
+                    color: Color(0xFFFF6B6B),
                   ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Location',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF9CA3AF),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                (booking['location'] ?? '').toString(),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF1F2937),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (booking['address'] != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  (booking['address'] ?? '').toString(),
+                  style:
+                      const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
                 ),
               ],
+              const SizedBox(height: 12),
+
+              // Payment
+              Row(
+                children: [
+                  const Icon(
+                    Icons.attach_money,
+                    size: 14,
+                    color: Color(0xFF10B981),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Payment',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                  ),
+                  const Spacer(),
+                  Text(
+                    (booking['payment'] ?? '').toString(),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF10B981),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+
+          if (isPast) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Description',
+              style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
             ),
             const SizedBox(height: 4),
             Text(
-              (booking['location'] ?? '').toString(),
+              (booking['problemDescription'] ??
+                      booking['description'] ??
+                      'No description')
+                  .toString(),
               style: const TextStyle(
                 fontSize: 14,
                 color: Color(0xFF1F2937),
                 fontWeight: FontWeight.w500,
               ),
-            ),
-            if (booking['address'] != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                (booking['address'] ?? '').toString(),
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF9CA3AF),
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-
-            // Payment
-            Row(
-              children: [
-                const Icon(
-                  Icons.attach_money,
-                  size: 14,
-                  color: Color(0xFF10B981),
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Payment',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-                ),
-                const Spacer(),
-                Text(
-                  (booking['payment'] ?? '').toString(),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF10B981),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+              softWrap: true,
             ),
           ],
 
@@ -702,12 +731,12 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
           ],
 
           // Rating for past bookings
-          if (isPast && booking['rating'] > 0) ...[
+          if (isPast && rating > 0) ...[
             const SizedBox(height: 12),
             Row(
               children: List.generate(5, (index) {
                 return Icon(
-                  index < booking['rating'] ? Icons.star : Icons.star_border,
+                  index < rating ? Icons.star : Icons.star_border,
                   size: 18,
                   color: const Color(0xFFFBBF24),
                 );
@@ -738,39 +767,58 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
           const SizedBox(height: 16),
 
           // Action buttons
-          if (isPast)
+          if (isUpcoming && isAdvanceReceived) ...[
             SizedBox(
               width: double.infinity,
-              child: TextButton(
-                onPressed: () {},
-                style: TextButton.styleFrom(
+              child: ElevatedButton(
+                onPressed: () async {
+                  final bookingId =
+                      (booking['bookingId'] ?? booking['id'] ?? '').toString();
+                  if (bookingId.isEmpty) return;
+
+                  try {
+                    await DB.ref().child('bookings/$bookingId').update({
+                      'status': 'started',
+                      'startedAt': DateTime.now().millisecondsSinceEpoch,
+                      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                    });
+                    if (!mounted) return;
+                    setState(() {
+                      _upcomingBookings = _upcomingBookings
+                          .where((b) =>
+                              (b['bookingId'] ?? b['id']).toString() !=
+                              bookingId)
+                          .toList();
+                      final moved = Map<String, dynamic>.from(booking);
+                      moved['status'] = 'started';
+                      moved['startedAt'] =
+                          DateTime.now().millisecondsSinceEpoch;
+                      _inProgressBookings = [moved, ..._inProgressBookings];
+                    });
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('Failed: $e')));
+                  }
+                },
+                style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: const Color(0xFF4A7FFF),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Text(
-                      'View Details',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF4A7FFF),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(width: 4),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 18,
-                      color: Color(0xFF4A7FFF),
-                    ),
-                  ],
+                child: const Text(
+                  'Job Started',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            )
-          else
+            ),
+          ] else if (isInProgress) ...[
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -784,11 +832,21 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                       'status': 'completed',
                       'updatedAt': DateTime.now().millisecondsSinceEpoch,
                     });
+                    if (!mounted) return;
+                    setState(() {
+                      _inProgressBookings = _inProgressBookings
+                          .where((b) =>
+                              (b['bookingId'] ?? b['id']).toString() !=
+                              bookingId)
+                          .toList();
+                      final moved = Map<String, dynamic>.from(booking);
+                      moved['status'] = 'completed';
+                      _pastBookings = [moved, ..._pastBookings];
+                    });
                   } catch (e) {
                     if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed: $e')),
-                    );
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('Failed: $e')));
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -807,7 +865,8 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                   ),
                 ),
               ),
-            ),
+            )
+          ]
         ],
       ),
     );
