@@ -582,6 +582,16 @@ app.post("/payhere/notify", async (req: Request, res: Response) => {
     }
 
     const amountPaid = Number(payhereAmount) || 0;
+    const invoiceSubtotal = Number(booking.invoice?.subtotal ?? 0);
+    const totalAmount =
+      Number.isFinite(invoiceSubtotal) && invoiceSubtotal > 0 ?
+        invoiceSubtotal :
+        amountPaid;
+    const advanceAmount = amountPaid;
+    const advanceRate = 0.30;
+    const commissionRate = 0.10;
+    const commissionAmount = round2(advanceAmount * commissionRate);
+    const remainingAmount = round2(Math.max(totalAmount - advanceAmount, 0));
 
     // IMPORTANT: this shape matches your RTDB validation
     const paymentData = {
@@ -589,6 +599,12 @@ app.post("/payhere/notify", async (req: Request, res: Response) => {
       method: "payhere",
       paidAt: admin.database.ServerValue.TIMESTAMP,
       amountPaid,
+      advanceRate,
+      advanceAmount,
+      commissionRate,
+      commissionAmount,
+      totalAmount,
+      remainingAmount,
       gateway: "payhere",
       payherePaymentId: paymentId, // <-- required by your rule (optional field but you want it)
     };
@@ -615,6 +631,16 @@ app.post("/payhere/notify", async (req: Request, res: Response) => {
       [`bookings/${orderId}/status`]: "payment_paid",
       [`bookings/${orderId}/updatedAt`]: admin.database.ServerValue.TIMESTAMP,
       [`bookings/${orderId}/payment`]: paymentData,
+      [`bookings/${orderId}/paymentSummary`]: {
+        totalAmount,
+        advanceRate,
+        advanceAmount,
+        commissionRate,
+        commissionAmount,
+        remainingAmount,
+      },
+      [`bookings/${orderId}/advanceAmount`]: advanceAmount,
+      [`bookings/${orderId}/commissionAmount`]: commissionAmount,
     };
 
     if (payKey) {
@@ -641,6 +667,10 @@ app.post("/payhere/notify", async (req: Request, res: Response) => {
 function formatAmount(amount: number): string {
   // PayHere expects 2 decimals as a string: "1200.00"
   return Number(amount).toFixed(2);
+}
+
+function round2(amount: number): number {
+  return Math.round(amount * 100) / 100;
 }
 
 function payhereCheckoutHash(params: {
@@ -709,8 +739,12 @@ app.post(
       // Make sure invoice exists
       const invoice = (booking.invoice ?? {}) as Record<string, any>;
       const subtotal = Number(invoice.subtotal ?? 0);
-      const advance = Math.round(subtotal * 0.2 * 100) / 100; // 2dp safe
-      const amount = formatAmount(advance);
+      const advanceRate = 0.30;
+      const commissionRate = 0.10;
+      const advanceAmount = round2(subtotal * advanceRate);
+      const commissionAmount = round2(advanceAmount * commissionRate);
+      const remainingAmount = round2(subtotal - advanceAmount);
+      const amount = formatAmount(advanceAmount);
 
       if (!Number.isFinite(subtotal) || subtotal <= 0) {
         res
@@ -812,6 +846,16 @@ app.post(
           status: "started",
           createdAt: now,
         },
+        [`bookings/${bookingId}/paymentSummary`]: {
+          totalAmount: subtotal,
+          advanceRate,
+          advanceAmount,
+          commissionRate,
+          commissionAmount,
+          remainingAmount,
+        },
+        [`bookings/${bookingId}/advanceAmount`]: advanceAmount,
+        [`bookings/${bookingId}/commissionAmount`]: commissionAmount,
         [`bookings/${bookingId}/updatedAt`]: now,
       });
 

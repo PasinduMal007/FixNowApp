@@ -3,8 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
 import 'dart:async';
-import 'package:fix_now_app/Services/chat_service.dart';
-import 'worker_chat_conversation_screen.dart';
 
 class WorkerBookingsScreen extends StatefulWidget {
   const WorkerBookingsScreen({super.key});
@@ -30,7 +28,7 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
   Stream<DatabaseEvent> get _workerBookingIdsStream {
     final uid = _workerId;
     if (uid.isEmpty) return const Stream.empty();
-    return DB.ref().child('userBookings/workers/$uid').onValue;
+    return DB.ref().child('bookings').orderByChild('workerId').equalTo(uid).onValue;
   }
 
   @override
@@ -61,26 +59,30 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
       }
 
       if (data is Map) {
-        final ids = data.keys.map((k) => k.toString()).toList();
-        _loadBookings(ids);
+        final all = Map<dynamic, dynamic>.from(data);
+        final List<Map<String, dynamic>> list = [];
+
+        all.forEach((key, value) {
+          if (value is! Map) return;
+          final booking = Map<String, dynamic>.from(value);
+          booking['bookingId'] = key.toString();
+          booking['id'] = key.toString();
+          list.add(booking);
+        });
+
+        _applyBookings(list);
       }
     });
   }
 
-  Future<void> _loadBookings(List<String> ids) async {
+  void _applyBookings(List<Map<String, dynamic>> allBookings) {
     try {
-      final futures = ids.map(_fetchBooking).toList();
-      final results = await Future.wait(futures);
-      final allBookings = results.whereType<Map<String, dynamic>>().toList();
-
       // Sort by newer first
       allBookings.sort((a, b) {
-        final aTs = (a['createdAt'] is num)
-            ? (a['createdAt'] as num).toInt()
-            : 0;
-        final bTs = (b['createdAt'] is num)
-            ? (b['createdAt'] as num).toInt()
-            : 0;
+        final aTs =
+            (a['createdAt'] is num) ? (a['createdAt'] as num).toInt() : 0;
+        final bTs =
+            (b['createdAt'] is num) ? (b['createdAt'] as num).toInt() : 0;
         return bTs.compareTo(aTs);
       });
 
@@ -91,7 +93,6 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
 
       for (var b in allBookings) {
         final status = (b['status'] ?? 'pending').toString();
-        // Categorization logic
         if ([
           'started',
           'arrived',
@@ -108,7 +109,6 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
         ].contains(status)) {
           past.add(b);
         } else {
-          // 'pending', 'quote_requested', 'quote_received', 'quote_accepted', 'confirmed', 'scheduled' and fallback
           upcoming.add(b);
         }
       }
@@ -412,6 +412,15 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
   Widget _buildBookingCard(Map<String, dynamic> booking, String type) {
     final isInProgress = type == 'inProgress';
     final isPast = type == 'past';
+    final isUpcoming = type == 'upcoming';
+    final status = (booking['status'] ?? '').toString();
+    final isAdvanceReceived = status == 'payment_paid';
+    final scheduledDate = (booking['scheduledDate'] ?? booking['date'] ?? '')
+        .toString()
+        .trim();
+    final scheduledTime = (booking['scheduledTime'] ?? booking['time'] ?? '')
+        .toString()
+        .trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -449,26 +458,17 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      booking['customerName'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      booking['service'],
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  ((booking['customerName'] ??
+                                  booking['customer'] ??
+                                  booking['customerFullName'] ??
+                                  'Customer'))
+                      .toString(),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1F2937),
+                  ),
                 ),
               ),
               if (isInProgress)
@@ -486,6 +486,25 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              if (isUpcoming && isAdvanceReceived)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Advance Paid',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF0284C7),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -513,116 +532,157 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
           ),
           const SizedBox(height: 12),
 
-          // Description
-          Text(
-            booking['description'],
-            style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-          ),
-          const SizedBox(height: 12),
-
-          // Date and Time
-          Row(
-            children: [
-              const Icon(
-                Icons.calendar_today,
-                size: 14,
-                color: Color(0xFF9CA3AF),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Date',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-              ),
-              const SizedBox(width: 24),
-              const Icon(Icons.access_time, size: 14, color: Color(0xFF9CA3AF)),
-              const SizedBox(width: 6),
-              Text(
-                'Time',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Text(
-                booking['date'],
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF1F2937),
-                  fontWeight: FontWeight.w500,
+          if (scheduledDate.isNotEmpty || scheduledTime.isNotEmpty)
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today,
+                  size: 16,
+                  color: Color(0xFF9CA3AF),
                 ),
-              ),
-              const SizedBox(width: 40),
-              Text(
-                booking['time'],
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF1F2937),
-                  fontWeight: FontWeight.w500,
+                const SizedBox(width: 8),
+                Text(
+                  scheduledDate.isEmpty ? 'Date TBD' : scheduledDate,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Location
-          Row(
-            children: [
-              const Icon(
-                Icons.location_on_outlined,
-                size: 14,
-                color: Color(0xFFFF6B6B),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Location',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            booking['location'],
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF1F2937),
-              fontWeight: FontWeight.w500,
+                const SizedBox(width: 16),
+                const Icon(Icons.schedule, size: 16, color: Color(0xFF9CA3AF)),
+                const SizedBox(width: 8),
+                Text(
+                  scheduledTime,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
             ),
-          ),
-          if (booking['address'] != null) ...[
-            const SizedBox(height: 2),
+          if (!isUpcoming) ...[
+            const SizedBox(height: 12),
+
+            // Date and Time
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today,
+                  size: 14,
+                  color: Color(0xFF9CA3AF),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Date',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+                const SizedBox(width: 24),
+                const Icon(
+                  Icons.access_time,
+                  size: 14,
+                  color: Color(0xFF9CA3AF),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Time',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Text(
+                  (booking['date'] ?? '').toString(),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1F2937),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 40),
+                Text(
+                  (booking['time'] ?? '').toString(),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF1F2937),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Location
+            Row(
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 14,
+                  color: Color(0xFFFF6B6B),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Location',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             Text(
-              booking['address'],
-              style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
+              (booking['location'] ?? '').toString(),
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF1F2937),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (booking['address'] != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                (booking['address'] ?? '').toString(),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF9CA3AF),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+
+            // Payment
+            Row(
+              children: [
+                const Icon(
+                  Icons.attach_money,
+                  size: 14,
+                  color: Color(0xFF10B981),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  'Payment',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+                ),
+                const Spacer(),
+                Text(
+                  (booking['payment'] ?? '').toString(),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF10B981),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           ],
-          const SizedBox(height: 12),
-
-          // Payment
-          Row(
-            children: [
-              const Icon(
-                Icons.attach_money,
-                size: 14,
-                color: Color(0xFF10B981),
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                'Payment',
-                style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-              ),
-              const Spacer(),
-              Text(
-                booking['payment'],
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF10B981),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
 
           // Past booking extras
           if (isPast && booking['earned'] != null) ...[
@@ -711,108 +771,42 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
               ),
             )
           else
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final customerId = (booking['customerId'] ?? '')
-                          .toString()
-                          .trim();
-                      final customerName =
-                          (booking['customerName'] ?? 'Customer')
-                              .toString()
-                              .trim();
-                      final service =
-                          (booking['serviceName'] ??
-                                  booking['service'] ??
-                                  'Service')
-                              .toString()
-                              .trim();
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final bookingId =
+                      (booking['bookingId'] ?? booking['id'] ?? '').toString();
+                  if (bookingId.isEmpty) return;
 
-                      if (customerId.isEmpty) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Missing customerId for this booking',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-
-                      final me = FirebaseAuth.instance.currentUser;
-                      final myName = (me?.displayName ?? 'Worker').toString();
-
-                      final chat = ChatService();
-                      final threadId = await chat.createOrGetThread(
-                        otherUid: customerId,
-                        otherName: customerName,
-                        otherRole: 'customer',
-                        myRole: 'worker',
-                        myName: myName,
-                      );
-
-                      if (!mounted) return;
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => WorkerChatConversationScreen(
-                            threadId: threadId,
-                            otherUid: customerId,
-                            otherName: customerName,
-                            customerName: customerName,
-                            service: service,
-                          ),
-                        ),
-                      );
-                    },
-
-                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                    label: const Text('Chat'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      foregroundColor: const Color(0xFF4A7FFF),
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
+                  try {
+                    await DB.ref().child('bookings/$bookingId').update({
+                      'status': 'completed',
+                      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                    });
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed: $e')),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: const Color(0xFF10B981),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                if (isInProgress) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Job marked as complete!'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        backgroundColor: const Color(0xFF10B981),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text(
-                        'Complete',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                child: const Text(
+                  'Complete Job',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ],
+                ),
+              ),
             ),
         ],
       ),

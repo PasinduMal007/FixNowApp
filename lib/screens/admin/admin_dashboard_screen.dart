@@ -12,6 +12,29 @@ import '../../Services/mock_data_service.dart';
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
 
+  double _commissionForJob(Map<String, dynamic> job) {
+    final summary = job['paymentSummary'];
+    if (summary is Map && summary['commissionAmount'] is num) {
+      return (summary['commissionAmount'] as num).toDouble();
+    }
+
+    final advanceAmount = job['advanceAmount'];
+    if (advanceAmount is num) {
+      return (advanceAmount as num).toDouble() * 0.10;
+    }
+
+    final invoice = job['invoice'];
+    final subtotal = (invoice is Map && invoice['subtotal'] is num)
+        ? (invoice['subtotal'] as num).toDouble()
+        : 0.0;
+
+    final total = subtotal > 0
+        ? subtotal
+        : (double.tryParse(job['total'].toString()) ?? 0.0);
+
+    return total * 0.30 * 0.10;
+  }
+
   @override
   @override
   Widget build(BuildContext context) {
@@ -145,9 +168,7 @@ class AdminDashboardScreen extends StatelessWidget {
                             final job = Map<String, dynamic>.from(
                               jobVal as Map,
                             );
-                            final total =
-                                double.tryParse(job['total'].toString()) ?? 0;
-                            earning += (total * 0.10); // 10% commission
+                            earning += _commissionForJob(job);
                           }
                         } catch (_) {}
                       }
