@@ -19,6 +19,8 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
   Future<void> _startPayHereCheckout({
     required Map<String, dynamic> booking,
     required double advancePayment,
+    required double total,
+    required double remainingAmount,
   }) async {
     if (_paying) return;
     setState(() => _paying = true);
@@ -31,6 +33,23 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
         'payment_method': 'payhere_mock',
         'payment_id': 'mock_${DateTime.now().millisecondsSinceEpoch}',
         'paid_at': ServerValue.timestamp,
+        'advanceAmount': advancePayment,
+        'paymentSummary': {
+          'totalAmount': total,
+          'advanceRate': 0.30,
+          'advanceAmount': advancePayment,
+          'remainingAmount': remainingAmount,
+        },
+        'payment': {
+          'status': 'paid',
+          'method': 'payhere_mock',
+          'paidAt': ServerValue.timestamp,
+          'amountPaid': advancePayment,
+          'advanceRate': 0.30,
+          'advanceAmount': advancePayment,
+          'totalAmount': total,
+          'remainingAmount': remainingAmount,
+        },
       });
 
       if (!mounted) return;
@@ -93,7 +112,7 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
             ? (invoice!['subtotal'] as num).toDouble()
             : 0.0;
 
-        final advancePayment = (total * 0.20).roundToDouble();
+        final advancePayment = (total * 0.30).roundToDouble();
         final completionPayment = total.roundToDouble() - advancePayment;
 
         return _buildPaymentScaffold(
@@ -189,6 +208,12 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                           'LKR ${total.toStringAsFixed(0)}',
                           isBold: true,
                         ),
+                        const SizedBox(height: 12),
+                        _buildPriceRow(
+                          'Advance (30%):',
+                          'LKR ${advancePayment.toStringAsFixed(0)}',
+                          isSubdued: true,
+                        ),
                       ],
                     ),
                   ),
@@ -204,7 +229,7 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Pay Now (20% Advance)
+                  // Pay Now (30% Advance)
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -234,7 +259,7 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                             ),
                             const SizedBox(width: 8),
                             const Text(
-                              'Pay Now (20% Advance)',
+                              'Pay Now (30% Advance)',
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
@@ -398,6 +423,8 @@ class _CustomerPaymentScreenState extends State<CustomerPaymentScreen> {
                       ? () => _startPayHereCheckout(
                           booking: booking,
                           advancePayment: advancePayment,
+                          total: total,
+                          remainingAmount: completionPayment,
                         )
                       : null,
                   style: ElevatedButton.styleFrom(

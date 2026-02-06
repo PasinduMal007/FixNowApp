@@ -81,11 +81,10 @@ class _WorkerPaymentDetailsScreenState
   @override
   Widget build(BuildContext context) {
     // Calculate payment details dynamically
-    final advancePaid = widget.quotedAmount * 0.20; // 20%
+    final advancePaid = widget.quotedAmount * 0.30; // 30%
     final commissionRate = 0.10; // 10%
-    final commission = widget.quotedAmount * commissionRate;
-    final workerEarnings =
-        widget.quotedAmount - advancePaid - commission; // After deductions
+    final commission = advancePaid * commissionRate;
+    final workerEarnings = widget.quotedAmount - commission; // After commission
     final remainingFromCustomer = widget.quotedAmount - advancePaid;
 
     return Scaffold(
@@ -242,14 +241,13 @@ class _WorkerPaymentDetailsScreenState
                         const Divider(height: 1),
                         const SizedBox(height: 16),
                         _buildBreakdownRow(
-                          'Advanced pay (20%)',
+                          'Advance received (30%)',
                           advancePaid,
-                          isDeduction: true,
-                          color: const Color(0xFFEF4444),
+                          color: const Color(0xFF10B981),
                         ),
                         const SizedBox(height: 12),
                         _buildBreakdownRow(
-                          'Platform commission (10%)',
+                          'Platform commission (10% of advance)',
                           commission,
                           isDeduction: true,
                           color: const Color(0xFFEF4444),

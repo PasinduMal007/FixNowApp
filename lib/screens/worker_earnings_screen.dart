@@ -68,7 +68,7 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> {
       final completedJobs = allBookings.where((b) {
         final status = (b['status'] ?? '').toString();
         // Check for completed or invoice_sent statuses that imply earning
-        return ['completed', 'invoice_sent', 'paid'].contains(status);
+        return ['completed', 'payment_paid', 'paid'].contains(status);
       }).toList();
 
       // Sort by newer first
@@ -87,16 +87,38 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> {
       final earningsList = <Map<String, dynamic>>[];
 
       for (var b in completedJobs) {
-        // Extract amount from invoice if available
-        double amount = 0.0;
-        if (b['invoice'] is Map) {
-          final inv = b['invoice'] as Map;
-          amount = (inv['subtotal'] is num)
-              ? (inv['subtotal'] as num).toDouble()
-              : 0.0;
+        // Compute advance received minus commission (10% of advance)
+        double advanceAmount = 0.0;
+        double commissionAmount = 0.0;
+
+        if (b['paymentSummary'] is Map) {
+          final summary = b['paymentSummary'] as Map;
+          if (summary['advanceAmount'] is num) {
+            advanceAmount = (summary['advanceAmount'] as num).toDouble();
+          }
+          if (summary['commissionAmount'] is num) {
+            commissionAmount = (summary['commissionAmount'] as num).toDouble();
+          }
         }
 
-        total += amount;
+        if (advanceAmount == 0.0) {
+          if (b['advanceAmount'] is num) {
+            advanceAmount = (b['advanceAmount'] as num).toDouble();
+          } else if (b['invoice'] is Map) {
+            final inv = b['invoice'] as Map;
+            final subtotal = (inv['subtotal'] is num)
+                ? (inv['subtotal'] as num).toDouble()
+                : 0.0;
+            advanceAmount = subtotal * 0.30;
+          }
+        }
+
+        if (commissionAmount == 0.0) {
+          commissionAmount = advanceAmount * 0.10;
+        }
+
+        final receivedAmount = advanceAmount - commissionAmount;
+        total += receivedAmount;
 
         final customerName = (b['customerName'] ?? 'Customer').toString();
         final service = (b['serviceName'] ?? b['serviceType'] ?? 'Service')
@@ -112,7 +134,9 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> {
           'type': 'earning',
           'customerName': customerName,
           'service': service,
-          'amount': amount,
+          'amount': receivedAmount,
+          'advanceAmount': advanceAmount,
+          'commissionAmount': commissionAmount,
           'date': dateStr,
           'status': 'completed',
         });
@@ -236,7 +260,7 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> {
                   child: Column(
                     children: [
                       const Text(
-                        'Total Earnings',
+                        'Total Received',
                         style: TextStyle(
                           fontSize: 14,
                           color: Color(0xFF6B7280),
@@ -365,6 +389,14 @@ class _WorkerEarningsScreenState extends State<WorkerEarningsScreen> {
                   style: const TextStyle(
                     fontSize: 13,
                     color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Advance: LKR ${(transaction['advanceAmount'] as num).toStringAsFixed(0)} • Commission: LKR ${(transaction['commissionAmount'] as num).toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF9CA3AF),
                   ),
                 ),
                 const SizedBox(height: 4),

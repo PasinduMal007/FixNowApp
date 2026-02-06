@@ -9,7 +9,54 @@
                 "status",
                 "workerId",
                 "customerId"
-            ]
+            ],
+            "$bookingId": {
+                "paymentSummary": {
+                    ".read": "auth != null",
+                    ".write": "auth != null",
+                    "totalAmount": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "advanceRate": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "advanceAmount": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "commissionRate": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "commissionAmount": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "remainingAmount": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    }
+                },
+                "payment": {
+                    "amountPaid": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "advanceRate": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "advanceAmount": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "commissionRate": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "commissionAmount": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "totalAmount": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    },
+                    "remainingAmount": {
+                        ".validate": "!newData.exists() || newData.isNumber()"
+                    }
+                }
+            }
         },
         "users": {
             "$uid": {

@@ -17,6 +17,29 @@ class _AdminEarningsScreenState extends State<AdminEarningsScreen> {
     decimalDigits: 2,
   );
 
+  double _commissionForJob(Map<String, dynamic> job) {
+    final summary = job['paymentSummary'];
+    if (summary is Map && summary['commissionAmount'] is num) {
+      return (summary['commissionAmount'] as num).toDouble();
+    }
+
+    final advanceAmount = job['advanceAmount'];
+    if (advanceAmount is num) {
+      return (advanceAmount as num).toDouble() * 0.10;
+    }
+
+    final invoice = job['invoice'];
+    final subtotal = (invoice is Map && invoice['subtotal'] is num)
+        ? (invoice['subtotal'] as num).toDouble()
+        : 0.0;
+
+    final total = subtotal > 0
+        ? subtotal
+        : (double.tryParse(job['total'].toString()) ?? 0.0);
+
+    return total * 0.30 * 0.10;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -92,7 +115,7 @@ class _AdminEarningsScreenState extends State<AdminEarningsScreen> {
                     itemBuilder: (context, index) {
                       final job = jobs[index];
                       final total = double.parse(job['total'].toString());
-                      final commission = total * 0.10;
+                      final commission = _commissionForJob(job);
 
                       return Card(
                         elevation: 0,
@@ -168,7 +191,7 @@ class _AdminEarningsScreenState extends State<AdminEarningsScreen> {
           double totalCommission = 0;
           for (var job in jobs) {
             final total = double.tryParse(job['total'].toString()) ?? 0;
-            totalCommission += (total * 0.10); // 10% commission
+            totalCommission += _commissionForJob(job);
           }
 
           return Column(
@@ -204,7 +227,7 @@ class _AdminEarningsScreenState extends State<AdminEarningsScreen> {
                   itemBuilder: (context, index) {
                     final job = jobs[index];
                     final total = double.tryParse(job['total'].toString()) ?? 0;
-                    final commission = total * 0.10;
+                    final commission = _commissionForJob(job);
 
                     return Card(
                       elevation: 0,

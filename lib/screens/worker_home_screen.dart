@@ -31,7 +31,10 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   bool _availabilitySaving = false;
 
   static const Set<String> _newRequestStatuses = {'pending', 'quote_requested'};
-  static const Set<String> _activeStatuses = {'confirmed'};
+  static const Set<String> _activeStatuses = {
+    'confirmed',
+    'payment_paid',
+  };
 
   // Dashboard State
   double _dashboardEarnings = 0.0;
@@ -178,7 +181,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
         }
 
         // Calculate Today's Earnings & Jobs logic
-        if (['completed', 'invoice_sent', 'paid'].contains(status)) {
+        if (['completed', 'payment_paid', 'paid'].contains(status)) {
           // check if 'completedAt' or 'updatedAt' is today.
           // Falling back to 'createdAt' if others missing, but ideally we want completion time.
           // For now, let's use 'createdAt' or the timestamp field if we have one.
@@ -198,13 +201,37 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
           if (timestamp >= todayStart && timestamp <= todayEnd) {
             jobsToday++;
 
-            // Extract amount
-            if (b['invoice'] is Map) {
-              final inv = b['invoice'] as Map;
-              earnings += (inv['subtotal'] is num)
-                  ? (inv['subtotal'] as num).toDouble()
-                  : 0.0;
+            double advanceAmount = 0.0;
+            double commissionAmount = 0.0;
+
+            if (b['paymentSummary'] is Map) {
+              final summary = b['paymentSummary'] as Map;
+              if (summary['advanceAmount'] is num) {
+                advanceAmount = (summary['advanceAmount'] as num).toDouble();
+              }
+              if (summary['commissionAmount'] is num) {
+                commissionAmount =
+                    (summary['commissionAmount'] as num).toDouble();
+              }
             }
+
+            if (advanceAmount == 0.0) {
+              if (b['advanceAmount'] is num) {
+                advanceAmount = (b['advanceAmount'] as num).toDouble();
+              } else if (b['invoice'] is Map) {
+                final inv = b['invoice'] as Map;
+                final subtotal = (inv['subtotal'] is num)
+                    ? (inv['subtotal'] as num).toDouble()
+                    : 0.0;
+                advanceAmount = subtotal * 0.30;
+              }
+            }
+
+            if (commissionAmount == 0.0) {
+              commissionAmount = advanceAmount * 0.10;
+            }
+
+            earnings += (advanceAmount - commissionAmount);
           }
         }
       }
