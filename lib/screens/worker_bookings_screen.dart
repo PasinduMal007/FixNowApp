@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
@@ -701,20 +701,6 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
             ),
           ],
 
-          // Rating for past bookings
-          if (isPast && booking['rating'] > 0) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: List.generate(5, (index) {
-                return Icon(
-                  index < booking['rating'] ? Icons.star : Icons.star_border,
-                  size: 18,
-                  color: const Color(0xFFFBBF24),
-                );
-              }),
-            ),
-          ],
-
           // Review for past bookings
           if (isPast && booking['review'] != null) ...[
             const SizedBox(height: 8),
@@ -767,6 +753,85 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                       color: Color(0xFF4A7FFF),
                     ),
                   ],
+                ),
+              ),
+            )
+          else if (isUpcoming && isAdvanceReceived)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final bookingId =
+                      (booking['bookingId'] ?? booking['id'] ?? '').toString();
+                  if (bookingId.isEmpty) return;
+
+                  try {
+                    await DB.ref().child('bookings/$bookingId').update({
+                      'status': 'started',
+                      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                    });
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed: $e')),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: const Color(0xFF4A7FFF),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  'Job Started',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            )
+          else if (isInProgress)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final bookingId =
+                      (booking['bookingId'] ?? booking['id'] ?? '').toString();
+                  if (bookingId.isEmpty) return;
+
+                  try {
+                    await DB.ref().child('bookings/$bookingId').update({
+                      'status': 'completed',
+                      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                    });
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed: $e')),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: const Color(0xFF10B981),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  'Complete Job',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
                 ),
               ),
             )
