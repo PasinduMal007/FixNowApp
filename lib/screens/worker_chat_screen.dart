@@ -164,11 +164,10 @@ class _WorkerChatScreenState extends State<WorkerChatScreen> {
                             return bb.compareTo(aa);
                           });
 
-                          final unreadThreads = threads
-                              .where(
-                                (t) => ((t['unreadCount'] as int?) ?? 0) > 0,
-                              )
-                              .length;
+                          final unreadThreads = threads.fold<int>(0, (sum, t) {
+                            final c = (t['unreadCount'] as int?) ?? 0;
+                            return sum + c;
+                          });
 
                           return Column(
                             children: [

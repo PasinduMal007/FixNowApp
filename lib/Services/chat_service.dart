@@ -339,7 +339,13 @@ class ChatService {
   /// When opening a conversation, mark unread as 0 for current user
   Future<void> markThreadRead({required String threadId}) async {
     final me = _uid;
-    await _threadUnreadRef.child(me).child(threadId).set(0);
+    // Backward-compat: clear both locations if allowed by rules
+    try {
+      await _threadUnreadRef.child(me).child(threadId).set(0);
+    } catch (_) {}
+    try {
+      await _userThreadsRef.child(me).child(threadId).child('unreadCount').set(0);
+    } catch (_) {}
   }
 
   /// Stream of inbox items for the current user, already merged with unread counts.
@@ -417,8 +423,15 @@ class ChatService {
           .onValue
           .listen((ev) {
             final v = ev.snapshot.value;
+            if (v == null && unreadCache.containsKey(threadId)) {
+              emit();
+              return;
+            }
             final n = (v is int) ? v : int.tryParse('$v') ?? 0;
-            unreadCache[threadId] = n;
+            final current = unreadCache[threadId] ?? 0;
+            if (n >= current) {
+              unreadCache[threadId] = n;
+            }
             emit();
           });
     }
@@ -443,6 +456,17 @@ class ChatService {
               // Accept any non-null entry (some writers store booleans,
               // others store an object with lastMessage fields).
               if (e.value != null) ids.add(e.key);
+
+              // Merge unreadCount from userThreads (Cloud Function writes it)
+              if (e.value is Map) {
+                final vv = Map<String, dynamic>.from(e.value as Map);
+                final uc = vv['unreadCount'];
+                final n = (uc is int) ? uc : int.tryParse('$uc') ?? 0;
+                final current = unreadCache[e.key] ?? 0;
+                if (n > current) {
+                  unreadCache[e.key] = n;
+                }
+              }
             }
           }
 

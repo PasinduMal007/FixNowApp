@@ -23,6 +23,7 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
   bool _loadingName = true;
 
   StreamSubscription<DatabaseEvent>? _unreadSub;
+  StreamSubscription<DatabaseEvent>? _unreadFallbackSub;
   StreamSubscription<User?>? _authSub;
 
   List<Widget> get _screens => [
@@ -48,6 +49,7 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
   @override
   void dispose() {
     _unreadSub?.cancel();
+    _unreadFallbackSub?.cancel();
     _authSub?.cancel();
     super.dispose();
   }
@@ -71,9 +73,11 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
   void _listenUnreadBadge() {
     _authSub?.cancel();
     _unreadSub?.cancel();
+    _unreadFallbackSub?.cancel();
 
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
       _unreadSub?.cancel();
+      _unreadFallbackSub?.cancel();
 
       final uid = user?.uid;
       if (uid == null) {
@@ -83,6 +87,9 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
       }
 
       final ref = FirebaseDatabase.instance.ref('threadUnread/$uid');
+      final fallbackRef = FirebaseDatabase.instance.ref('userThreads/$uid');
+
+      int fallbackTotal = 0;
 
       _unreadSub = ref.onValue.listen(
         (event) {
@@ -106,7 +113,7 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
 
           if (!mounted) return;
           setState(() {
-            _unreadMessages = total;
+            _unreadMessages = total > 0 ? total : fallbackTotal;
           });
         },
         onError: (_) {
@@ -116,6 +123,32 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
           });
         },
       );
+
+      _unreadFallbackSub = fallbackRef.onValue.listen((event) {
+        final v = event.snapshot.value;
+        int total = 0;
+        if (v is Map) {
+          final m = Map<dynamic, dynamic>.from(v as Map);
+          for (final entry in m.entries) {
+            final val = entry.value;
+            if (val is Map && val['unreadCount'] != null) {
+              final uc = val['unreadCount'];
+              if (uc is int) {
+                total += uc;
+              } else if (uc is num) {
+                total += uc.toInt();
+              } else if (uc is String) {
+                total += int.tryParse(uc) ?? 0;
+              }
+            }
+          }
+        }
+        fallbackTotal = total;
+        if (!mounted) return;
+        setState(() {
+          if (_unreadMessages == 0) _unreadMessages = fallbackTotal;
+        });
+      });
     });
   }
 

@@ -97,15 +97,22 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
       final inProgress = <Map<String, dynamic>>[];
       final past = <Map<String, dynamic>>[];
 
+      final seenUpcoming = <String>{};
+      final seenInProgress = <String>{};
+      final seenPast = <String>{};
+
       for (var b in allBookings) {
         final status = (b['status'] ?? 'pending').toString();
+        final id = (b['bookingId'] ?? b['id'] ?? '').toString();
         if ([
           'started',
           'arrived',
           'in_progress',
           'invoice_sent',
         ].contains(status)) {
-          inProgress.add(b);
+          if (id.isEmpty || seenInProgress.add(id)) {
+            inProgress.add(b);
+          }
         } else if ([
           'completed',
           'cancelled',
@@ -113,9 +120,13 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
           'declined_by_worker',
           'refunded',
         ].contains(status)) {
-          past.add(b);
+          if (id.isEmpty || seenPast.add(id)) {
+            past.add(b);
+          }
         } else {
-          upcoming.add(b);
+          if (id.isEmpty || seenUpcoming.add(id)) {
+            upcoming.add(b);
+          }
         }
       }
 
@@ -682,30 +693,7 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
               ],
               const SizedBox(height: 12),
 
-              // Payment
-              Row(
-                children: [
-                  const Icon(
-                    Icons.attach_money,
-                    size: 14,
-                    color: Color(0xFF10B981),
-                  ),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Payment',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
-                  ),
-                  const Spacer(),
-                  Text(
-                    (booking['payment'] ?? '').toString(),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF10B981),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+              // Pricing removed
             ],
           ],
 
@@ -850,6 +838,11 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                               (b['bookingId'] ?? b['id']).toString() !=
                               bookingId)
                           .toList();
+                      _inProgressBookings = _inProgressBookings
+                          .where((b) =>
+                              (b['bookingId'] ?? b['id']).toString() !=
+                              bookingId)
+                          .toList();
                       final moved = Map<String, dynamic>.from(booking);
                       moved['status'] = 'started';
                       _inProgressBookings = [moved, ..._inProgressBookings];
@@ -894,6 +887,11 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                     if (!mounted) return;
                     setState(() {
                       _inProgressBookings = _inProgressBookings
+                          .where((b) =>
+                              (b['bookingId'] ?? b['id']).toString() !=
+                              bookingId)
+                          .toList();
+                      _pastBookings = _pastBookings
                           .where((b) =>
                               (b['bookingId'] ?? b['id']).toString() !=
                               bookingId)

@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fix_now_app/Services/db.dart';
-import 'package:fix_now_app/Services/chat_service.dart';
 import 'customer_request_quote_screen.dart';
-import 'customer_chat_conversation_screen.dart';
 
 class CustomerWorkerProfileDetailScreen extends StatefulWidget {
   final Map<String, dynamic> worker;
@@ -291,62 +289,6 @@ class _CustomerWorkerProfileDetailScreenState
                         color: Colors.white,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF10B981).withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.chat_bubble_outline,
-                      color: Colors.white,
-                    ),
-                    onPressed: () {
-                      final workerId =
-                          (widget.worker['uid'] ?? widget.worker['id'])
-                              .toString()
-                              .trim();
-                      final workerName =
-                          (widget.worker['name'] ?? 'Worker').toString().trim();
-                      final myUid = _auth.currentUser?.uid;
-                      if (workerId.isEmpty || myUid == null) return;
-
-                      final chat = ChatService();
-                      chat
-                          .createOrGetThread(
-                            otherUid: workerId,
-                            otherName: workerName,
-                            otherRole: 'worker',
-                            myRole: 'customer',
-                            myName: 'Customer',
-                          )
-                          .then((threadId) {
-                            if (!context.mounted) return;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    CustomerChatConversationScreen(
-                                      threadId: threadId,
-                                      otherUid: workerId,
-                                      otherName: workerName,
-                                    ),
-                              ),
-                            );
-                          });
-                    },
                   ),
                 ),
               ],
